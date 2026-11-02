@@ -57,6 +57,7 @@ Everything the owner has asked for, in order, with the result. This section is u
 | 19 | **Polish Settings** | The accent-filled *Do Not Disturb* banner is replaced by a soft tinted card (day: pale lavender, night: indigo) through a layout override in the Settings overlay; Settings gets tinted day/night backgrounds. Quick-settings tweaks still pending |
 | 20 | **Polish quick settings** (+ "the green strip on the status bar must be fixed") | Thin torch icon (stock animation kept: only the `light` path replaced), smaller tile text and spacing. The green strip was GravityBox's battery bar (full width while charging): switched off, battery stays as text. The day/night scheduler now restarts SystemUI on a real mode switch, because notification cards keep the colours they were inflated with |
 | 21 | **Messages** | Own Messages app: conversation list (avatars, unread badges), thread with glass/accent bubbles, composer, new message, `sms:`/`smsto:` intents; day/night aware; in the dock. **Deliberately not the default SMS app**: the stock app keeps receiving SMS/MMS and owning the provider (hidden from the grid, still installed). Sending uses `SmsManager` and could not be tested (no SIM) |
+| 22 | **Night dialogs** ("Diálogos de noche") | System dialogs (e.g. the permission prompt) were dark text on dark background at night. Cause: the Light text colours are file-based state lists that the zygote preloads *without* overlays. Fix: redefine them as plain colours in the framework overlay's `values-night/colors_text.xml`. Dialogs now read correctly. Contacts still cannot go dark (its list text is hard-coded in the layout), so it stays light at night |
 
 ## Status
 
@@ -91,7 +92,8 @@ Details and the full engineering diary: [`docs/engineering-notes.md`](docs/engin
 12. **Notification cards do not recolour when the system night mode changes** (they keep what they were inflated with); `daynight.sh` restarts SystemUI (`pkill -f com.android.systemui`) after a real switch. When starting the scheduler by hand use `setsid sh /data/local/ios/daynight.sh &`; `pkill -f daynight.sh` from inside `su -c '…daynight.sh…'` kills your own shell.
 13. **A layout overridden in an overlay must keep the target's view ids.** `@+id/...` in the overlay creates new ids, and the app's `findViewById` returns null (`NullPointerException` in `ConditionAdapterUtils.bindViews`; Settings crashed on open). Fix: pass `--stable-ids ids.txt` to aapt2 with the target's ids (`work/settings/ids.txt`; `build_overlay.sh` picks it up automatically).
 14. **Seeding test SMS**: `content insert` into `content://sms` is silently refused (only the default SMS app may write); insert with root `sqlite3` into `/data/user_de/0/com.android.providers.telephony/databases/mmssms.db` (set `thread_id` yourself) and compute timestamps in SQL (`strftime('%s','now')*1000`): shell arithmetic overflows 32 bits.
-15. Boot animation frames can be small and centred with a solid background colour (`p 1 0 part0 #14123A` in `desc.txt`) — much lighter than full-screen frames.
+15. **File-based colours (`res/color/*.xml` state lists) ignore overlays** because the zygote preloads them before overlays apply. Redefine them as *plain* `<color>` values in the overlay (the cache key then becomes the colour value). Used for the Light text colours in `work/frame/res/values-night/colors_text.xml`.
+16. Boot animation frames can be small and centred with a solid background colour (`p 1 0 part0 #14123A` in `desc.txt`) — much lighter than full-screen frames.
 
 ## Build and install
 

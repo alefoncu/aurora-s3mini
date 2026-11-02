@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- NIGHT: the Light text colours are file-based state lists, which the zygote preloads WITHOUT overlays.
+     Redefining them as plain colours bypasses that cache (the key becomes the colour value). -->
+<resources>
+    <color name="primary_text_light">#FFF2F1FF</color>
+    <color name="primary_text_material_light">#FFF2F1FF</color>
+    <color name="primary_text_holo_light">#FFF2F1FF</color>
+    <color name="primary_text_light_disable_only">#FFF2F1FF</color>
+    <color name="primary_text_light_nodisable">#FFF2F1FF</color>
+    <color name="primary_text_disable_only_holo_light">#FFF2F1FF</color>
+    <color name="primary_text_disable_only_material_light">#FFF2F1FF</color>
+    <color name="primary_text_nodisable_holo_light">#FFF2F1FF</color>
+    <color name="secondary_text_light">#FFA3A1C8</color>
+    <color name="secondary_text_material_light">#FFA3A1C8</color>
+    <color name="secondary_text_holo_light">#FFA3A1C8</color>
+    <color name="secondary_text_light_nodisable">#FFA3A1C8</color>
+    <color name="secondary_text_nodisable_holo_light">#FFA3A1C8</color>
+    <color name="tertiary_text_light">#FF8C8AB5</color>
+    <color name="tertiary_text_holo_light">#FF8C8AB5</color>
+    <color name="hint_foreground_material_light">#FF8C8AB5</color>
+    <color name="search_url_text_material_light">#FF8C8AB5</color>
+</resources>

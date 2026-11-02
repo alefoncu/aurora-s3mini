@@ -28,9 +28,16 @@ public class HomeActivity extends Activity {
     private static final java.util.Set<String> TOOLS = new java.util.HashSet<>(java.util.Arrays.asList(
         "com.topjohnwu.magisk", "de.robv.android.xposed.installer", "com.ceco.nougat.gravitybox"));
     /** Stock apps replaced by own ones: kept installed (the in-call UI needs them) but hidden from the grid. */
-    private static final java.util.Set<String> HIDDEN = new java.util.HashSet<>(java.util.Arrays.asList("com.android.dialer", "com.android.gallery3d", "com.android.messaging"));
+    private static final java.util.Set<String> HIDDEN = new java.util.HashSet<>(java.util.Arrays.asList("com.android.dialer", "com.android.gallery3d", "com.android.messaging", "com.android.contacts"));
+    private static final java.util.Map<String, String> OWN = new java.util.HashMap<>();
+    static {
+        OWN.put("com.android.dialer", "com.scratch.iosphone");
+        OWN.put("com.android.gallery3d", "com.scratch.iosgallery");
+        OWN.put("com.android.messaging", "com.scratch.iosmessages");
+        OWN.put("com.android.contacts", "com.scratch.ioscontacts");
+    }
     private static final String[] FIRST = {
-        "com.android.contacts", "com.android.settings", "com.scratch.iosgallery", "com.android.deskclock",
+        "com.scratch.ioscontacts", "com.android.settings", "com.scratch.iosgallery", "com.android.deskclock",
         "com.android.calculator2", "com.google.android.calendar", "com.android.email", "org.cyanogenmod.snap",
     };
 
@@ -507,7 +514,7 @@ public class HomeActivity extends Activity {
                 byPkg.put(p, a);
             }
             if (byPkg.containsKey("com.scratch.ioscamera")) byPkg.remove("org.cyanogenmod.snap");
-            for (String hp : HIDDEN) { String own = hp.equals("com.android.dialer") ? "com.scratch.iosphone" : hp.equals("com.android.messaging") ? "com.scratch.iosmessages" : "com.scratch.iosgallery"; if (byPkg.containsKey(own)) byPkg.remove(hp); }
+            for (String hp : HIDDEN) { String own = OWN.get(hp); if (own != null && byPkg.containsKey(own)) byPkg.remove(hp); }
             List<App> dockApps = new ArrayList<>();
             for (String[] cands : DOCK) {
                 for (String c : cands) {

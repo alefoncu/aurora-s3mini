@@ -15,7 +15,8 @@ final class Glyphs {
             case "com.scratch.iosmessages": return "message";
             case "com.scratch.ioscamera":
             case "org.cyanogenmod.snap": return "camera";
-            case "com.android.contacts": return "contacts";
+            case "com.android.contacts":
+            case "com.scratch.ioscontacts": return "contacts";
             case "com.android.settings": return "settings";
             case "com.android.gallery3d":
             case "com.scratch.iosgallery": return "gallery";

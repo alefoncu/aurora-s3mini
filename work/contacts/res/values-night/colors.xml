@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+ <color name="dialer_theme_color">#1E1B4B</color>
+ <color name="dialer_theme_color_dark">#14123A</color>
+ <color name="people_app_theme_color">#1E1B4B</color>
+ <color name="dialtacts_theme_color">#1E1B4B</color>
+ <color name="actionbar_background_color">#1E1B4B</color>
+ <color name="actionbar_background_color_dark">#14123A</color>
+ <color name="action_bar_background">#1E1B4B</color>
+ <color name="primary_color">#1E1B4B</color>
+ <color name="primary_color_dark">#14123A</color>
+ <color name="contacts_accent_color">#7BA7FF</color>
+ <color name="tab_accent_color">#7BA7FF</color>
+ <color name="tab_selected_underline_color">#FFFFFF</color>
+ <color name="contextual_selection_bar_color">#1E1B4B</color>
+ <color name="contextual_selection_bar_status_bar_color">#14123A</color>
+</resources>

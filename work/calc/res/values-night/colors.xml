@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="calculator_accent_color">#7BA7FF</color>
+    <color name="display_background_color">#14123A</color>
+    <color name="display_formula_text_color">#A3A1C8</color>
+    <color name="display_result_text_color">#F2F1FF</color>
+    <color name="pad_numeric_background_color">#1E1B4B</color>
+    <color name="pad_operator_background_color">#4F6BFF</color>
+    <color name="pad_advanced_background_color">#27235E</color>
+    <color name="pad_button_text_color">#F2F1FF</color>
+    <color name="pad_button_advanced_text_color">#A3A1C8</color>
+</resources>

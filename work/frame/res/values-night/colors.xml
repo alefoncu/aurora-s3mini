@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- NIGHT: remap the Material Light base colours to the dark palette (design/tokens.md) so every Light-themed app turns dark -->
+<resources>
+    <color name="background_material_light">#FF14123A</color>
+    <color name="background_floating_material_light">#FF1E1B4B</color>
+    <color name="primary_material_light">#FF1E1B4B</color>
+    <color name="foreground_material_light">#FFF2F1FF</color>
+    <color name="button_material_light">#FF3A3779</color>
+    <color name="primary_text_default_material_light">#FFF2F1FF</color>
+    <color name="secondary_text_default_material_light">#FFA3A1C8</color>
+    <color name="switch_thumb_normal_material_light">#FFDAD8F5</color>
+    <color name="switch_thumb_disabled_material_light">#FF6A678F</color>
+    <color name="accent_device_default_light">#FF7BA7FF</color>
+    <color name="notification_material_background_color">#FF1E1B4B</color>
+    <color name="system_notification_accent_color">#FF9DB8FF</color>
+    <color name="notification_default_color">#FFA3A1C8</color>
+    <color name="notification_icon_default_color">#FFA3A1C8</color>
+</resources>

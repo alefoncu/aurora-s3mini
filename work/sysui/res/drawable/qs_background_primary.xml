@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- glass sheet for the quick settings panel (design/tokens.md) -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="rectangle">
+    <solid android:color="#D91B1850"/>
+    <corners android:bottomLeftRadius="28dp" android:bottomRightRadius="28dp"/>
+</shape>

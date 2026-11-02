@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+ <!-- day -->
+ <color name="primary">#3D4FD1</color>
+ <color name="primaryDark">#2C3BAF</color>
+ <color name="accent">#3B6BEA</color>
+ <color name="dialog_button_color">#3B6BEA</color>
+</resources>

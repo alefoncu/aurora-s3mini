@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+ <!-- day -->
+ <color name="dialer_theme_color">#3D4FD1</color>
+ <color name="dialer_theme_color_dark">#2C3BAF</color>
+ <color name="people_app_theme_color">#3D4FD1</color>
+ <color name="dialtacts_theme_color">#3D4FD1</color>
+ <color name="actionbar_background_color">#3D4FD1</color>
+ <color name="actionbar_background_color_dark">#2C3BAF</color>
+ <color name="tab_accent_color">#3B6BEA</color>
+ <color name="tab_selected_underline_color">#FFFFFF</color>
+ <color name="background_dialpad">#FFFFFF</color>
+ <color name="background_dialpad_pressed">#E5E5EA</color>
+ <color name="dialpad_primary_text_color">#1C1C1E</color>
+ <color name="dialpad_digits_text_color">#1C1C1E</color>
+ <color name="dialpad_secondary_text_color">#8E8E93</color>
+ <color name="dialpad_separator_line_color">#00000000</color>
+ <color name="dialer_green_highlight_color">#4CD964</color>
+ <color name="dialer_blue_highlight_color">#3B6BEA</color>
+ <color name="dialer_red_highlight_color">#FF3B30</color>
+ <color name="incall_accent_color">#3B6BEA</color>
+ <color name="call_log_missed_call_highlight_color">#FF3B30</color>
+ <color name="missed_call">#FF3B30</color>
+ <color name="setting_primary_color">#3D4FD1</color>
+ <color name="blocked_number_accent_color">#3B6BEA</color>
+</resources>

@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- NIGHT: dark opaque notification cards (they MUST stay opaque) -->
+<resources>
+    <color name="notification_material_background_color">#FF1E1B4B</color>
+    <color name="notification_material_background_dimmed_color">#FF191744</color>
+    <color name="notification_material_background_low_priority_color">#FF191744</color>
+    <color name="notification_legacy_background_color">#FF1E1B4B</color>
+    <color name="notification_guts_bg_color">#FF1E1B4B</color>
+    <color name="notification_icon_bg_color">#FF4F46E5</color>
+</resources>

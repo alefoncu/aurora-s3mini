@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- NIGHT: light text on the dark notification cards -->
+<resources>
+    <style name="TextAppearance.Material.Notification" parent="@android:style/TextAppearance.Material">
+        <item name="android:textSize">@*android:dimen/notification_text_size</item>
+        <item name="android:textColor">#FFA3A1C8</item>
+    </style>
+    <style name="TextAppearance.Material.Notification.Emphasis" parent="@android:style/TextAppearance.Material.Notification">
+        <item name="android:textColor">#B3F2F1FF</item>
+    </style>
+    <style name="TextAppearance.Material.Notification.Info" parent="@android:style/TextAppearance.Material.Notification">
+        <item name="android:textSize">@*android:dimen/notification_subtext_size</item>
+        <item name="android:textColor">#FFA3A1C8</item>
+    </style>
+    <style name="TextAppearance.Material.Notification.Title" parent="@android:style/TextAppearance.Material.Notification">
+        <item name="android:textSize">@*android:dimen/notification_title_text_size</item>
+        <item name="android:textColor">#FFF2F1FF</item>
+    </style>
+</resources>

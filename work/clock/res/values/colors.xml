@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+ <!-- day -->
+ <color name="color_accent">#3B6BEA</color>
+ <color name="blue">#3B6BEA</color>
+ <color name="blue_focused">#2F55CC</color>
+ <color name="darker_blue">#2F55CC</color>
+ <color name="done_text_color_normal">#3B6BEA</color>
+</resources>

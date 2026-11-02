@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+ <color name="color_accent">#7BA7FF</color>
+ <color name="blue">#7BA7FF</color>
+ <color name="blue_focused">#5B8CFF</color>
+ <color name="darker_blue">#5B8CFF</color>
+ <color name="done_text_color_normal">#7BA7FF</color>
+</resources>

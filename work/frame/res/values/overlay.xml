@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- tokens: see design/tokens.md -->
+<resources>
+    <color name="accent_device_default_light">#3B6BEA</color>
+    <color name="accent_device_default_dark">#8AB4FF</color>
+    <color name="accent_device_default_700">#2F7FE6</color>
+    <color name="accent_device_default_50">#DCEBFF</color>
+    <color name="notification_material_background_color">#FFF4F2FF</color>
+    <color name="system_notification_accent_color">#FF4F46E5</color>
+    <dimen name="action_bar_elevation_material">0dp</dimen>
+    <dimen name="button_elevation_material">0dp</dimen>
+    <dimen name="control_corner_material">8dp</dimen>
+</resources>

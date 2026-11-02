@@ -1,0 +1,22 @@
+# system APKs, resource dumps and personal phone backups never go public
+backup/
+launcher/
+out/
+*.dump
+*.apk
+*.idsig
+*.zip
+*.png
+!docs/**/*.png
+framework-res.apk
+# build products
+build/
+dex/
+res.zip
+pkg/
+# editor / OS
+.DS_Store
+# loose working copies of system files and personal GravityBox prefs
+work/*.xml
+work/calc/ap/
+work/boot_cur/

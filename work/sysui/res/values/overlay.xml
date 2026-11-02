@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- design/tokens.md v2. NOTE: notification backgrounds MUST be opaque (SystemUI throws "background can not be translucent") -->
+<resources>
+    <color name="notification_panel_solid_background">#CC0E1030</color>
+    <color name="notification_shade_background_color">#4D0E1030</color>
+    <color name="notification_material_background_color">#FFF4F2FF</color>
+    <color name="notification_material_background_dimmed_color">#FFE9E6F8</color>
+    <color name="notification_material_background_low_priority_color">#FFE9E6F8</color>
+    <color name="notification_legacy_background_color">#FFF4F2FF</color>
+    <color name="notification_icon_bg_color">#FF6366F1</color>
+    <color name="notification_guts_bg_color">#FFFFFFFF</color>
+    <color name="qs_tile_tint_active">#FF9DC4FF</color>
+    <color name="qs_tile_tint_inactive">#99FFFFFF</color>
+    <color name="qs_tile_tint_unavailable">#4DFFFFFF</color>
+    <color name="qs_tile_divider">#00000000</color>
+    <color name="qs_subhead">#B3FFFFFF</color>
+    <color name="qs_text">#FFFFFFFF</color>
+    <dimen name="status_bar_icon_drawing_size">15dp</dimen>
+    <dimen name="status_bar_icon_padding">1dp</dimen>
+    <dimen name="status_bar_clock_size">13sp</dimen>
+    <dimen name="qs_time_collapsed_size">13sp</dimen>
+    <dimen name="qs_tile_height">80dp</dimen>
+    <dimen name="qs_panel_padding">20dp</dimen>
+    <dimen name="keyguard_clock_notifications_margin_min">48dp</dimen>
+    <dimen name="keyguard_clock_notifications_margin_max">64dp</dimen>
+</resources>

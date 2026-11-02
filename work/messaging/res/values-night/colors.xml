@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+ <color name="primary_color">#1E1B4B</color>
+ <color name="action_bar_background_color">#1E1B4B</color>
+ <color name="action_bar_background_color_dark">#14123A</color>
+ <color name="contextual_action_bar_background_color">#1E1B4B</color>
+ <color name="cm_accent">#7BA7FF</color>
+ <color name="message_bubble_color_outgoing">#7BA7FF</color>
+ <color name="compose_message_send_color">#7BA7FF</color>
+ <color name="compose_message_send_color_pressed">#7BA7FF</color>
+</resources>

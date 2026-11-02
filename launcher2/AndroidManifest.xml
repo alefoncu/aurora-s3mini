@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android" package="com.scratch.ios7launcher" android:versionCode="3" android:versionName="2.0">
+    <uses-sdk android:minSdkVersion="21" android:targetSdkVersion="25"/>
+    <uses-permission android:name="android.permission.EXPAND_STATUS_BAR"/>
+    <uses-permission android:name="android.permission.SET_WALLPAPER"/>
+    <uses-permission android:name="android.permission.READ_CONTACTS"/>
+    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE"/>
+    <application android:label="Launcher" android:hasCode="true">
+        <activity android:name=".HomeActivity" android:label="Launcher" android:launchMode="singleTask"
+                  android:screenOrientation="portrait" android:stateNotNeeded="true" android:excludeFromRecents="true"
+                  android:theme="@android:style/Theme.Holo.Wallpaper.NoTitleBar"
+                  android:windowSoftInputMode="adjustResize" android:configChanges="orientation|keyboardHidden|screenSize|uiMode" android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN"/>
+                <category android:name="android.intent.category.HOME"/>
+                <category android:name="android.intent.category.DEFAULT"/>
+                <category android:name="android.intent.category.LAUNCHER"/>
+            </intent-filter>
+        </activity>
+        <activity android:name=".SetWallpaperActivity" android:exported="true" android:theme="@android:style/Theme.Translucent.NoTitleBar"/>
+        <receiver android:name=".NotifyReceiver" android:exported="true"/>
+    </application>
+</manifest>

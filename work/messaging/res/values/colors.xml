@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+ <!-- day -->
+ <color name="primary_color">#3D4FD1</color>
+ <color name="action_bar_background_color">#3D4FD1</color>
+ <color name="action_bar_background_color_dark">#2C3BAF</color>
+ <color name="contextual_action_bar_background_color">#3D4FD1</color>
+ <color name="cm_accent">#3B6BEA</color>
+ <color name="message_bubble_color_outgoing">#3B6BEA</color>
+ <color name="compose_message_send_color">#3B6BEA</color>
+ <color name="compose_message_send_color_pressed">#3B6BEA</color>
+</resources>

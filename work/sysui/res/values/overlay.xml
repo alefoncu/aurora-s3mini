@@ -19,8 +19,11 @@
     <dimen name="status_bar_icon_padding">1dp</dimen>
     <dimen name="status_bar_clock_size">13sp</dimen>
     <dimen name="qs_time_collapsed_size">13sp</dimen>
-    <dimen name="qs_tile_height">80dp</dimen>
     <dimen name="qs_panel_padding">20dp</dimen>
     <dimen name="keyguard_clock_notifications_margin_min">48dp</dimen>
     <dimen name="keyguard_clock_notifications_margin_max">64dp</dimen>
+    <dimen name="qs_tile_text_size">11sp</dimen>
+    <dimen name="qs_tile_padding_top">10dp</dimen>
+    <dimen name="qs_tile_padding_below_icon">8dp</dimen>
+    <dimen name="qs_tile_padding_bottom">10dp</dimen>
 </resources>

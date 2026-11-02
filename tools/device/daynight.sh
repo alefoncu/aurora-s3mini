@@ -23,6 +23,8 @@ while true; do
       am start -n com.scratch.ios7launcher/.SetWallpaperActivity --es path $w >/dev/null 2>&1
       settings put system ios_wall_state $n
     fi
+    # notification cards keep the colours they were inflated with: restart SystemUI on a real switch (not at boot)
+    [ -n "$last" ] && pkill -f com.android.systemui
     last=$n
   fi
   sleep 30

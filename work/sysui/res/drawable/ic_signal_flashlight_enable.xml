@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- thin torch: only the "light" path changed; group/mask names kept so the stock animation still works -->
+<vector android:name="root" android:height="48.0dp" android:width="48.0dp" android:alpha="0.3" android:viewportWidth="48.0" android:viewportHeight="48.0"
+  xmlns:android="http://schemas.android.com/apk/res/android">
+    <group android:name="ic_signal_flashlight" android:translateX="21.9995" android:translateY="25.73401">
+        <group android:name="ic_signal_flashlight_pivot" android:translateX="-23.21545" android:translateY="-18.86649">
+            <clip-path android:name="mask" android:pathData="M 37.8337860107,-39.2975769043 c 0.0,0.0 -35.8077850342,31.5523681641 -35.8077850342,31.5523681641 c 0.0,0.0 40.9884796143,40.9278411865 40.9884796143,40.9278411865 c 0.0,0.0 -2.61700439453,2.0938873291 -2.61700439453,2.0938873291 c 0.0,0.0 -41.1884460449,-40.9392852783 -41.1884460449,-40.9392852783 c 0.0,0.0 -34.6200408936,25.4699249268 -34.6200408936,25.4699249268 c 0.0,0.0 55.9664764404,69.742401123 55.9664764404,69.742401123 c 0.0,0.0 73.2448120117,-59.1047973633 73.2448120117,-59.1047973633 c 0.0,0.0 -55.9664916992,-69.7423400879 -55.9664916992,-69.7423400879 Z" />
+            <group android:name="cross">
+                <path android:name="cross_1" android:fillColor="#00000000" android:pathData="M 8.34049987793,5.6930847168 c 0.0,0.0 29.7749786377,29.7999725342 29.7749786377,29.7999725342 " android:strokeColor="#ffffffff" android:strokeWidth="3.5" android:strokeAlpha="1.0" />
+            </group>
+            <group android:name="flashlight" android:translateX="25.06235" android:translateY="22.48294">
+                <path android:name="light" android:fillColor="#00000000" android:strokeColor="#ffffffff" android:strokeWidth="2.2" android:strokeLineCap="round" android:strokeLineJoin="round" android:pathData="M -9,-23 L 9,-23 L 9,-19.6 L -9,-19.6 Z M -8.6,-15.8 C -8.6,-9.5 -5.4,-8 -5.4,-8 L -5.4,15.8 L 5.4,15.8 L 5.4,-8 C 5.4,-8 8.6,-9.5 8.6,-15.8 M -2.6,-4 a 2.6,2.6 0 1,0 5.2,0 a 2.6,2.6 0 1,0 -5.2,0" />
+            </group>
+        </group>
+    </group>
+</vector>

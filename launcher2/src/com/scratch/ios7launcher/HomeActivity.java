@@ -1,6 +1,7 @@
 package com.scratch.ios7launcher;
 
 import android.app.Activity;
+import android.app.ActivityManager;
 import android.app.ActivityOptions;
 import android.content.*;
 import android.content.pm.*;
@@ -27,9 +28,9 @@ public class HomeActivity extends Activity {
     private static final java.util.Set<String> TOOLS = new java.util.HashSet<>(java.util.Arrays.asList(
         "com.topjohnwu.magisk", "de.robv.android.xposed.installer", "com.ceco.nougat.gravitybox"));
     /** Stock apps replaced by own ones: kept installed (the in-call UI needs them) but hidden from the grid. */
-    private static final java.util.Set<String> HIDDEN = new java.util.HashSet<>(java.util.Arrays.asList("com.android.dialer"));
+    private static final java.util.Set<String> HIDDEN = new java.util.HashSet<>(java.util.Arrays.asList("com.android.dialer", "com.android.gallery3d"));
     private static final String[] FIRST = {
-        "com.android.contacts", "com.android.settings", "com.android.gallery3d", "com.android.deskclock",
+        "com.android.contacts", "com.android.settings", "com.scratch.iosgallery", "com.android.deskclock",
         "com.android.calculator2", "com.google.android.calendar", "com.android.email", "org.cyanogenmod.snap",
     };
 
@@ -125,12 +126,14 @@ public class HomeActivity extends Activity {
         reload();
     }
 
+    @Override protected void onResume() { super.onResume(); refreshToday(); }
+
     @Override protected void onDestroy() { unregisterReceiver(pkgs); super.onDestroy(); }
 
     @Override
     protected void onNewIntent(Intent i) {
         super.onNewIntent(i);
-        if (pager != null) pager.goTo(0);
+        if (pager != null) pager.goTo(1);
     }
 
     @Override
@@ -147,6 +150,9 @@ public class HomeActivity extends Activity {
     private EditText searchBox;
     private final List<Object[]> results = new ArrayList<>();   // {App} or {name, number}
     private BaseAdapter searchAdapter;
+    private boolean firstBuild = true;
+    private TextView calView, batView, stoView, ramView;
+    private View batBar, stoBar, ramBar;
 
     /** A clear downward swipe anywhere on the home screen opens the notification shade. */
     @Override
@@ -158,6 +164,180 @@ public class HomeActivity extends Activity {
             else if (searchLayer == null && dy < -100 * d && Math.abs(dy) > 2 * Math.abs(dx) && downY > h * 0.25f) showSearch();
         }
         return super.dispatchTouchEvent(e);
+    }
+
+    // ---- today page ---------------------------------------------------------
+
+    private View todayPage() {
+        LinearLayout col = new LinearLayout(this);
+        col.setOrientation(LinearLayout.VERTICAL);
+        col.setPadding((int) (18 * d), (int) (4 * d), (int) (18 * d), 0);
+        calView = card(col, "PRÓXIMOS EVENTOS", 14, 40);
+        LinearLayout st = cardBox(col, "ESTADO");
+        batView = row(st, "Batería");
+        batBar = lastBar;
+        stoView = row(st, "Almacenamiento");
+        stoBar = lastBar;
+        ramView = row(st, "Memoria");
+        ramBar = lastBar;
+        refreshToday();
+        return col;
+    }
+
+    private View lastBar;
+
+    /** Label on the left, value on the right and a thin bar underneath. */
+    private TextView row(LinearLayout box, String name) {
+        LinearLayout r = new LinearLayout(this);
+        r.setOrientation(LinearLayout.HORIZONTAL);
+        r.setPadding(0, (int) (8 * d), 0, 0);
+        TextView n = new TextView(this);
+        n.setText(name);
+        n.setTextColor(labelColor);
+        n.setTextSize(TypedValue.COMPLEX_UNIT_SP, 15);
+        n.setTypeface(Typeface.create("sans-serif-light", Typeface.NORMAL));
+        r.addView(n, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+        TextView v = new TextView(this);
+        v.setTextColor(subColor);
+        v.setTextSize(TypedValue.COMPLEX_UNIT_SP, 14);
+        v.setTypeface(Typeface.create("sans-serif-light", Typeface.NORMAL));
+        v.setGravity(Gravity.RIGHT);
+        r.addView(v, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+        box.addView(r);
+        lastBar = bar(box);
+        return v;
+    }
+
+    private LinearLayout cardBox(LinearLayout parent, String title) {
+        LinearLayout box = new LinearLayout(this);
+        box.setOrientation(LinearLayout.VERTICAL);
+        box.setPadding((int) (18 * d), (int) (12 * d), (int) (18 * d), (int) (14 * d));
+        GradientDrawable g = new GradientDrawable();
+        g.setColor(dockFill);
+        g.setStroke(Math.max(1, (int) d), dockStroke);
+        g.setCornerRadius(24 * d);
+        box.setBackground(g);
+        TextView t = new TextView(this);
+        t.setText(title);
+        t.setTextColor(subColor);
+        t.setTextSize(TypedValue.COMPLEX_UNIT_SP, 11);
+        t.setLetterSpacing(0.12f);
+        box.addView(t);
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        lp.bottomMargin = (int) (10 * d);
+        parent.addView(box, lp);
+        return box;
+    }
+
+    private TextView card(LinearLayout parent, String title, int sp, int minH) {
+        LinearLayout box = cardBox(parent, title);
+        TextView t = new TextView(this);
+        t.setTextColor(labelColor);
+        t.setTextSize(TypedValue.COMPLEX_UNIT_SP, sp);
+        t.setTypeface(Typeface.create("sans-serif-light", Typeface.NORMAL));
+        t.setLineSpacing(0, 1.15f);
+        t.setMinHeight((int) (minH * d));
+        t.setPadding(0, (int) (6 * d), 0, 0);
+        box.addView(t);
+        return t;
+    }
+
+    private TextView big(LinearLayout box, String s) {
+        TextView t = new TextView(this);
+        t.setText(s);
+        t.setTextColor(labelColor);
+        t.setTextSize(TypedValue.COMPLEX_UNIT_SP, 34);
+        t.setTypeface(Typeface.create("sans-serif-thin", Typeface.NORMAL));
+        box.addView(t);
+        return t;
+    }
+
+    private TextView small(LinearLayout box, String s) {
+        TextView t = new TextView(this);
+        t.setText(s);
+        t.setTextColor(labelColor);
+        t.setTextSize(TypedValue.COMPLEX_UNIT_SP, 15);
+        t.setTypeface(Typeface.create("sans-serif-light", Typeface.NORMAL));
+        box.addView(t);
+        return t;
+    }
+
+    /** Thin progress bar: translucent track, accent fill sized through layout weight of the tag. */
+    private View bar(LinearLayout box) {
+        FrameLayout track = new FrameLayout(this);
+        GradientDrawable tg = new GradientDrawable();
+        tg.setColor(night ? 0x33FFFFFF : 0x2214123A);
+        tg.setCornerRadius(3 * d);
+        track.setBackground(tg);
+        View fill = new View(this);
+        GradientDrawable fg = new GradientDrawable();
+        fg.setColor(night ? 0xFF7BA7FF : 0xFF3B6BEA);
+        fg.setCornerRadius(3 * d);
+        fill.setBackground(fg);
+        track.addView(fill, new FrameLayout.LayoutParams(0, ViewGroup.LayoutParams.MATCH_PARENT));
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, (int) (4 * d));
+        lp.topMargin = (int) (6 * d);
+        box.addView(track, lp);
+        return fill;
+    }
+
+    private void setBar(View fill, float frac) {
+        final View f = fill;
+        final float fr = Math.max(0f, Math.min(1f, frac));
+        ((View) f.getParent()).post(() -> {
+            ViewGroup.LayoutParams lp = f.getLayoutParams();
+            lp.width = (int) (((View) f.getParent()).getWidth() * fr);
+            f.setLayoutParams(lp);
+        });
+    }
+
+    private void refreshToday() {
+        if (batView == null) return;
+        Intent b = registerReceiver(null, new IntentFilter(Intent.ACTION_BATTERY_CHANGED));
+        if (b != null) {
+            int lvl = b.getIntExtra("level", 0), sc = Math.max(1, b.getIntExtra("scale", 100));
+            int st = b.getIntExtra("status", 0);
+            boolean chg = st == 2 || st == 5;
+            batView.setText((lvl * 100 / sc) + "%" + (chg ? (st == 5 ? " · completa" : " · cargando") : ""));
+            setBar(batBar, lvl / (float) sc);
+        }
+        StatFs fs = new StatFs(Environment.getDataDirectory().getPath());
+        long total = fs.getTotalBytes(), free = fs.getAvailableBytes();
+        stoView.setText(String.format(Locale.getDefault(), "%.1f GB libres", free / 1e9));
+        setBar(stoBar, (total - free) / (float) total);
+        ActivityManager.MemoryInfo mi = new ActivityManager.MemoryInfo();
+        ((ActivityManager) getSystemService(ACTIVITY_SERVICE)).getMemoryInfo(mi);
+        ramView.setText(String.format(Locale.getDefault(), "%d MB libres", mi.availMem >> 20));
+        setBar(ramBar, (mi.totalMem - mi.availMem) / (float) mi.totalMem);
+        loadEvents();
+    }
+
+    private void loadEvents() {
+        final boolean can = checkSelfPermission(android.Manifest.permission.READ_CALENDAR) == PackageManager.PERMISSION_GRANTED;
+        new Thread(() -> {
+            StringBuilder sb = new StringBuilder();
+            if (can) {
+                android.database.Cursor c = null;
+                try {
+                    long now = System.currentTimeMillis();
+                    c = android.provider.CalendarContract.Instances.query(getContentResolver(),
+                            new String[]{android.provider.CalendarContract.Instances.TITLE, android.provider.CalendarContract.Instances.BEGIN,
+                                    android.provider.CalendarContract.Instances.ALL_DAY},
+                            now, now + 7L * 24 * 3600 * 1000);
+                    java.text.SimpleDateFormat day = new java.text.SimpleDateFormat("EEE d", Locale.getDefault());
+                    java.text.SimpleDateFormat hour = new java.text.SimpleDateFormat("HH:mm", Locale.getDefault());
+                    int n = 0;
+                    while (c != null && c.moveToNext() && n < 3) {
+                        Date dt = new Date(c.getLong(1));
+                        if (n > 0) sb.append('\n');
+                        sb.append(c.getInt(2) == 1 ? day.format(dt) : day.format(dt) + " · " + hour.format(dt)).append("   ").append(c.getString(0));
+                        n++;
+                    }
+                } catch (Exception ignored) { } finally { if (c != null) c.close(); }
+            }
+            final String out = sb.length() > 0 ? sb.toString() : (can ? "Sin eventos próximos" : "Sin acceso al calendario");
+            ui.post(() -> { if (calView != null) calView.setText(out); });
+        }).start();
     }
 
     // ---- search ------------------------------------------------------------
@@ -327,7 +507,7 @@ public class HomeActivity extends Activity {
                 byPkg.put(p, a);
             }
             if (byPkg.containsKey("com.scratch.ioscamera")) byPkg.remove("org.cyanogenmod.snap");
-            if (byPkg.containsKey("com.scratch.iosphone")) for (String hp : HIDDEN) byPkg.remove(hp);
+            for (String hp : HIDDEN) { String own = hp.equals("com.android.dialer") ? "com.scratch.iosphone" : "com.scratch.iosgallery"; if (byPkg.containsKey(own)) byPkg.remove(hp); }
             List<App> dockApps = new ArrayList<>();
             for (String[] cands : DOCK) {
                 for (String c : cands) {
@@ -354,7 +534,9 @@ public class HomeActivity extends Activity {
         int per = COLS * ROWS;
         int pages = Math.max(1, (grid.size() + per - 1) / per);
         int cur = pager.page();
+        if (firstBuild) { cur = 1; firstBuild = false; }
         pager.clear();
+        pager.addPage(todayPage(), w);
         for (int p = 0; p < pages; p++) {
             GridLayout g = new GridLayout(this);
             g.setColumnCount(COLS);
@@ -374,7 +556,7 @@ public class HomeActivity extends Activity {
             dock.addView(cell, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.MATCH_PARENT, 1f));
         }
         dots.removeAllViews();
-        for (int p = 0; p < pages && pages > 1; p++) {
+        for (int p = 0; p < pages + 1; p++) {
             View dot = new View(this);
             GradientDrawable gd = new GradientDrawable();
             gd.setShape(GradientDrawable.OVAL);
@@ -386,7 +568,8 @@ public class HomeActivity extends Activity {
         pager.setOnPage(pg -> {
             for (int i = 0; i < dots.getChildCount(); i++) dots.getChildAt(i).setAlpha(i == pg ? 1f : 0.4f);
         });
-        pager.post(() -> pager.goToNow(cur));
+        final int fc = cur;
+        pager.post(() -> pager.goToNow(fc));
     }
 
     private View cell(App a, boolean label) {
@@ -533,6 +716,16 @@ public class HomeActivity extends Activity {
             addView(strip, new LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.MATCH_PARENT));
         }
         void clear() { strip.removeAllViews(); }
+        @Override protected void onScrollChanged(int l, int t, int ol, int ot) {
+            super.onScrollChanged(l, t, ol, ot);
+            for (int i = 0; i < strip.getChildCount(); i++) {
+                float off = Math.min(1f, Math.abs((l - i * pageW) / (float) pageW));
+                View v = strip.getChildAt(i);
+                v.setAlpha(1f - 0.55f * off);
+                v.setScaleX(1f - 0.06f * off);
+                v.setScaleY(1f - 0.06f * off);
+            }
+        }
         void addPage(View v, int w) { pageW = w; strip.addView(v, new LinearLayout.LayoutParams(w, ViewGroup.LayoutParams.MATCH_PARENT)); }
         void setOnPage(OnPage o) { cb = o; }
         int page() { return cur; }

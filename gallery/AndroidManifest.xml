@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android" package="com.scratch.iosgallery" android:versionCode="1" android:versionName="1.0">
+    <uses-sdk android:minSdkVersion="22" android:targetSdkVersion="22"/>
+    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE"/>
+    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE"/>
+    <application android:icon="@drawable/ic_launcher" android:label="Galería">
+        <activity android:name=".GalleryActivity" android:label="Galería" android:screenOrientation="portrait"
+                  android:theme="@android:style/Theme.Holo.Wallpaper.NoTitleBar"
+                  android:configChanges="orientation|keyboardHidden|screenSize|uiMode" android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN"/>
+                <category android:name="android.intent.category.LAUNCHER"/>
+                <category android:name="android.intent.category.APP_GALLERY"/>
+            </intent-filter>
+        </activity>
+        <activity android:name=".ViewerActivity" android:label="Galería" android:screenOrientation="portrait"
+                  android:theme="@android:style/Theme.Black.NoTitleBar.Fullscreen"
+                  android:configChanges="orientation|keyboardHidden|screenSize|uiMode" android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW"/>
+                <category android:name="android.intent.category.DEFAULT"/>
+                <data android:mimeType="image/*"/>
+                <data android:mimeType="video/*"/>
+            </intent-filter>
+        </activity>
+    </application>
+</manifest>

@@ -13,4 +13,4 @@ $BT/aapt2 link -I $AJ --manifest AndroidManifest.xml --min-sdk-version 21 --targ
 cp base.apk out.apk && (cd dex && zip -q ../out.apk classes.dex)
 $BT/zipalign -f 4 out.apk aligned.apk
 $BT/apksigner sign --ks ~/.android/debug.keystore --ks-pass pass:android --key-pass pass:android --out Launcher2.apk aligned.apk
-adb install -r Launcher2.apk 2>&1 | tail -1
+adb push Launcher2.apk /data/local/tmp/Launcher2.apk >/dev/null && adb shell "pm install -r /data/local/tmp/Launcher2.apk" 2>&1 | tail -2  # pm install: adb install can hang on the Play verifier

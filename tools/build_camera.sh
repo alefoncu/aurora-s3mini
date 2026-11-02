@@ -14,4 +14,4 @@ $BT/aapt2 link -I $AJ --manifest AndroidManifest.xml --min-sdk-version 22 --targ
 cp base.apk out.apk && (cd dex && zip -q ../out.apk classes.dex)
 $BT/zipalign -f 4 out.apk aligned.apk
 $BT/apksigner sign --ks ~/.android/debug.keystore --ks-pass pass:android --key-pass pass:android --out IOSCamera.apk aligned.apk
-adb install -r IOSCamera.apk 2>&1 | tail -1
+adb push IOSCamera.apk /data/local/tmp/IOSCamera.apk >/dev/null && adb shell "pm install -r /data/local/tmp/IOSCamera.apk" 2>&1 | tail -2  # pm install: adb install can hang on the Play verifier

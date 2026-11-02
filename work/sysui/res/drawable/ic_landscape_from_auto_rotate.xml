@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector android:height="48.0dp" android:width="48.0dp" android:viewportWidth="48.0" android:viewportHeight="48.0"
+  xmlns:android="http://schemas.android.com/apk/res/android">
+    <group android:name="ic_screen_rotation_48px_outlines" android:translateX="24.0" android:translateY="24.0">
+        <group android:name="ic_screen_rotation_48px_outlines_pivot" android:translateX="-24.15" android:translateY="-24.25">
+            <group android:name="arrows" android:translateX="24.1" android:translateY="24.1">
+                <group android:name="arrows_pivot" android:translateX="-24.1" android:translateY="-24.1">
+                    <path android:name="arrow_top" android:fillColor="#ffffffff" android:pathData="M 46.346,22.644 A 22.3,22.3 0 0 0 24.878,1.914 L 24.801,4.112 A 20.1,20.1 0 0 1 44.151,22.798 Z M 21.066,3.052 L 24.53,6.516 L 26.086,4.961 L 22.621,1.496 Z M 22.621,4.607 L 26.086,1.142 L 24.53,-0.413 L 21.066,3.052 Z" android:fillAlpha="1.0" />
+                    <path android:name="arrow_bottom" android:fillColor="#ffffffff" android:pathData="M 1.854,25.756 A 22.3,22.3 0 0 0 23.322,46.486 L 23.399,44.288 A 20.1,20.1 0 0 1 4.049,25.602 Z M 27.134,45.348 L 23.67,41.884 L 22.114,43.439 L 25.579,46.904 Z M 25.579,43.793 L 22.114,47.258 L 23.67,48.813 L 27.134,45.348 Z" android:fillAlpha="1.0" />
+                </group>
+            </group>
+            <group android:name="device" android:translateX="24.14999" android:translateY="24.25">
+                <path android:name="body" android:fillColor="#ffffffff" android:pathData="M -6.718,-17.324 c 1.172,-1.172 3.071,-1.172 4.243,0 c 0,0 19.799,19.799 19.799,19.799 c 1.172,1.172 1.172,3.071 0,4.243 c 0,0 -10.607,10.607 -10.607,10.607 c -1.172,1.172 -3.071,1.172 -4.243,0 c 0,0 -19.799,-19.799 -19.799,-19.799 c -1.172,-1.172 -1.172,-3.071 0,-4.243 c 0,0 10.607,-10.607 10.607,-10.607 Z M -4.031,-15.768 c -0.312,-0.312 -0.819,-0.312 -1.131,0 c 0,0 -10.607,10.607 -10.607,10.607 c -0.312,0.312 -0.312,0.819 0,1.131 c 0,0 19.799,19.799 19.799,19.799 c 0.312,0.312 0.819,0.312 1.131,0 c 0,0 10.607,-10.607 10.607,-10.607 c 0.312,-0.312 0.312,-0.819 0,-1.131 c 0,0 -19.799,-19.799 -19.799,-19.799 Z" android:fillAlpha="1.0" />
+            </group>
+        </group>
+    </group>
+</vector>

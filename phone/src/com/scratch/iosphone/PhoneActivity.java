@@ -391,8 +391,18 @@ public class PhoneActivity extends Activity {
 
     private void filterContacts(String q) {
         shown.clear();
-        String ql = q.toLowerCase();
-        for (String[] c : contacts) if (ql.isEmpty() || (c[0] != null && c[0].toLowerCase().contains(ql))) shown.add(c);
+        final String nq = Fuzzy.norm(q);
+        if (nq.isEmpty()) shown.addAll(contacts);
+        else {
+            final List<String[]> hits = new ArrayList<>();
+            final Map<String[], Integer> sc = new HashMap<>();
+            for (String[] c : contacts) {
+                int s2 = Fuzzy.score(nq, Fuzzy.norm(c[0]));
+                if (s2 > 0) { hits.add(c); sc.put(c, s2); }
+            }
+            Collections.sort(hits, (a, b) -> sc.get(b) - sc.get(a));
+            shown.addAll(hits);
+        }
         if (contactsAdapter != null) contactsAdapter.notifyDataSetChanged();
     }
 

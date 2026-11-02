@@ -59,6 +59,7 @@ public class HomeActivity extends Activity {
     protected void onCreate(Bundle b) {
         super.onCreate(b);
         pm = getPackageManager();
+        usage = new AppIndex.Usage(this);
         night = (getResources().getConfiguration().uiMode & android.content.res.Configuration.UI_MODE_NIGHT_MASK)
                 == android.content.res.Configuration.UI_MODE_NIGHT_YES;
         labelColor = night ? Color.WHITE : 0xFF14123A;
@@ -158,6 +159,8 @@ public class HomeActivity extends Activity {
     private EditText searchBox;
     private final List<Object[]> results = new ArrayList<>();   // {App} or {name, number}
     private BaseAdapter searchAdapter;
+    private AppIndex.Usage usage;
+    private String lastQuery = "";
     private boolean firstBuild = true;
     private TextView calView, batView, stoView, ramView;
     private View batBar, stoBar, ramBar;
@@ -398,6 +401,9 @@ public class HomeActivity extends Activity {
             @Override public void afterTextChanged(android.text.Editable e) { }
         });
         searchBox.requestFocus();
+        contactsLoaded = false;
+        loadContactIndex();
+        runSearch("");
         ((android.view.inputmethod.InputMethodManager) getSystemService(INPUT_METHOD_SERVICE)).showSoftInput(searchBox, 0);
     }
 
@@ -410,25 +416,84 @@ public class HomeActivity extends Activity {
         results.clear();
     }
 
+    /** Contacts are matched in memory: SQL LIKE cannot ignore accents or tolerate typos. */
+    private final List<String[]> contactIndex = new ArrayList<>();       // name, number, normalised name, digits, normalised extras
+    private volatile boolean contactsLoaded;
+
+    private void loadContactIndex() {
+        if (contactsLoaded || checkSelfPermission(android.Manifest.permission.READ_CONTACTS) != PackageManager.PERMISSION_GRANTED) return;
+        new Thread(() -> {
+            Map<Long, StringBuilder> extra = new HashMap<>();             // nickname, organisation, e-mail
+            android.database.Cursor e = null;
+            try {
+                e = getContentResolver().query(android.provider.ContactsContract.Data.CONTENT_URI,
+                        new String[]{android.provider.ContactsContract.Data.CONTACT_ID, android.provider.ContactsContract.Data.DATA1},
+                        android.provider.ContactsContract.Data.MIMETYPE + " IN (?,?,?)",
+                        new String[]{android.provider.ContactsContract.CommonDataKinds.Nickname.CONTENT_ITEM_TYPE,
+                                android.provider.ContactsContract.CommonDataKinds.Organization.CONTENT_ITEM_TYPE,
+                                android.provider.ContactsContract.CommonDataKinds.Email.CONTENT_ITEM_TYPE}, null);
+                while (e != null && e.moveToNext()) {
+                    String v = e.getString(1);
+                    if (v == null) continue;
+                    StringBuilder sb = extra.get(e.getLong(0));
+                    if (sb == null) { sb = new StringBuilder(); extra.put(e.getLong(0), sb); }
+                    sb.append(v).append(' ');
+                }
+            } catch (Exception ignored) { } finally { if (e != null) e.close(); }
+            List<String[]> out = new ArrayList<>();
+            android.database.Cursor c = null;
+            try {
+                c = getContentResolver().query(android.provider.ContactsContract.CommonDataKinds.Phone.CONTENT_URI,
+                        new String[]{android.provider.ContactsContract.CommonDataKinds.Phone.DISPLAY_NAME,
+                                android.provider.ContactsContract.CommonDataKinds.Phone.NUMBER,
+                                android.provider.ContactsContract.CommonDataKinds.Phone.CONTACT_ID}, null, null,
+                        android.provider.ContactsContract.CommonDataKinds.Phone.DISPLAY_NAME + " COLLATE LOCALIZED ASC");
+                while (c != null && c.moveToNext()) {
+                    String name = c.getString(0), num = c.getString(1);
+                    if (name == null) continue;
+                    StringBuilder ex = extra.get(c.getLong(2));
+                    out.add(new String[]{name, num, Fuzzy.norm(name), num == null ? "" : num.replaceAll("[^0-9]", ""), ex == null ? "" : Fuzzy.norm(ex.toString())});
+                }
+            } catch (Exception ignored) { } finally { if (c != null) c.close(); }
+            synchronized (contactIndex) { contactIndex.clear(); contactIndex.addAll(out); }
+            contactsLoaded = true;
+            ui.post(() -> { if (searchBox != null) runSearch(searchBox.getText().toString().trim()); });
+        }).start();
+    }
+
     private void runSearch(String q) {
         results.clear();
-        if (!q.isEmpty()) {
-            String ql = q.toLowerCase();
-            for (App a : allApps) if (a.label.toLowerCase().contains(ql)) results.add(new Object[]{a});
-            if (checkSelfPermission(android.Manifest.permission.READ_CONTACTS) == PackageManager.PERMISSION_GRANTED) {
-                android.database.Cursor c = null;
-                try {
-                    c = getContentResolver().query(android.provider.ContactsContract.CommonDataKinds.Phone.CONTENT_URI,
-                            new String[]{android.provider.ContactsContract.CommonDataKinds.Phone.DISPLAY_NAME,
-                                    android.provider.ContactsContract.CommonDataKinds.Phone.NUMBER},
-                            android.provider.ContactsContract.CommonDataKinds.Phone.DISPLAY_NAME + " LIKE ?",
-                            new String[]{"%" + q + "%"},
-                            android.provider.ContactsContract.CommonDataKinds.Phone.DISPLAY_NAME + " ASC LIMIT 6");
-                    Set<String> seen = new HashSet<>();
-                    while (c != null && c.moveToNext()) if (seen.add(c.getString(0))) results.add(new Object[]{c.getString(0), c.getString(1)});
-                } catch (Exception ignored) { } finally { if (c != null) c.close(); }
+        final String nq = Fuzzy.norm(q);
+        lastQuery = nq;
+        if (nq.isEmpty()) {
+            // nothing typed yet: the apps you use most
+            final List<App> frequent = new ArrayList<>();
+            for (App a : allApps) if (usage.count(a.pkg) > 0) frequent.add(a);
+            Collections.sort(frequent, (x, y) -> usage.count(y.pkg) - usage.count(x.pkg));
+            for (int i = 0; i < frequent.size() && i < 5; i++) results.add(new Object[]{frequent.get(i)});
+            searchAdapter.notifyDataSetChanged();
+            return;
+        }
+        final List<Object[]> apps = new ArrayList<>();
+        for (App a : allApps) {
+            int sc = AppIndex.score(nq, a.norm, a.doc);
+            if (sc > 0) apps.add(new Object[]{a, sc + usage.bonus(a.pkg, nq)});
+        }
+        Collections.sort(apps, (x, y) -> (Integer) y[1] - (Integer) x[1]);
+        for (int i = 0; i < apps.size() && i < 8; i++) results.add(new Object[]{apps.get(i)[0]});
+        final boolean digits = nq.replace(" ", "").matches("[0-9+]{3,}");
+        final String dq = nq.replaceAll("[^0-9]", "");
+        final List<Object[]> people = new ArrayList<>();
+        Set<String> seen = new HashSet<>();
+        synchronized (contactIndex) {
+            for (String[] c : contactIndex) {
+                int sc = digits ? (c[3].contains(dq) ? 50 : 0) : Math.max(Fuzzy.score(nq, c[2]), Fuzzy.score(nq, c[4]) * 7 / 10);
+                if (sc > 0 && seen.add(c[0])) people.add(new Object[]{c[0], c[1], sc});
             }
         }
+        Collections.sort(people, (x, y) -> (Integer) y[2] - (Integer) x[2]);
+        for (int i = 0; i < people.size() && i < 6; i++) results.add(new Object[]{people.get(i)[0], people.get(i)[1]});
+        if (!contactsLoaded) loadContactIndex();
         searchAdapter.notifyDataSetChanged();
     }
 
@@ -498,7 +563,7 @@ public class HomeActivity extends Activity {
 
     // ---- data -------------------------------------------------------------
 
-    private static class App { String pkg, label; ComponentName cn; }
+    private static class App { String pkg, label, norm, doc = ""; ComponentName cn; ResolveInfo ri; }
 
     private void reload() {
         new Thread(() -> {
@@ -512,6 +577,7 @@ public class HomeActivity extends Activity {
                 a.pkg = p;
                 a.label = String.valueOf(ri.loadLabel(pm));
                 a.cn = new ComponentName(p, ri.activityInfo.name);
+                a.ri = ri;
                 byPkg.put(p, a);
             }
             if (byPkg.containsKey("com.scratch.ioscamera")) byPkg.remove("org.cyanogenmod.snap");
@@ -532,6 +598,8 @@ public class HomeActivity extends Activity {
             grid.addAll(rest);
         grid.addAll(tools);
             allApps = new ArrayList<>(); allApps.addAll(dockApps); allApps.addAll(grid);
+            Map<String, String> caps = AppIndex.capabilities(pm);
+            for (App a : allApps) { a.norm = Fuzzy.norm(a.label); a.doc = AppIndex.doc(HomeActivity.this, pm, a.ri, caps); }
             for (App a : dockApps) icon(a);
             for (App a : grid) icon(a);
             ui.post(() -> build(grid, dockApps));
@@ -613,6 +681,8 @@ public class HomeActivity extends Activity {
     private static final android.text.TextUtils.TruncateAt TextUtils_END = android.text.TextUtils.TruncateAt.END;
 
     private void launch(App a, View from) {
+        usage.record(a.pkg, lastQuery);
+        lastQuery = "";
         Intent i = new Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER)
                 .setComponent(a.cn).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_RESET_TASK_IF_NEEDED);
         try {

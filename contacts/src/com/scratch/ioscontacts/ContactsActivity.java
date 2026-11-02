@@ -37,7 +37,7 @@ public class ContactsActivity extends Activity {
     private ImageView detailAvatar;
     private TextView detailName, detailSub;
 
-    private static class Row { long id; String lookup; String name; boolean header; boolean star; }
+    private static class Row { long id; String lookup; String name; boolean header; boolean star; int score; }
 
     @Override
     protected void onCreate(Bundle b) {
@@ -204,23 +204,54 @@ public class ContactsActivity extends Activity {
 
     private void filter(String q) {
         shown.clear();
-        String ql = q.toLowerCase(Locale.getDefault());
-        String lastLetter = "";
+        final String nq = Fuzzy.norm(q);
         int n = 0;
-        for (Row r : all) {
-            if (!ql.isEmpty() && !r.name.toLowerCase(Locale.getDefault()).contains(ql)) continue;
-            String l = r.name.isEmpty() ? "#" : r.name.substring(0, 1).toUpperCase(Locale.getDefault());
-            if (!Character.isLetter(l.charAt(0))) l = "#";
-            if (!l.equals(lastLetter)) {
-                Row h = new Row(); h.header = true; h.name = l;
-                shown.add(h);
-                lastLetter = l;
+        if (nq.isEmpty()) {
+            String lastLetter = "";
+            for (Row r : all) {
+                String l = r.name.isEmpty() ? "#" : r.name.substring(0, 1).toUpperCase(Locale.getDefault());
+                if (!Character.isLetter(l.charAt(0))) l = "#";
+                if (!l.equals(lastLetter)) {
+                    Row h = new Row(); h.header = true; h.name = l;
+                    shown.add(h);
+                    lastLetter = l;
+                }
+                shown.add(r);
+                n++;
             }
-            shown.add(r);
-            n++;
+        } else {
+            // ranked flat list: accents/case ignored, every word matched, typos tolerated; digits match phone numbers
+            final String dq = nq.replaceAll("[^0-9]", "");
+            final boolean digits = nq.replace(" ", "").matches("[0-9+]{3,}");
+            final List<Row> hits = new ArrayList<>();
+            for (Row r : all) {
+                r.score = digits ? (numbersOf(r).contains(dq) ? 50 : 0) : Fuzzy.score(nq, Fuzzy.norm(r.name));
+                if (r.score > 0) hits.add(r);
+            }
+            Collections.sort(hits, (a, b) -> b.score - a.score);
+            shown.addAll(hits);
+            n = hits.size();
         }
         count.setText(n + (n == 1 ? " contacto" : " contactos"));
         adapter.notifyDataSetChanged();
+    }
+
+    private final Map<Long, String> digitCache = new HashMap<>();
+
+    /** Digits of all numbers of a contact (queried lazily, cached). */
+    private String numbersOf(Row r) {
+        String d = digitCache.get(r.id);
+        if (d != null) return d;
+        StringBuilder sb = new StringBuilder();
+        Cursor c = null;
+        try {
+            c = getContentResolver().query(CommonDataKinds.Phone.CONTENT_URI, new String[]{CommonDataKinds.Phone.NUMBER},
+                    CommonDataKinds.Phone.CONTACT_ID + "=?", new String[]{String.valueOf(r.id)}, null);
+            while (c != null && c.moveToNext()) { String v = c.getString(0); if (v != null) sb.append(v.replaceAll("[^0-9]", "")).append(' '); }
+        } catch (Exception ignored) { } finally { if (c != null) c.close(); }
+        d = sb.toString();
+        digitCache.put(r.id, d);
+        return d;
     }
 
     // ---- detail ------------------------------------------------------------------

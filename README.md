@@ -59,6 +59,7 @@ Everything the owner has asked for, in order, with the result. This section is u
 | 21 | **Messages** | Own Messages app: conversation list (avatars, unread badges), thread with glass/accent bubbles, composer, new message, `sms:`/`smsto:` intents; day/night aware; in the dock. **Deliberately not the default SMS app**: the stock app keeps receiving SMS/MMS and owning the provider (hidden from the grid, still installed). Sending uses `SmsManager` and could not be tested (no SIM) |
 | 22 | **Night dialogs** ("Diálogos de noche") | System dialogs (e.g. the permission prompt) were dark text on dark background at night. Cause: the Light text colours are file-based state lists that the zygote preloads *without* overlays. Fix: redefine them as plain colours in the framework overlay's `values-night/colors_text.xml`. Dialogs now read correctly. Contacts still cannot go dark (its list text is hard-coded in the layout), so it stays light at night |
 | 23 | **Own Contacts app** | Sectioned list (A–Z headers, fast scroll, 126 contacts), search, detail page (avatar, organisation, phones and emails with call / SMS / mail buttons), star marker; creating and editing hand over to the stock editor (`ACTION_INSERT` / `ACTION_EDIT`), which stays installed (light theme). Day/night aware; first in the launcher grid, stock one hidden |
+| 24 | **Own Clock app** ("Reloj propio") | Four tabs: alarms (list, add/edit with time picker, weekday chips, label, on/off, delete), stopwatch with laps, timer with progress ring and presets, world clocks (28 cities, long-press to remove). Alarms use `AlarmManager.setAlarmClock` (they show the status-bar alarm icon), survive reboot and time changes (`BootReceiver`), ring full-screen over the lock screen with the system alarm sound, vibration, snooze 10 min and stop. Verified: a real alarm fired at its minute with its label and switched itself off; the timer fires the same ring screen. Day/night aware; stock clock hidden from the grid |
 
 ## Status
 
@@ -68,6 +69,7 @@ Everything the owner has asked for, in order, with the result. This section is u
 | Day/night: launcher, Settings, Calculator, notifications | ✅ working |
 | Day/night: stock Contacts, Messages, Phone | ⚠️ stay light at night (cannot be fixed with overlays) |
 | Own Phone app (keypad, recents, contacts, day/night) | ✅ working (calls untested: the phone has no SIM) |
+| Own Clock (alarms, stopwatch, timer, world; alarm rings over lock screen) | ✅ alarm and timer ring verified; repeating alarms, snooze, boot persistence not exercised |
 | Own Contacts (list, search, detail, call/SMS/mail; editing via stock editor) | ✅ working |
 | Own Messages (list, thread, compose; stock app stays default for receiving) | ✅ list/thread tested with seeded data; **sending untested (no SIM)** |
 | Own Gallery (grid, viewer, zoom, share, delete, video) | ✅ working; video playback and delete not exercised yet |
@@ -96,7 +98,8 @@ Details and the full engineering diary: [`docs/engineering-notes.md`](docs/engin
 14. **Seeding test SMS**: `content insert` into `content://sms` is silently refused (only the default SMS app may write); insert with root `sqlite3` into `/data/user_de/0/com.android.providers.telephony/databases/mmssms.db` (set `thread_id` yourself) and compute timestamps in SQL (`strftime('%s','now')*1000`): shell arithmetic overflows 32 bits.
 15. **File-based colours (`res/color/*.xml` state lists) ignore overlays** because the zygote preloads them before overlays apply. Redefine them as *plain* `<color>` values in the overlay (the cache key then becomes the colour value). Used for the Light text colours in `work/frame/res/values-night/colors_text.xml`.
 16. **A day/night switch restarts SystemUI, which brings the lock screen back** (notification cards need it). It happens at the two daily switches; if that is annoying, switch the restart off in `daynight.sh`.
-17. Boot animation frames can be small and centred with a solid background colour (`p 1 0 part0 #14123A` in `desc.txt`) — much lighter than full-screen frames.
+17. **Testing alarms**: `am broadcast -a com.scratch.iosclock.TEST -n com.scratch.iosclock/.AlarmReceiver --ei seconds 20` starts a timer that rings; to test a real alarm write `shared_prefs/clock.xml` (one line per alarm: `id\thour\tminute\tdaysMask\ton\tlabel`) as root and send `TIME_SET` to `.BootReceiver`; `dumpsys alarm | grep iosclock` shows it registered. A ring you did not expect may just be someone tapping Stop: the touch has `dev=10 src=0x1002`.
+18. Boot animation frames can be small and centred with a solid background colour (`p 1 0 part0 #14123A` in `desc.txt`) — much lighter than full-screen frames.
 
 ## Build and install
 
@@ -118,6 +121,7 @@ tools/build_phone.sh         # builds and installs the phone app
 tools/build_gallery.sh       # builds and installs the gallery app
 tools/build_messages.sh      # builds and installs the messages app
 tools/build_contacts.sh      # builds and installs the contacts app
+tools/build_clock.sh         # builds and installs the clock app
 python3 tools/gen_icons.py   # regenerates the SystemUI thin icon vectors
 
 # wallpapers and boot animation
@@ -144,6 +148,7 @@ phone/        phone app (keypad, recents, contacts; follows day/night)
 gallery/      gallery app (grid + viewer; follows day/night)
 messages/     messages app (conversations, thread, compose; not default SMS)
 contacts/     contacts app (list, search, detail; editing delegated to the stock editor)
+clock/        clock app (alarms, stopwatch, timer, world clocks)
 work/         overlay sources: app/<app>/res/values{,-night}, sysui/ (vector icons), frame/ (framework)
 tools/        build scripts, icon generator, day/night helpers, scheduler (tools/device)
 wallpaper/    wallpaper generators (Java 2D) and the two JPEGs

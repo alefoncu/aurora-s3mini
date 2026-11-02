@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android" package="com.scratch.iosclock" android:versionCode="1" android:versionName="1.0">
+    <uses-sdk android:minSdkVersion="22" android:targetSdkVersion="22"/>
+    <uses-permission android:name="android.permission.WAKE_LOCK"/>
+    <uses-permission android:name="android.permission.VIBRATE"/>
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED"/>
+    <uses-permission android:name="android.permission.DISABLE_KEYGUARD"/>
+    <application android:icon="@drawable/ic_launcher" android:label="Reloj">
+        <activity android:name=".ClockActivity" android:label="Reloj" android:screenOrientation="portrait"
+                  android:theme="@android:style/Theme.Holo.Wallpaper.NoTitleBar"
+                  android:configChanges="orientation|keyboardHidden|screenSize|uiMode" android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN"/>
+                <category android:name="android.intent.category.LAUNCHER"/>
+            </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.SHOW_ALARMS"/>
+                <category android:name="android.intent.category.DEFAULT"/>
+            </intent-filter>
+        </activity>
+        <activity android:name=".RingActivity" android:label="Alarma" android:screenOrientation="portrait"
+                  android:theme="@android:style/Theme.Holo.Wallpaper.NoTitleBar"
+                  android:launchMode="singleInstance" android:excludeFromRecents="true"
+                  android:showOnLockScreen="true" android:exported="false"/>
+        <receiver android:name=".AlarmReceiver" android:exported="true">
+            <intent-filter><action android:name="com.scratch.iosclock.FIRE"/></intent-filter>
+            <intent-filter><action android:name="com.scratch.iosclock.TEST"/></intent-filter>
+        </receiver>
+        <receiver android:name=".BootReceiver" android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED"/>
+                <action android:name="android.intent.action.TIME_SET"/>
+                <action android:name="android.intent.action.TIMEZONE_CHANGED"/>
+            </intent-filter>
+        </receiver>
+    </application>
+</manifest>

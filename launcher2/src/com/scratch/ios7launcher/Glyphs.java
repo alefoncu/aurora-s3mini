@@ -20,7 +20,8 @@ final class Glyphs {
             case "com.android.settings": return "settings";
             case "com.android.gallery3d":
             case "com.scratch.iosgallery": return "gallery";
-            case "com.android.deskclock": return "clock";
+            case "com.android.deskclock":
+            case "com.scratch.iosclock": return "clock";
             case "com.android.calculator2": return "calc";
             case "com.android.documentsui": return "folder";
             case "com.android.email": return "mail";

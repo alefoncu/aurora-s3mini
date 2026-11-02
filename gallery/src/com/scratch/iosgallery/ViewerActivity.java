@@ -30,7 +30,7 @@ public class ViewerActivity extends Activity {
     private int pos;
     private final Handler ui = new Handler(Looper.getMainLooper());
     private ImageView iv;
-    private VideoView vv;
+    private VideoPane vv;
     private View top, bottom;
     private TextView dateView;
     private float scale = 1f, tx, ty;
@@ -61,9 +61,10 @@ public class ViewerActivity extends Activity {
         iv = new ImageView(this);
         iv.setScaleType(ImageView.ScaleType.FIT_CENTER);
         root.addView(iv, new FrameLayout.LayoutParams(-1, -1));
-        vv = new VideoView(this);
-        vv.setVisibility(View.GONE);
-        root.addView(vv, new FrameLayout.LayoutParams(-1, -1, Gravity.CENTER));
+        vv = new VideoPane(this);
+        FrameLayout.LayoutParams vlp = new FrameLayout.LayoutParams(-1, -1, Gravity.CENTER);
+        vlp.bottomMargin = (int) (64 * d);   // above the action bar
+        root.addView(vv, vlp);
 
         top = bar(true);
         bottom = bar(false);
@@ -148,6 +149,7 @@ public class ViewerActivity extends Activity {
         bottom.animate().alpha(a).setDuration(160).start();
         top.setEnabled(barsOn);
         bottom.setEnabled(barsOn);
+        vv.setControlsVisible(barsOn);
     }
 
     // ---- showing ---------------------------------------------------------------------
@@ -160,16 +162,10 @@ public class ViewerActivity extends Activity {
         if (it.type == Media.VIDEO) {
             iv.setImageBitmap(null);
             iv.setVisibility(View.GONE);
-            vv.setVisibility(View.VISIBLE);
-            MediaController mc = new MediaController(this);
-            mc.setAnchorView(vv);
-            vv.setMediaController(mc);
-            vv.setVideoPath(it.path);
-            vv.start();
+            vv.open(it.path);
             return;
         }
-        vv.stopPlayback();
-        vv.setVisibility(View.GONE);
+        vv.close();
         iv.setVisibility(View.VISIBLE);
         new Thread(() -> {
             final Bitmap bm = Media.decode(it.path, 1100, false);
@@ -225,7 +221,12 @@ public class ViewerActivity extends Activity {
                 .show();
     }
 
-    private void delete(Media.Item it) {
+    private void delete(final Media.Item it) {
+        vv.close();   // player released off the UI thread; unlinking does not wait for it
+        deleteNow(it);
+    }
+
+    private void deleteNow(Media.Item it) {
         new File(it.path).delete();
         try {
             getContentResolver().delete(MediaStore.Files.getContentUri("external"), MediaStore.Files.FileColumns._ID + "=?", new String[]{String.valueOf(it.id)});
@@ -241,4 +242,16 @@ public class ViewerActivity extends Activity {
 
     @Override
     protected void onPause() { super.onPause(); if (vv != null) vv.pause(); }
+
+    @Override
+    protected void onRestart() {
+        super.onRestart();
+        if (list != null && !list.isEmpty()) show();
+    }
+
+    @Override
+    protected void onDestroy() {
+        super.onDestroy();
+        if (vv != null) vv.close();
+    }
 }

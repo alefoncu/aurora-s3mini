@@ -33,15 +33,16 @@ final class Fuzzy {
     static int score(String query, String text) {
         if (query.isEmpty() || text.isEmpty()) return 0;
         String[] qs = query.split(" "), ws = text.split(" ");
+        boolean byInitials = qs.length == 1 && query.length() >= 2 && ws.length >= 2 && initials(ws).startsWith(query);
         int total = 0;
         for (String q : qs) {
             int best = 0;
             for (String w : ws) best = Math.max(best, word(q, w));
-            if (best == 0) return 0;
+            if (best == 0) return byInitials ? 66 : 0;     // "aa" finds "Alejandro Arias" even though no word starts with "aa"
             total += best;
         }
         int s = total / qs.length;
-        if (qs.length == 1 && query.length() >= 2 && ws.length >= 2 && initials(ws).startsWith(query)) s = Math.max(s, 66);
+        if (byInitials) s = Math.max(s, 66);
         if (text.startsWith(query)) s += 25;            // the whole name starts with what was typed
         else if (text.contains(query)) s += 8;
         return s;

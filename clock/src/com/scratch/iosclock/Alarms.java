@@ -85,12 +85,15 @@ final class Alarms {
         }
         long te = prefs(c).getLong("timer_end", 0);
         if (te > now) am.setExact(AlarmManager.RTC_WAKEUP, te, pending(c, 9000, "timer"));
+        long se = prefs(c).getLong("snooze_end", 0);          // a snoozed alarm survives reboot too
+        if (se > now) am.setAlarmClock(new AlarmManager.AlarmClockInfo(se, show(c)), pending(c, 9001, "snooze", prefs(c).getString("snooze_label", "")));
     }
 
     static void scheduleSnooze(Context c, String label, int minutes) {
         AlarmManager am = (AlarmManager) c.getSystemService(Context.ALARM_SERVICE);
         long t = System.currentTimeMillis() + minutes * 60000L;
         PendingIntent pi = pending(c, 9001, "snooze", label);
+        prefs(c).edit().putLong("snooze_end", t).putString("snooze_label", label == null ? "" : label).apply();
         am.setAlarmClock(new AlarmManager.AlarmClockInfo(t, show(c)), pi);
     }
 

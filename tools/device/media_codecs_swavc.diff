@@ -1,0 +1,16 @@
+--- media_codecs.xml (stock)
++++ media_codecs.xml (patched)	2026-11-02 20:31:50
+@@ -95,11 +95,13 @@
+             <Quirk name="requires-allocate-on-output-ports" />
+         </MediaCodec>
+ 
++<!-- aurora: hardware H.264 decoder disabled (deadlocks on release, delivers no frames); software decoder is used instead
+         <MediaCodec name="OMX.ST.VFM.H264Dec" >
+             <Type name="video/avc" />
+             <Quirk name="requires-allocate-on-input-ports" />
+             <Quirk name="requires-allocate-on-output-ports" />
+         </MediaCodec>
++        -->
+ 		
+         <MediaCodec name="OMX.ST.VFM.VC1Dec" >
+             <Type name="video/vc1" />

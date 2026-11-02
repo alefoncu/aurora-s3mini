@@ -32,6 +32,8 @@ public class AlarmReceiver extends BroadcastReceiver {
                 }
             }
             Alarms.save(c, list);                          // also schedules the next occurrence of repeating ones
+        } else if ("snooze".equals(kind)) {
+            Alarms.prefs(c).edit().putLong("snooze_end", 0).apply();
         } else if ("timer".equals(kind)) {
             Alarms.prefs(c).edit().putLong("timer_end", 0).apply();
             label = "Temporizador";

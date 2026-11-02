@@ -3,4 +3,6 @@
  <!-- day -->
  <color name="material_blue_500">#3B6BEA</color>
  <color name="material_blue_700">#3B6BEA</color>
+    <color name="card_background_grey">#FFECEBFA</color>
+    <color name="card_background">#FFFFFFFF</color>
 </resources>

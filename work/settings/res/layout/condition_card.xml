@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- soft condition card (replaces the accent-filled banner); day/night variants differ only in colours -->
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent" android:layout_height="wrap_content"
+    android:clipChildren="false" android:clipToPadding="false">
+    <LinearLayout android:id="@+id/content" android:orientation="vertical"
+        android:layout_width="match_parent" android:layout_height="wrap_content"
+        android:background="#FFE3E8FF" android:focusable="true" android:clickable="true">
+        <LinearLayout android:id="@+id/collapsed_group" android:orientation="horizontal" android:gravity="center_vertical|end"
+            android:background="?android:attr/selectableItemBackground"
+            android:layout_width="match_parent" android:layout_height="56dp">
+            <ImageView android:id="@android:id/icon" android:layout_width="24dp" android:layout_height="wrap_content"
+                android:tint="#FF3B6BEA" android:layout_marginStart="16dp" android:layout_marginEnd="32dp"/>
+            <TextView android:id="@android:id/title" android:textColor="#FF14123A" android:textSize="15sp" android:fontFamily="sans-serif"
+                android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1"/>
+            <ImageView android:id="@+id/expand_indicator" android:padding="16dp" android:tint="#FF3B6BEA"
+                android:layout_width="wrap_content" android:layout_height="match_parent"/>
+        </LinearLayout>
+        <LinearLayout android:id="@+id/detail_group" android:orientation="vertical" android:visibility="gone"
+            android:layout_width="match_parent" android:layout_height="0dp" android:paddingStart="72dp">
+            <TextView android:id="@android:id/summary" android:textColor="#FF5E5C85" android:textSize="14sp" android:paddingBottom="16dp"
+                android:layout_width="match_parent" android:layout_height="wrap_content"/>
+            <View android:id="@+id/divider" android:background="#1F14123A" android:layout_width="match_parent" android:layout_height="0.25dp"/>
+            <com.android.internal.widget.ButtonBarLayout android:id="@+id/buttonBar" android:paddingTop="8dp" android:paddingBottom="8dp"
+                android:layout_width="match_parent" android:layout_height="wrap_content" style="?android:attr/buttonBarStyle">
+                <Button android:id="@+id/first_action" android:textColor="#FF3B6BEA" android:layout_width="0dp" android:layout_height="wrap_content"
+                    android:layout_weight="1" android:textAlignment="viewStart" android:paddingStart="0dp" style="?android:attr/buttonBarButtonStyle"/>
+                <Button android:id="@+id/second_action" android:textColor="#FF3B6BEA" android:layout_width="0dp" android:layout_height="wrap_content"
+                    android:layout_weight="1" android:textAlignment="viewStart" style="?android:attr/buttonBarButtonStyle"/>
+            </com.android.internal.widget.ButtonBarLayout>
+        </LinearLayout>
+    </LinearLayout>
+</FrameLayout>

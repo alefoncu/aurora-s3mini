@@ -3,8 +3,6 @@
 <resources>
     <color name="bright_foreground_disabled_material_light">#66F2F1FF</color>
     <color name="button_material_light">#FF3A3779</color>
-    <color name="card_background">#FF1E1B4B</color>
-    <color name="card_background_grey">#FF14123A</color>
     <color name="conversation_background">#FF14123A</color>
     <color name="dim_foreground_disabled_material_light">#66A3A1C8</color>
     <color name="dim_foreground_material_light">#FFA3A1C8</color>

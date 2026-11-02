@@ -54,6 +54,7 @@ Everything the owner has asked for, in order, with the result. This section is u
 | 16 | **Publish on GitHub and keep a README of every request** | This repository |
 | 17 | **Own Phone app** ("yes, phone") | Done: glass keypad, recents, contacts with search, day/night aware; the launcher dock uses it and hides the stock dialer. Bugs found and fixed on the way: keypad call row clipped, tab icons swallowing taps |
 | 18 | **Own Gallery + widgets** ("Galería + widgets") | Gallery app: 3-column grid, Todo/Fotos/Vídeos filter, full-screen viewer with swipe, pinch/double-tap zoom, share, delete, video. Launcher: a *Today* page (next calendar events, battery, storage, RAM) left of the app grid, plus a fade/scale effect while paging. Stock Gallery hidden from the grid |
+| 19 | **Polish Settings** | The accent-filled *Do Not Disturb* banner is replaced by a soft tinted card (day: pale lavender, night: indigo) through a layout override in the Settings overlay; Settings gets tinted day/night backgrounds. Quick-settings tweaks still pending |
 
 ## Status
 
@@ -84,7 +85,8 @@ Details and the full engineering diary: [`docs/engineering-notes.md`](docs/engin
 9. **If the home app crashes Android asks which launcher to use**: `cmd package set-home-activity com.scratch.ios7launcher/.HomeActivity`.
 10. **`adb screencap` shows black for the camera viewfinder**; judge the preview on the device itself.
 11. **`adb install` can hang or fail with `INSTALL_FAILED_VERIFICATION_FAILURE`** when Google Play services are stopped (the package verifier waits for them). The build scripts now push the APK and run `pm install -r` on the phone, which worked.
-12. Boot animation frames can be small and centred with a solid background colour (`p 1 0 part0 #14123A` in `desc.txt`) — much lighter than full-screen frames.
+12. **A layout overridden in an overlay must keep the target's view ids.** `@+id/...` in the overlay creates new ids, and the app's `findViewById` returns null (`NullPointerException` in `ConditionAdapterUtils.bindViews`; Settings crashed on open). Fix: pass `--stable-ids ids.txt` to aapt2 with the target's ids (`work/settings/ids.txt`; `build_overlay.sh` picks it up automatically).
+13. Boot animation frames can be small and centred with a solid background colour (`p 1 0 part0 #14123A` in `desc.txt`) — much lighter than full-screen frames.
 
 ## Build and install
 

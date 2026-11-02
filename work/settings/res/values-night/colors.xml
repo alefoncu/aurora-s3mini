@@ -2,4 +2,6 @@
 <resources>
  <color name="material_blue_500">#7BA7FF</color>
  <color name="material_blue_700">#7BA7FF</color>
+    <color name="card_background_grey">#FF1E1B4B</color>
+    <color name="card_background">#FF191744</color>
 </resources>

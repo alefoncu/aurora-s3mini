@@ -1,0 +1,8 @@
+com.scratch.ios.overlay.Settings:id/content = 0x7f1100b8
+com.scratch.ios.overlay.Settings:id/collapsed_group = 0x7f1100b9
+com.scratch.ios.overlay.Settings:id/expand_indicator = 0x7f1100ba
+com.scratch.ios.overlay.Settings:id/detail_group = 0x7f1100bb
+com.scratch.ios.overlay.Settings:id/divider = 0x7f1100bc
+com.scratch.ios.overlay.Settings:id/buttonBar = 0x7f1100bd
+com.scratch.ios.overlay.Settings:id/first_action = 0x7f1100be
+com.scratch.ios.overlay.Settings:id/second_action = 0x7f1100bf

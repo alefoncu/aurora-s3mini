@@ -5,5 +5,6 @@
   <item name="android:colorPrimary">#3D4FD1</item>
   <item name="android:colorPrimaryDark">#2C3BAF</item>
   <item name="android:colorControlActivated">#3B6BEA</item>
+   <item name="android:colorBackground">#FFF6F5FF</item>
  </style>
 </resources>

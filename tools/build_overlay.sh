@@ -13,7 +13,7 @@ cat > $D/AndroidManifest.xml <<M
 M
 mkdir -p $R/out; rm -f $D/res.zip $D/u.apk $D/a.apk
 $BT/aapt2 compile --dir $D/res -o $D/res.zip
-$BT/aapt2 link -I $R/work/framework-res.apk --manifest $D/AndroidManifest.xml $D/res.zip -o $D/u.apk
+$BT/aapt2 link -I $R/work/framework-res.apk --manifest $D/AndroidManifest.xml $([ -f $D/ids.txt ] && echo --stable-ids $D/ids.txt) $D/res.zip -o $D/u.apk
 $BT/zipalign -f 4 $D/u.apk $D/a.apk
 $BT/apksigner sign --ks ~/.android/debug.keystore --ks-pass pass:android --key-pass pass:android --v1-signing-enabled true --v2-signing-enabled false --out $R/out/${N}Overlay.apk $D/a.apk
 echo built $N

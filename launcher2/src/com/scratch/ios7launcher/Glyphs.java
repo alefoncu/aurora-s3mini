@@ -9,7 +9,8 @@ final class Glyphs {
     /** Maps a package name to a glyph key; null means "use the first letter". */
     static String kindFor(String pkg) {
         switch (pkg) {
-            case "com.android.dialer": return "phone";
+            case "com.android.dialer":
+            case "com.scratch.iosphone": return "phone";
             case "com.android.messaging": return "message";
             case "com.scratch.ioscamera":
             case "org.cyanogenmod.snap": return "camera";

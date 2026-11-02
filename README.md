@@ -52,6 +52,7 @@ Everything the owner has asked for, in order, with the result. This section is u
 | 14 | "Do the 4 things": soften battery bar, launcher search, own Phone app, dark Settings, Messages theme | Battery bar ✔, search ✔, dark Settings ✔; **own Phone app and Messages still pending** |
 | 15 | **Light/dark mode by time of day** | Scheduler + day/night wallpapers + overlays with `values-night`; Settings, Calculator, launcher, notifications follow it. Stock Contacts/Messages/Dialer stay light at night (hard-coded colours) |
 | 16 | **Publish on GitHub and keep a README of every request** | This repository |
+| 17 | **Own Phone app** ("yes, phone") | Done: glass keypad, recents, contacts with search, day/night aware; the launcher dock uses it and hides the stock dialer. Bugs found and fixed on the way: keypad call row clipped, tab icons swallowing taps |
 
 ## Status
 
@@ -60,7 +61,7 @@ Everything the owner has asked for, in order, with the result. This section is u
 | Launcher, search, wallpapers, lock screen, status bar, shade, boot animation, camera | ✅ working |
 | Day/night: launcher, Settings, Calculator, notifications | ✅ working |
 | Day/night: stock Contacts, Messages, Phone | ⚠️ stay light at night (cannot be fixed with overlays) |
-| Own Phone app (keypad, recents, contacts, day/night) | ⏳ next |
+| Own Phone app (keypad, recents, contacts, day/night) | ✅ working (calls untested: the phone has no SIM) |
 | Messages (own app vs. deeper theme) | ⏳ to decide (default-SMS role, MMS risk) |
 | Thin icons for torch / rotation / airplane / location tiles | ❌ animated vectors, left stock on purpose |
 | Boot animation seen during a real cold boot | ❌ only previewed with `bootanim` |
@@ -97,6 +98,7 @@ adb reboot
 
 tools/build_launcher.sh      # builds and installs the launcher
 tools/build_camera.sh        # builds and installs the camera
+tools/build_phone.sh         # builds and installs the phone app
 python3 tools/gen_icons.py   # regenerates the SystemUI thin icon vectors
 
 # wallpapers and boot animation
@@ -119,6 +121,7 @@ adb push tools/device/daynight.sh /data/local/ios/ && adb push tools/device/user
 ```
 launcher2/    launcher (Java, no AndroidX): home, search, glyph icons, helpers for wallpaper and test notifications
 camera/       camera app (photo + software video recorder)
+phone/        phone app (keypad, recents, contacts; follows day/night)
 work/         overlay sources: app/<app>/res/values{,-night}, sysui/ (vector icons), frame/ (framework)
 tools/        build scripts, icon generator, day/night helpers, scheduler (tools/device)
 wallpaper/    wallpaper generators (Java 2D) and the two JPEGs

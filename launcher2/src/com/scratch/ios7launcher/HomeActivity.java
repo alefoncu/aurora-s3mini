@@ -19,13 +19,15 @@ public class HomeActivity extends Activity {
     private static final int COLS = 4, ROWS = 3;
     /** Preferred order / dock candidates, first match wins. */
     private static final String[][] DOCK = {
-        {"com.android.dialer"},
+        {"com.scratch.iosphone", "com.android.dialer"},
         {"com.android.messaging"},
         {"com.scratch.ioscamera", "org.cyanogenmod.snap"},
         {"org.lineageos.jelly", "com.android.chrome"},
     };
     private static final java.util.Set<String> TOOLS = new java.util.HashSet<>(java.util.Arrays.asList(
         "com.topjohnwu.magisk", "de.robv.android.xposed.installer", "com.ceco.nougat.gravitybox"));
+    /** Stock apps replaced by own ones: kept installed (the in-call UI needs them) but hidden from the grid. */
+    private static final java.util.Set<String> HIDDEN = new java.util.HashSet<>(java.util.Arrays.asList("com.android.dialer"));
     private static final String[] FIRST = {
         "com.android.contacts", "com.android.settings", "com.android.gallery3d", "com.android.deskclock",
         "com.android.calculator2", "com.google.android.calendar", "com.android.email", "org.cyanogenmod.snap",
@@ -325,6 +327,7 @@ public class HomeActivity extends Activity {
                 byPkg.put(p, a);
             }
             if (byPkg.containsKey("com.scratch.ioscamera")) byPkg.remove("org.cyanogenmod.snap");
+            if (byPkg.containsKey("com.scratch.iosphone")) for (String hp : HIDDEN) byPkg.remove(hp);
             List<App> dockApps = new ArrayList<>();
             for (String[] cands : DOCK) {
                 for (String c : cands) {

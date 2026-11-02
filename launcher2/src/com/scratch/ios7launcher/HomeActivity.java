@@ -21,14 +21,14 @@ public class HomeActivity extends Activity {
     /** Preferred order / dock candidates, first match wins. */
     private static final String[][] DOCK = {
         {"com.scratch.iosphone", "com.android.dialer"},
-        {"com.android.messaging"},
+        {"com.scratch.iosmessages", "com.android.messaging"},
         {"com.scratch.ioscamera", "org.cyanogenmod.snap"},
         {"org.lineageos.jelly", "com.android.chrome"},
     };
     private static final java.util.Set<String> TOOLS = new java.util.HashSet<>(java.util.Arrays.asList(
         "com.topjohnwu.magisk", "de.robv.android.xposed.installer", "com.ceco.nougat.gravitybox"));
     /** Stock apps replaced by own ones: kept installed (the in-call UI needs them) but hidden from the grid. */
-    private static final java.util.Set<String> HIDDEN = new java.util.HashSet<>(java.util.Arrays.asList("com.android.dialer", "com.android.gallery3d"));
+    private static final java.util.Set<String> HIDDEN = new java.util.HashSet<>(java.util.Arrays.asList("com.android.dialer", "com.android.gallery3d", "com.android.messaging"));
     private static final String[] FIRST = {
         "com.android.contacts", "com.android.settings", "com.scratch.iosgallery", "com.android.deskclock",
         "com.android.calculator2", "com.google.android.calendar", "com.android.email", "org.cyanogenmod.snap",
@@ -507,7 +507,7 @@ public class HomeActivity extends Activity {
                 byPkg.put(p, a);
             }
             if (byPkg.containsKey("com.scratch.ioscamera")) byPkg.remove("org.cyanogenmod.snap");
-            for (String hp : HIDDEN) { String own = hp.equals("com.android.dialer") ? "com.scratch.iosphone" : "com.scratch.iosgallery"; if (byPkg.containsKey(own)) byPkg.remove(hp); }
+            for (String hp : HIDDEN) { String own = hp.equals("com.android.dialer") ? "com.scratch.iosphone" : hp.equals("com.android.messaging") ? "com.scratch.iosmessages" : "com.scratch.iosgallery"; if (byPkg.containsKey(own)) byPkg.remove(hp); }
             List<App> dockApps = new ArrayList<>();
             for (String[] cands : DOCK) {
                 for (String c : cands) {

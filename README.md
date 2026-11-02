@@ -56,6 +56,7 @@ Everything the owner has asked for, in order, with the result. This section is u
 | 18 | **Own Gallery + widgets** ("Galería + widgets") | Gallery app: 3-column grid, Todo/Fotos/Vídeos filter, full-screen viewer with swipe, pinch/double-tap zoom, share, delete, video. Launcher: a *Today* page (next calendar events, battery, storage, RAM) left of the app grid, plus a fade/scale effect while paging. Stock Gallery hidden from the grid |
 | 19 | **Polish Settings** | The accent-filled *Do Not Disturb* banner is replaced by a soft tinted card (day: pale lavender, night: indigo) through a layout override in the Settings overlay; Settings gets tinted day/night backgrounds. Quick-settings tweaks still pending |
 | 20 | **Polish quick settings** (+ "the green strip on the status bar must be fixed") | Thin torch icon (stock animation kept: only the `light` path replaced), smaller tile text and spacing. The green strip was GravityBox's battery bar (full width while charging): switched off, battery stays as text. The day/night scheduler now restarts SystemUI on a real mode switch, because notification cards keep the colours they were inflated with |
+| 21 | **Messages** | Own Messages app: conversation list (avatars, unread badges), thread with glass/accent bubbles, composer, new message, `sms:`/`smsto:` intents; day/night aware; in the dock. **Deliberately not the default SMS app**: the stock app keeps receiving SMS/MMS and owning the provider (hidden from the grid, still installed). Sending uses `SmsManager` and could not be tested (no SIM) |
 
 ## Status
 
@@ -65,6 +66,7 @@ Everything the owner has asked for, in order, with the result. This section is u
 | Day/night: launcher, Settings, Calculator, notifications | ✅ working |
 | Day/night: stock Contacts, Messages, Phone | ⚠️ stay light at night (cannot be fixed with overlays) |
 | Own Phone app (keypad, recents, contacts, day/night) | ✅ working (calls untested: the phone has no SIM) |
+| Own Messages (list, thread, compose; stock app stays default for receiving) | ✅ list/thread tested with seeded data; **sending untested (no SIM)** |
 | Own Gallery (grid, viewer, zoom, share, delete, video) | ✅ working; video playback and delete not exercised yet |
 | Launcher Today page (calendar, battery, storage, RAM) | ✅ working |
 | Messages (own app vs. deeper theme) | ⏳ to decide (default-SMS role, MMS risk) |
@@ -88,7 +90,8 @@ Details and the full engineering diary: [`docs/engineering-notes.md`](docs/engin
 11. **`adb install` can hang or fail with `INSTALL_FAILED_VERIFICATION_FAILURE`** when Google Play services are stopped (the package verifier waits for them). The build scripts now push the APK and run `pm install -r` on the phone, which worked.
 12. **Notification cards do not recolour when the system night mode changes** (they keep what they were inflated with); `daynight.sh` restarts SystemUI (`pkill -f com.android.systemui`) after a real switch. When starting the scheduler by hand use `setsid sh /data/local/ios/daynight.sh &`; `pkill -f daynight.sh` from inside `su -c '…daynight.sh…'` kills your own shell.
 13. **A layout overridden in an overlay must keep the target's view ids.** `@+id/...` in the overlay creates new ids, and the app's `findViewById` returns null (`NullPointerException` in `ConditionAdapterUtils.bindViews`; Settings crashed on open). Fix: pass `--stable-ids ids.txt` to aapt2 with the target's ids (`work/settings/ids.txt`; `build_overlay.sh` picks it up automatically).
-14. Boot animation frames can be small and centred with a solid background colour (`p 1 0 part0 #14123A` in `desc.txt`) — much lighter than full-screen frames.
+14. **Seeding test SMS**: `content insert` into `content://sms` is silently refused (only the default SMS app may write); insert with root `sqlite3` into `/data/user_de/0/com.android.providers.telephony/databases/mmssms.db` (set `thread_id` yourself) and compute timestamps in SQL (`strftime('%s','now')*1000`): shell arithmetic overflows 32 bits.
+15. Boot animation frames can be small and centred with a solid background colour (`p 1 0 part0 #14123A` in `desc.txt`) — much lighter than full-screen frames.
 
 ## Build and install
 
@@ -108,6 +111,7 @@ tools/build_launcher.sh      # builds and installs the launcher
 tools/build_camera.sh        # builds and installs the camera
 tools/build_phone.sh         # builds and installs the phone app
 tools/build_gallery.sh       # builds and installs the gallery app
+tools/build_messages.sh      # builds and installs the messages app
 python3 tools/gen_icons.py   # regenerates the SystemUI thin icon vectors
 
 # wallpapers and boot animation
@@ -132,6 +136,7 @@ launcher2/    launcher (Java, no AndroidX): home, search, glyph icons, helpers f
 camera/       camera app (photo + software video recorder)
 phone/        phone app (keypad, recents, contacts; follows day/night)
 gallery/      gallery app (grid + viewer; follows day/night)
+messages/     messages app (conversations, thread, compose; not default SMS)
 work/         overlay sources: app/<app>/res/values{,-night}, sysui/ (vector icons), frame/ (framework)
 tools/        build scripts, icon generator, day/night helpers, scheduler (tools/device)
 wallpaper/    wallpaper generators (Java 2D) and the two JPEGs

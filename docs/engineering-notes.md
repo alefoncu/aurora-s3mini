@@ -87,3 +87,9 @@ Pendiente de esta fase: iconos de batería, sin SIM, linterna, rotación y notif
 - Probar la cámara frontal, el flash y `IMAGE_CAPTURE` desde otras apps.
 - Revisar Mensajes y Contactos con la fuente fina.
 - Deslizar entre páginas del launcher (ahora todo cabe en una).
+
+## Visual review, 2026-11-03–04 (current additions)
+
+Earlier sections are a chronological diary, not the current complete state. The hardware H.264 **decoder** was subsequently disabled (request 27; `tools/device/media_codecs_swavc.diff`); do not confuse this with the earlier failed attempt to remove the **encoder**. Animated quick-settings glyphs and the cold-boot animation were subsequently tested (README requests 26 and 28).
+
+Phase 3 adjusts the launcher day clock/date, separates icon publishing from semantic indexing, refreshes an open query after the worker completes, makes the search sheet opaque in both modes, and tints Settings day cards with its existing lavender surface. See `docs/visual-review-2026-11-03.md` for scope and limitations. Local rollback APKs, screenshots and logs are in ignored `backup/review_20261103/`. No APKs, personal screenshots or dumps are committed.

@@ -66,7 +66,7 @@ public class HomeActivity extends Activity {
         subColor = night ? 0xB3FFFFFF : 0x9914123A;
         dockFill = night ? 0x2EFFFFFF : 0x66FFFFFF;
         dockStroke = night ? 0x38FFFFFF : 0xB3FFFFFF;
-        scrim = night ? 0xEB14123A : 0xEBF6F5FF;
+        scrim = night ? 0xFF14123A : 0xFFF6F5FF;
         boxFill = night ? 0x29FFFFFF : 0xB3FFFFFF;
         boxStroke = night ? 0x38FFFFFF : 0xFFFFFFFF;
         dotColor = night ? Color.WHITE : 0xFF14123A;
@@ -88,7 +88,7 @@ public class HomeActivity extends Activity {
         time.setTypeface(Typeface.create("sans-serif-thin", Typeface.NORMAL));
         time.setTextSize(TypedValue.COMPLEX_UNIT_SP, 64);
         time.setShadowLayer(6f, 0, 2, 0x40000000);
-        time.setTextColor(Color.WHITE);
+        time.setTextColor(labelColor);
         time.setGravity(Gravity.LEFT | Gravity.CENTER_VERTICAL);
         time.setPadding((int) (24 * d), 0, 0, 0);
         root.addView(time, new FrameLayout.LayoutParams(w, (int) (72 * d), Gravity.TOP) {{ topMargin = statusH; }});
@@ -97,7 +97,7 @@ public class HomeActivity extends Activity {
         date.setFormat12Hour("EEEE, d 'de' MMMM");
         date.setTypeface(Typeface.create("sans-serif-light", Typeface.NORMAL));
         date.setTextSize(TypedValue.COMPLEX_UNIT_SP, 14);
-        date.setTextColor(0xBFFFFFFF);
+        date.setTextColor(subColor);
         date.setShadowLayer(4f, 0, 1, 0x40000000);
         date.setGravity(Gravity.LEFT | Gravity.CENTER_VERTICAL);
         date.setPadding((int) (26 * d), 0, 0, 0);
@@ -563,7 +563,7 @@ public class HomeActivity extends Activity {
 
     // ---- data -------------------------------------------------------------
 
-    private static class App { String pkg, label, norm, doc = ""; ComponentName cn; ResolveInfo ri; }
+    private static class App { String pkg, label, norm; volatile String doc = ""; ComponentName cn; ResolveInfo ri; }
 
     private void reload() {
         new Thread(() -> {
@@ -598,11 +598,17 @@ public class HomeActivity extends Activity {
             grid.addAll(rest);
         grid.addAll(tools);
             allApps = new ArrayList<>(); allApps.addAll(dockApps); allApps.addAll(grid);
-            Map<String, String> caps = AppIndex.capabilities(pm);
-            for (App a : allApps) { a.norm = Fuzzy.norm(a.label); a.doc = AppIndex.doc(HomeActivity.this, pm, a.ri, caps); }
+            // Publish usable icons before the expensive package metadata index is built.
+            for (App a : allApps) { a.norm = Fuzzy.norm(a.label); a.doc = a.norm; }
             for (App a : dockApps) icon(a);
             for (App a : grid) icon(a);
-            ui.post(() -> build(grid, dockApps));
+            ui.post(() -> { if (!isDestroyed()) build(grid, dockApps); });
+            Map<String, String> caps = AppIndex.capabilities(pm);
+            for (App a : allApps) a.doc = AppIndex.doc(HomeActivity.this, pm, a.ri, caps);
+            ui.post(() -> {
+                if (!isDestroyed() && searchLayer != null && searchBox != null)
+                    runSearch(searchBox.getText().toString().trim());
+            });
         }).start();
     }
 

@@ -16,4 +16,4 @@ cp base.apk out.apk && (cd dex && zip -q ../out.apk classes.dex)
 $BT/zipalign -f 4 out.apk aligned.apk
 $BT/apksigner sign --ks ~/.android/debug.keystore --ks-pass pass:android --key-pass pass:android --out IOSFiles.apk aligned.apk
 
-adb push files/IOSFiles.apk /data/local/tmp/IOSFiles.apk >/dev/null && adb shell "pm install -r /data/local/tmp/IOSFiles.apk" 2>&1 | tail -2
+adb push IOSFiles.apk /data/local/tmp/IOSFiles.apk >/dev/null && adb shell "pm install -r /data/local/tmp/IOSFiles.apk" 2>&1 | tail -2

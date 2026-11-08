@@ -204,7 +204,16 @@ public class FilesActivity extends Activity {
         catch (ActivityNotFoundException e) { toast("No hay una aplicación para " + (share ? "compartir" : "abrir") + " este archivo"); }
         catch (SecurityException e) { toast("No se ha podido acceder al archivo"); }
     }
-    private AlertDialog.Builder dialog(String title) { return new AlertDialog.Builder(this, AlertDialog.THEME_HOLO_LIGHT).setTitle(title); }
+    /** The framework overlay tints dialog buttons light; paint them with the accent so they read on the light dialog. */
+    private static void paint(AlertDialog a) {
+        int[] ids = {AlertDialog.BUTTON_POSITIVE, AlertDialog.BUTTON_NEGATIVE, AlertDialog.BUTTON_NEUTRAL};
+        for (int id : ids) { android.widget.Button b = a.getButton(id); if (b != null) b.setTextColor(0xFF3B6BEA); }
+    }
+    private AlertDialog.Builder dialog(String title) {
+        return new AlertDialog.Builder(this, AlertDialog.THEME_HOLO_DARK) {
+            @Override public AlertDialog show() { AlertDialog a = create(); a.show(); paint(a); return a; }
+        }.setTitle(title);
+    }
     private void menu(Entry entry) {
         File f = entry.file;
         dialog(f.getName()).setItems(new String[]{"Compartir", "Renombrar", "Borrar", "Detalles"}, (a, which) -> {
@@ -234,7 +243,7 @@ public class FilesActivity extends Activity {
                 boolean ok = source == null ? target.mkdir() : source.renameTo(target);
                 if (!ok) throw new IOException("No se pudo guardar. Comprueba los permisos y el nombre");
             });
-        })); a.show();
+        })); a.show(); paint(a);
     }
     private interface Operation { void run() throws IOException; }
     private void mutate(String success, Operation op) {

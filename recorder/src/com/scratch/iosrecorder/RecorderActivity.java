@@ -356,6 +356,7 @@ public class RecorderActivity extends Activity {
     private void rename(File f) {
         EditText input = new EditText(this);
         input.setTextColor(0xFF14123A); input.setHintTextColor(0xFF666666);
+        input.setBackgroundColor(0xFFF4F3FA); int pd12 = (int) (12 * getResources().getDisplayMetrics().density); input.setPadding(pd12, pd12, pd12, pd12);
         input.setSingleLine(true); input.setInputType(InputType.TYPE_CLASS_TEXT);
         input.setText(f.getName().substring(0, f.getName().length()-4)); input.selectAll();
         AlertDialog dialog = new AlertDialog.Builder(this).setTitle("Renombrar grabación").setView(input).setNegativeButton("Cancelar", null).setPositiveButton("Guardar", null).create();

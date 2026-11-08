@@ -17,4 +17,4 @@ $BT/zipalign -f 4 out.apk aligned.apk
 $BT/apksigner sign --ks ~/.android/debug.keystore --ks-pass pass:android --key-pass pass:android --out IOSCalendar.apk aligned.apk
 echo "APK: $PWD/IOSCalendar.apk"
 
-adb push calendar/IOSCalendar.apk /data/local/tmp/IOSCalendar.apk >/dev/null && adb shell "pm install -r /data/local/tmp/IOSCalendar.apk" 2>&1 | tail -2
+adb push IOSCalendar.apk /data/local/tmp/IOSCalendar.apk >/dev/null && adb shell "pm install -r /data/local/tmp/IOSCalendar.apk" 2>&1 | tail -2

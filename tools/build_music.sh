@@ -17,4 +17,4 @@ $BT/zipalign -f 4 out.apk aligned.apk
 $BT/apksigner sign --ks ~/.android/debug.keystore --ks-pass pass:android --key-pass pass:android --out IOSMusic.apk aligned.apk
 echo "APK: $PWD/IOSMusic.apk"
 
-adb push music/IOSMusic.apk /data/local/tmp/IOSMusic.apk >/dev/null && adb shell "pm install -r /data/local/tmp/IOSMusic.apk" 2>&1 | tail -2
+adb push IOSMusic.apk /data/local/tmp/IOSMusic.apk >/dev/null && adb shell "pm install -r /data/local/tmp/IOSMusic.apk" 2>&1 | tail -2

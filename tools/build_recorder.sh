@@ -17,4 +17,4 @@ $BT/zipalign -f 4 out.apk aligned.apk
 $BT/apksigner sign --ks ~/.android/debug.keystore --ks-pass pass:android --key-pass pass:android --out IOSRecorder.apk aligned.apk
 echo "APK creado: $PWD/IOSRecorder.apk"
 
-adb push recorder/IOSRecorder.apk /data/local/tmp/IOSRecorder.apk >/dev/null && adb shell "pm install -r /data/local/tmp/IOSRecorder.apk" 2>&1 | tail -2
+adb push IOSRecorder.apk /data/local/tmp/IOSRecorder.apk >/dev/null && adb shell "pm install -r /data/local/tmp/IOSRecorder.apk" 2>&1 | tail -2

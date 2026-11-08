@@ -26,13 +26,21 @@ status("stat_sys_location", "1.5", "17.0", "48.0", "2.4", [
     "M24,4c-7.7,0 -14,6.3 -14,14c0,10.5 14,26 14,26s14,-15.5 14,-26C38,10.3 31.7,4 24,4z",
     "M24,13a5,5 0 1 0 0,10a5,5 0 1 0 0,-10z"])
 
-# battery frame: outline only, tinted by the host (black source colour, as the stock frame)
+# battery frame: hairline outline of the stock silhouette (same shape as the stock clip path), tinted by the host.
+# The level fill is clipped by the string battery_portrait_clip_path, overridden in values/battery.xml to an
+# inset rectangle so the fill floats inside the outline with a gap.
 open("%s/ic_battery_portrait_frame.xml" % dst, "w").write(
 '''<?xml version="1.0" encoding="utf-8"?>
 <vector android:height="24.0dp" android:width="24.0dp" android:viewportWidth="24.0" android:viewportHeight="24.0"
   xmlns:android="http://schemas.android.com/apk/res/android">
-    <path android:name="frame" android:fillColor="#00000000" android:strokeColor="#ff000000" android:strokeWidth="1.4" android:strokeLineCap="round" android:strokeLineJoin="round" android:pathData="M8.5,3.5h7a1.5,1.5 0 0 1 1.5,1.5v15a1.5,1.5 0 0 1 -1.5,1.5h-7a1.5,1.5 0 0 1 -1.5,-1.5v-15a1.5,1.5 0 0 1 1.5,-1.5z M10,2h4" />
+    <path android:name="frame" android:fillColor="#00000000" android:strokeColor="#ff000000" android:strokeWidth="1.3" android:strokeLineCap="round" android:strokeLineJoin="round" android:pathData="M6,21V4h3V2h6v2h3v17z" />
 </vector>
+''')
+open("%s/../values/battery.xml" % dst, "w").write(
+'''<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="battery_portrait_clip_path">M7.9,19.1V5.9h8.2v13.2z</string>
+</resources>
 ''')
 print("wrote ic_battery_portrait_frame")
 

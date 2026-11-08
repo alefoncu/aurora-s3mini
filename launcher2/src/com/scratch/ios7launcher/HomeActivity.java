@@ -8,6 +8,7 @@ import android.content.pm.*;
 import android.graphics.*;
 import android.graphics.drawable.*;
 import android.net.Uri;
+import android.provider.Settings;
 import android.os.*;
 import android.util.TypedValue;
 import android.view.*;
@@ -169,7 +170,7 @@ public class HomeActivity extends Activity {
         recreate();
     }
 
-    @Override public void onBackPressed() { if (folderLayer != null) closeFolder(); else if (searchLayer != null) hideSearch(); else if (editing) setEditing(false); }
+    @Override public void onBackPressed() { if (ccLayer != null) hideControl(); else if (folderLayer != null) closeFolder(); else if (searchLayer != null) hideSearch(); else if (editing) setEditing(false); }
 
     private float downX, downY;
     private List<App> allApps = new ArrayList<>();
@@ -195,7 +196,8 @@ public class HomeActivity extends Activity {
             float dy = e.getY() - downY, dx = e.getX() - downX;
             boolean onToday = pager != null && pager.page() == 0; // the Today page scrolls vertically by itself
             if (searchLayer == null && !onToday && dy > 90 * d && Math.abs(dy) > 2 * Math.abs(dx) && downY < h * 0.6f) expandShade();
-            else if (searchLayer == null && !onToday && dy < -100 * d && Math.abs(dy) > 2 * Math.abs(dx) && downY > h * 0.25f) showSearch();
+            else if (searchLayer == null && ccLayer == null && dy < -100 * d && Math.abs(dy) > 2 * Math.abs(dx) && downY > h - 120 * d) showControl(); // from the dock: Control Center
+            else if (searchLayer == null && !onToday && dy < -100 * d && Math.abs(dy) > 2 * Math.abs(dx) && downY > h * 0.25f && downY <= h - 120 * d) showSearch();
         }
         return super.dispatchTouchEvent(e);
     }
@@ -1232,6 +1234,162 @@ public class HomeActivity extends Activity {
         sp.edit().putString("hidden", sp.getString("hidden", "") + a.pkg + "\n").apply();
         if (restoreBtn != null && editing) restoreBtn.setVisibility(View.VISIBLE);
         reload();
+    }
+
+    // ---- Control Center: swipe up from the dock -------------------------------------------------------
+
+    private FrameLayout ccLayer;
+    private View ccPanel;
+
+    private interface Flip { boolean flip(); }
+
+    private View ccTile(String glyph, String caption, boolean on, final Flip f) {
+        LinearLayout box = new LinearLayout(this);
+        box.setOrientation(LinearLayout.VERTICAL);
+        box.setGravity(Gravity.CENTER_HORIZONTAL);
+        final TextView c = new TextView(this);
+        c.setText(glyph);
+        c.setGravity(Gravity.CENTER);
+        c.setTextSize(TypedValue.COMPLEX_UNIT_SP, 20);
+        c.setTypeface(Typeface.create("sans-serif-light", Typeface.NORMAL));
+        final Runnable style = new Runnable() {
+            boolean state = on;
+            @Override public void run() {
+                GradientDrawable g = new GradientDrawable();
+                g.setShape(GradientDrawable.OVAL);
+                g.setColor(state ? (night ? 0xFF7BA7FF : 0xFF3B6BEA) : boxFill);
+                g.setStroke(Math.max(1, (int) d), boxStroke);
+                c.setBackground(g);
+                c.setTextColor(state ? (night ? 0xFF14123A : Color.WHITE) : labelColor);
+            }
+        };
+        style.run();
+        final boolean[] st = {on};
+        c.setOnClickListener(v -> {
+            try { st[0] = f.flip(); } catch (Exception e) { Toast.makeText(this, "No disponible", Toast.LENGTH_SHORT).show(); return; }
+            GradientDrawable g = new GradientDrawable();
+            g.setShape(GradientDrawable.OVAL);
+            g.setColor(st[0] ? (night ? 0xFF7BA7FF : 0xFF3B6BEA) : boxFill);
+            g.setStroke(Math.max(1, (int) d), boxStroke);
+            c.setBackground(g);
+            c.setTextColor(st[0] ? (night ? 0xFF14123A : Color.WHITE) : labelColor);
+            c.animate().cancel(); c.setScaleX(0.88f); c.setScaleY(0.88f);
+            c.animate().scaleX(1f).scaleY(1f).setDuration(300).setInterpolator(new android.view.animation.OvershootInterpolator(3f)).start();
+        });
+        int s = (int) (58 * d);
+        box.addView(c, new LinearLayout.LayoutParams(s, s));
+        TextView t = new TextView(this);
+        t.setText(caption); t.setTextColor(subColor); t.setTextSize(TypedValue.COMPLEX_UNIT_SP, 11);
+        t.setGravity(Gravity.CENTER);
+        box.addView(t, new LinearLayout.LayoutParams(-2, -2) {{ topMargin = (int) (5 * d); }});
+        return box;
+    }
+
+    private SeekBar ccSlider(int max, int progress, SeekBar.OnSeekBarChangeListener l) {
+        SeekBar sb = new SeekBar(this);
+        sb.setMax(max);
+        sb.setProgress(progress);
+        int accent = night ? 0xFF7BA7FF : 0xFF3B6BEA;
+        sb.setProgressTintList(android.content.res.ColorStateList.valueOf(accent));
+        sb.setThumbTintList(android.content.res.ColorStateList.valueOf(accent));
+        sb.setOnSeekBarChangeListener(l);
+        return sb;
+    }
+
+    private TextView ccLabel(String t) {
+        TextView v = new TextView(this);
+        v.setText(t); v.setTextColor(subColor); v.setTextSize(TypedValue.COMPLEX_UNIT_SP, 11); v.setLetterSpacing(0.12f);
+        v.setPadding(0, (int) (12 * d), 0, (int) (2 * d));
+        return v;
+    }
+
+    private void showControl() {
+        if (ccLayer != null) return;
+        ViewGroup content = (ViewGroup) findViewById(android.R.id.content);
+        ccLayer = new FrameLayout(this);
+        ccLayer.setBackgroundColor(night ? 0x88000000 : 0x5514123A);
+        ccLayer.setOnClickListener(v -> hideControl());
+        LinearLayout panel = new LinearLayout(this);
+        panel.setOrientation(LinearLayout.VERTICAL);
+        int pd = (int) (18 * d);
+        panel.setPadding(pd, (int) (10 * d), pd, pd);
+        GradientDrawable bg = new GradientDrawable();
+        bg.setColor(night ? 0xF51E1B4B : 0xF5F6F5FF);
+        bg.setStroke(Math.max(1, (int) d), boxStroke);
+        bg.setCornerRadii(new float[]{28 * d, 28 * d, 28 * d, 28 * d, 0, 0, 0, 0});
+        panel.setBackground(bg);
+        panel.setOnClickListener(v -> { });
+
+        View grip = new View(this);
+        GradientDrawable gg = new GradientDrawable(); gg.setColor(subColor); gg.setCornerRadius(3 * d);
+        grip.setBackground(gg);
+        panel.addView(grip, new LinearLayout.LayoutParams((int) (40 * d), (int) (4 * d)) {{ gravity = Gravity.CENTER_HORIZONTAL; bottomMargin = (int) (12 * d); }});
+
+        final android.net.wifi.WifiManager wm = (android.net.wifi.WifiManager) getApplicationContext().getSystemService(WIFI_SERVICE);
+        final android.bluetooth.BluetoothAdapter bt = android.bluetooth.BluetoothAdapter.getDefaultAdapter();
+        LinearLayout tiles = new LinearLayout(this);
+        tiles.setOrientation(LinearLayout.HORIZONTAL);
+        tiles.addView(ccTile("Wi-Fi", "Wi-Fi", wm != null && wm.isWifiEnabled(), () -> { boolean on = !wm.isWifiEnabled(); wm.setWifiEnabled(on); return on; }), new LinearLayout.LayoutParams(0, -2, 1f));
+        tiles.addView(ccTile("BT", "Bluetooth", bt != null && bt.isEnabled(), () -> { if (bt.isEnabled()) { bt.disable(); return false; } bt.enable(); return true; }), new LinearLayout.LayoutParams(0, -2, 1f));
+        tiles.addView(ccTile("\u2600", "Linterna", torchOn, () -> { toggleTorch(); return torchOn; }), new LinearLayout.LayoutParams(0, -2, 1f));
+        tiles.addView(ccTile("\u21bb", "Rotación", Settings.System.getInt(getContentResolver(), Settings.System.ACCELEROMETER_ROTATION, 0) == 1, () -> {
+            boolean on = Settings.System.getInt(getContentResolver(), Settings.System.ACCELEROMETER_ROTATION, 0) != 1;
+            Settings.System.putInt(getContentResolver(), Settings.System.ACCELEROMETER_ROTATION, on ? 1 : 0);
+            return on;
+        }), new LinearLayout.LayoutParams(0, -2, 1f));
+        panel.addView(tiles);
+
+        panel.addView(ccLabel("BRILLO"));
+        int br = 128;
+        try { br = Settings.System.getInt(getContentResolver(), Settings.System.SCREEN_BRIGHTNESS); } catch (Exception ignored) { }
+        panel.addView(ccSlider(255, br, new SeekBar.OnSeekBarChangeListener() {
+            @Override public void onProgressChanged(SeekBar sb, int p, boolean user) {
+                if (!user) return;
+                try {
+                    Settings.System.putInt(getContentResolver(), Settings.System.SCREEN_BRIGHTNESS_MODE, Settings.System.SCREEN_BRIGHTNESS_MODE_MANUAL);
+                    Settings.System.putInt(getContentResolver(), Settings.System.SCREEN_BRIGHTNESS, Math.max(8, p));
+                    WindowManager.LayoutParams lp = getWindow().getAttributes();
+                    lp.screenBrightness = Math.max(8, p) / 255f;
+                    getWindow().setAttributes(lp);
+                } catch (Exception e) { Toast.makeText(HomeActivity.this, "Sin permiso para cambiar el brillo", Toast.LENGTH_SHORT).show(); }
+            }
+            @Override public void onStartTrackingTouch(SeekBar sb) { }
+            @Override public void onStopTrackingTouch(SeekBar sb) { }
+        }));
+
+        panel.addView(ccLabel("VOLUMEN"));
+        final android.media.AudioManager am = (android.media.AudioManager) getSystemService(AUDIO_SERVICE);
+        panel.addView(ccSlider(am.getStreamMaxVolume(android.media.AudioManager.STREAM_MUSIC), am.getStreamVolume(android.media.AudioManager.STREAM_MUSIC), new SeekBar.OnSeekBarChangeListener() {
+            @Override public void onProgressChanged(SeekBar sb, int p, boolean user) { if (user) am.setStreamVolume(android.media.AudioManager.STREAM_MUSIC, p, 0); }
+            @Override public void onStartTrackingTouch(SeekBar sb) { }
+            @Override public void onStopTrackingTouch(SeekBar sb) { }
+        }));
+
+        LinearLayout quick = new LinearLayout(this);
+        quick.setOrientation(LinearLayout.HORIZONTAL);
+        quick.setPadding(0, (int) (14 * d), 0, 0);
+        String[][] q = {{"Calc.", "com.scratch.ioscalc"}, {"Cámara", "com.scratch.ioscamera"}, {"Reloj", "com.scratch.iosclock"}, {"Grabadora", "com.scratch.iosrecorder"}};
+        for (int i = 0; i < q.length; i++) {
+            final String pk = q[i][1];
+            quick.addView(quickButton(q[i][0], v -> { hideControl(); openPkg(pk); }), new LinearLayout.LayoutParams(0, -2, 1f) {{ rightMargin = (int) (4 * d); leftMargin = (int) (4 * d); }});
+        }
+        panel.addView(quick);
+
+        ccPanel = panel;
+        ccLayer.addView(panel, new FrameLayout.LayoutParams(-1, -2, Gravity.BOTTOM));
+        content.addView(ccLayer, new FrameLayout.LayoutParams(-1, -1));
+        ccLayer.setAlpha(0f);
+        ccLayer.animate().alpha(1f).setDuration(180).start();
+        panel.setTranslationY(420 * d);
+        panel.animate().translationY(0f).setDuration(320).setInterpolator(new android.view.animation.DecelerateInterpolator(2.2f)).start();
+    }
+
+    private void hideControl() {
+        if (ccLayer == null) return;
+        final FrameLayout layer = ccLayer;
+        ccLayer = null;
+        if (ccPanel != null) ccPanel.animate().translationY(420 * d).setDuration(220).start();
+        layer.animate().alpha(0f).setDuration(220).withEndAction(() -> { if (layer.getParent() != null) ((ViewGroup) layer.getParent()).removeView(layer); }).start();
     }
 
     private void renameFolder(App f) {

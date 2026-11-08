@@ -104,6 +104,8 @@ Everything the owner has asked for, in order, with the result. This section is u
 
 | 48 | **Today widgets** | Today page is now vertically scrollable and gains "ATAJOS" (torch toggle that turns yellow, Cámara, Grabadora), "NOTAS" (notes created with `nota …` in the search, long-press to clear all) and a "MÚSICA" card that appears only while audio plays (`AudioManager.isMusicActive()`, tap opens Música). Swipe-up-to-search and swipe-down-to-shade are disabled on the Today page so they do not fight the scroll. Verified: notes card shows "• comprar leche", scrolling to the Estado card, torch button state (camera service answered via the HAL1 shim). **Not verified:** the torch light itself, the music card (nothing was playing), clearing notes |
 
+| 49 | **Own Control Center** | Swipe up starting on the dock opens a bottom sheet: Wi-Fi, Bluetooth, torch and rotation-lock tiles (blue when on), brightness and media-volume sliders, shortcuts (Calc., Cámara, Reloj, Grabadora). Swipe up elsewhere still opens the search. New permissions in the launcher manifest (Wi-Fi/Bluetooth state, `WRITE_SETTINGS`); `WRITE_SETTINGS` is a special permission, granted with `su -c "appops set com.scratch.ios7launcher WRITE_SETTINGS allow"`. Verified on the phone: sheet renders at night; the brightness slider changed `screen_brightness` 195 → 67 (restored) and the rotation tile flipped `accelerometer_rotation` 1 → 0 → 1. **Not exercised:** the Wi-Fi and Bluetooth tiles, the volume slider, the shortcuts, the day-mode look. GravityBox's own panel in the shade is unchanged |
+
 ## Status
 
 | Area | State |

@@ -81,7 +81,7 @@ Everything the owner has asked for, in order, with the result. This section is u
 | Own Messages (list, thread, compose; stock app stays default for receiving) | ✅ list/thread tested with seeded data; **sending untested (no SIM)** |
 | Own Gallery (grid, viewer, zoom, share, delete, video) | ✅ working; video play/pause/seek/delete verified (software decoder, own player) |
 | Launcher Today page (calendar, battery, storage, RAM) | ✅ working |
-| Messages (own app vs. deeper theme) | ⏳ to decide (default-SMS role, MMS risk) |
+| Messages (own app vs. deeper theme) | ✅ decided 2026-11-08: **stock Messages + overlay** is the default (dock and grid open `com.android.messaging`). The own app (`messages/`) is send-only (no receiver/service, no MMS) and is hidden from the launcher; it stays in the repo. Not yet validated with a SIM (SMS/MMS, notifications) |
 | Thin icons for torch / rotation / airplane / location tiles | ✅ done (location disable animation and landscape rotation variant not exercised) |
 | General visual review | ✅ main screens reviewed; remaining limits documented in the visual review |
 | Boot animation seen during a real cold boot | ✅ seen (captured during a cold boot) |

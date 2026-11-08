@@ -93,3 +93,8 @@ Pendiente de esta fase: iconos de batería, sin SIM, linterna, rotación y notif
 Earlier sections are a chronological diary, not the current complete state. The hardware H.264 **decoder** was subsequently disabled (request 27; `tools/device/media_codecs_swavc.diff`); do not confuse this with the earlier failed attempt to remove the **encoder**. Animated quick-settings glyphs and the cold-boot animation were subsequently tested (README requests 26 and 28).
 
 Phase 3 adjusts the launcher day clock/date, separates icon publishing from semantic indexing, refreshes an open query after the worker completes, makes the search sheet opaque in both modes, and tints Settings day cards with its existing lavender surface. See `docs/visual-review-2026-11-03.md` for scope and limitations. Local rollback APKs, screenshots and logs are in ignored `backup/review_20261103/`. No APKs, personal screenshots or dumps are committed.
+
+### Device checks, 2026-11-07 (not yet committed)
+
+- H.264 software decode, Gallery `VideoPane`: 854x480 plays with 0 % dropped frames; 1280x720 drops ~84 % (unusable). No ANR/FATAL. Measured with Play Store/GMS stopped; with them running, 480p dropped ~30 %.
+- Camera: live preview visible; `IMAGE_CAPTURE` + `EXTRA_OUTPUT` writes the JPEG and returns without saving to DCIM; front camera previews and saves; flash toggles auto/off in the UI (actual flash firing not verified). A chooser appears for `IMAGE_CAPTURE` because Snap also handles it (no default set).

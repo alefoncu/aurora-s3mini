@@ -21,19 +21,18 @@ public class HomeActivity extends Activity {
     /** Preferred order / dock candidates, first match wins. */
     private static final String[][] DOCK = {
         {"com.scratch.iosphone", "com.android.dialer"},
-        {"com.scratch.iosmessages", "com.android.messaging"},
+        {"com.android.messaging"},
         {"com.scratch.ioscamera", "org.cyanogenmod.snap"},
         {"org.lineageos.jelly", "com.android.chrome"},
     };
     private static final java.util.Set<String> TOOLS = new java.util.HashSet<>(java.util.Arrays.asList(
         "com.topjohnwu.magisk", "de.robv.android.xposed.installer", "com.ceco.nougat.gravitybox"));
     /** Stock apps replaced by own ones: kept installed (the in-call UI needs them) but hidden from the grid. */
-    private static final java.util.Set<String> HIDDEN = new java.util.HashSet<>(java.util.Arrays.asList("com.android.dialer", "com.android.gallery3d", "com.android.messaging", "com.android.contacts", "com.android.deskclock"));
+    private static final java.util.Set<String> HIDDEN = new java.util.HashSet<>(java.util.Arrays.asList("com.android.dialer", "com.android.gallery3d", "com.android.contacts", "com.android.deskclock"));
     private static final java.util.Map<String, String> OWN = new java.util.HashMap<>();
     static {
         OWN.put("com.android.dialer", "com.scratch.iosphone");
         OWN.put("com.android.gallery3d", "com.scratch.iosgallery");
-        OWN.put("com.android.messaging", "com.scratch.iosmessages");
         OWN.put("com.android.contacts", "com.scratch.ioscontacts");
         OWN.put("com.android.deskclock", "com.scratch.iosclock");
     }
@@ -582,6 +581,7 @@ public class HomeActivity extends Activity {
             }
             if (byPkg.containsKey("com.scratch.ioscamera")) byPkg.remove("org.cyanogenmod.snap");
             for (String hp : HIDDEN) { String own = OWN.get(hp); if (own != null && byPkg.containsKey(own)) byPkg.remove(hp); }
+            byPkg.remove("com.scratch.iosmessages"); // stock Messages (themed by overlay) is the default; own app is send-only
             List<App> dockApps = new ArrayList<>();
             for (String[] cands : DOCK) {
                 for (String c : cands) {

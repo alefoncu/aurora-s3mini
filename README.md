@@ -98,6 +98,8 @@ Everything the owner has asked for, in order, with the result. This section is u
 
 | 45 | **Technical leftovers closed** | Edit-mode × on a user app opens Android's uninstall dialog (verified with a dummy package; **a first attempt hit GravityBox's × by my own wrong coordinates, the system confirmation stopped it and I cancelled with Back**); a folder dragged from the grid onto the dock takes the slot; stock Calculator hidden from Settings > Apps with `pm hide` (a plain `pm disable-user` still lists it as "Inhabilitada"); `restore_state.sh all` verified end to end; launcher frame stats: p50 7 ms, p90 15 ms, p99 113 ms, 9 % janky over 300 frames. Dummy test package removed, launcher preferences reset |
 
+| 46 | **Spotlight-style search** | New `Smart.java`: arithmetic (`12*3,5+(4/2)` → 44, + - * / ^ % and parentheses, `15% de 200`), unit conversion (`5 km en millas` → 3,10686 mi; length, mass, volume, speed, time, temperature, Spanish and English names), quick actions (`alarma a las 7:30`, `temporizador 5 min`, `linterna`, `nota …`), shortcuts into Settings (Wi-Fi, Bluetooth, sound, display, battery, storage…) and a web-search row when nothing local matches. Answers sit above the app results; tapping a calculator/conversion row copies the value. The Clock got an invisible `IntentActivity` that handles `SET_ALARM`/`SET_TIMER`. Verified on the phone: calculator 44, 5 km → 3,10686 mi, Wi-Fi shortcut, and an alarm created from search (shown on Today as "07:30 · mañana", then deleted; `dumpsys alarm` back to 0). **Not exercised:** timer, torch, note rows, web search, percent, temperature |
+
 ## Status
 
 | Area | State |

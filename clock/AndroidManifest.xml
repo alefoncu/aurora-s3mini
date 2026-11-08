@@ -18,6 +18,13 @@
                 <category android:name="android.intent.category.DEFAULT"/>
             </intent-filter>
         </activity>
+        <activity android:name=".IntentActivity" android:theme="@android:style/Theme.Translucent.NoTitleBar" android:excludeFromRecents="true" android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.SET_ALARM"/>
+                <action android:name="android.intent.action.SET_TIMER"/>
+                <category android:name="android.intent.category.DEFAULT"/>
+            </intent-filter>
+        </activity>
         <activity android:name=".RingActivity" android:label="Alarma" android:screenOrientation="portrait"
                   android:theme="@android:style/Theme.Holo.Wallpaper.NoTitleBar"
                   android:launchMode="singleInstance" android:excludeFromRecents="true"

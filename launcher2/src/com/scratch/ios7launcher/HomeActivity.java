@@ -514,6 +514,7 @@ public class HomeActivity extends Activity {
             searchAdapter.notifyDataSetChanged();
             return;
         }
+        for (Smart.Item si : Smart.answer(q)) results.add(new Object[]{si});
         final List<Object[]> apps = new ArrayList<>();
         for (App a : allApps) {
             int sc = AppIndex.score(nq, a.norm, a.doc);
@@ -533,6 +534,7 @@ public class HomeActivity extends Activity {
         }
         Collections.sort(people, (x, y) -> (Integer) y[2] - (Integer) x[2]);
         for (int i = 0; i < people.size() && i < 6; i++) results.add(new Object[]{people.get(i)[0], people.get(i)[1]});
+        if (results.isEmpty() && q.trim().length() >= 3) results.add(new Object[]{Smart.web(q.trim())});
         if (!contactsLoaded) loadContactIndex();
         searchAdapter.notifyDataSetChanged();
     }
@@ -545,7 +547,11 @@ public class HomeActivity extends Activity {
         ImageView iv = new ImageView(this);
         int s = (int) (44 * d);
         String title, sub;
-        if (r.length == 1) {
+        if (r[0] instanceof Smart.Item) {
+            Smart.Item si = (Smart.Item) r[0];
+            iv.setImageBitmap(smartTile(si, s));
+            title = si.title; sub = si.sub;
+        } else if (r.length == 1) {
             App a = (App) r[0];
             Bitmap b = cache.get(a.pkg);
             if (b != null) iv.setImageBitmap(Bitmap.createScaledBitmap(b, s, s, true));
@@ -569,6 +575,44 @@ public class HomeActivity extends Activity {
         return row;
     }
 
+    private Bitmap smartTile(Smart.Item it, int s) {
+        Bitmap b = Bitmap.createBitmap(s, s, Bitmap.Config.ARGB_8888);
+        Canvas c = new Canvas(b);
+        Paint p = new Paint(Paint.ANTI_ALIAS_FLAG);
+        p.setColor(it.color);
+        c.drawRoundRect(new RectF(0, 0, s, s), s * 0.25f, s * 0.25f, p);
+        p.setColor(Color.WHITE);
+        p.setTextAlign(Paint.Align.CENTER);
+        p.setTypeface(Typeface.create("sans-serif-light", Typeface.NORMAL));
+        p.setTextSize(s * 0.5f);
+        c.drawText(it.glyph, s / 2f, s / 2f - (p.descent() + p.ascent()) / 2f, p);
+        return b;
+    }
+
+    private boolean torchOn;
+
+    private void runSmart(Smart.Item it) {
+        try {
+            if (it.intent != null) { startActivity(it.intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)); return; }
+            String sp = it.special == null ? "" : it.special;
+            if (sp.startsWith("copy:")) {
+                ((ClipboardManager) getSystemService(CLIPBOARD_SERVICE)).setPrimaryClip(ClipData.newPlainText("resultado", sp.substring(5)));
+                Toast.makeText(this, "Copiado: " + sp.substring(5), Toast.LENGTH_SHORT).show();
+            } else if (sp.equals("torch")) {
+                android.hardware.camera2.CameraManager cm = (android.hardware.camera2.CameraManager) getSystemService(CAMERA_SERVICE);
+                torchOn = !torchOn;
+                cm.setTorchMode(cm.getCameraIdList()[0], torchOn);
+            } else if (sp.startsWith("note:")) {
+                SharedPreferences prefs = getSharedPreferences("home", MODE_PRIVATE);
+                prefs.edit().putString("notes", sp.substring(5).replace('\n', ' ') + "\n" + prefs.getString("notes", "")).apply();
+                Toast.makeText(this, "Nota guardada en Hoy", Toast.LENGTH_SHORT).show();
+                refreshToday();
+            }
+        } catch (Exception e) {
+            Toast.makeText(this, "No se pudo completar", Toast.LENGTH_SHORT).show();
+        }
+    }
+
     /** Round avatar with the contact's initial on a colour picked from the name. */
     private Bitmap avatar(String name, int s) {
         int[] palette = {0xFF6366F1, 0xFFEC4899, 0xFF14B8A6, 0xFFF59E0B, 0xFF3B82F6, 0xFF8B5CF6, 0xFFEF4444};
@@ -588,6 +632,7 @@ public class HomeActivity extends Activity {
 
     private void openResult(Object[] r) {
         hideSearch();
+        if (r[0] instanceof Smart.Item) { runSmart((Smart.Item) r[0]); return; }
         if (r.length == 1) { App a = (App) r[0]; launch(a, findViewById(android.R.id.content)); return; }
         try {
             startActivity(new Intent(Intent.ACTION_DIAL, Uri.parse("tel:" + Uri.encode((String) r[1]))));

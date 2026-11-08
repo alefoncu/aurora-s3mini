@@ -7,7 +7,7 @@ BT=~/Library/Android/sdk/build-tools/30.0.3
 AJ=~/Library/Android/sdk/platforms/android-25/android.jar
 rm -rf build dex out.apk aligned.apk Launcher2.apk
 mkdir -p build/classes dex
-$JAVAC --release 8 -cp $AJ -d build/classes src/com/scratch/ios7launcher/*.java 2>&1 | grep -v "^Note" || true
+$JAVAC --release 8 -cp $AJ -d build/classes src/com/scratch/ios7launcher/*.java 2>&1 | grep -v "^Note"; [ ${PIPESTATUS[0]} -eq 0 ] || { echo "javac failed: not installing" >&2; exit 1; }
 $BT/d8 --release --min-api 21 --lib $AJ --output dex $(find build/classes -name '*.class')
 $BT/aapt2 link -I $AJ --manifest AndroidManifest.xml --min-sdk-version 21 --target-sdk-version 25 -o base.apk
 cp base.apk out.apk && (cd dex && zip -q ../out.apk classes.dex)

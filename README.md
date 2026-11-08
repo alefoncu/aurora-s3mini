@@ -70,6 +70,8 @@ Everything the owner has asked for, in order, with the result. This section is u
 
 | 31 | **Own Calculator + stock Messages as default** ("dale caña") | New [`calc/`](calc/) app (`tools/build_calc.sh`): glass keypad, thin display, `BigDecimal`, Spanish number format, `APP_CALCULATOR` intent; launcher hides the stock calculator. Verified on the phone: `12 × 3,5 = 42`, `42 ÷ 0 = Error`, grid shows it. **Night mode not verified.** Messages: launcher now opens stock Messages (see Status). Diagnosis: `at_distributor` is a factory-test service restarted by init (`libatparser.so` lacks `GetClientData`); the real CPU hog was Play Store. The package verifier was turned off (`package_verifier_enable=0`) because `pm install` hung for minutes |
 
+| 32 | **Thin status-bar icons + search-bar legibility** ("continúa con el centro de control y la barra de estado") | [`tools/gen_status_icons.py`](tools/gen_status_icons.py) writes hairline vibrate, alarm and location status icons and the portrait battery frame into the SystemUI overlay, and the privacy-guard shield and USB-debugging ring into the Framework overlay. Verified after two cold reboots (0 FATAL): vibrate icon is thin. **Not seen rendered:** alarm, location, shield and adb icons (not active at capture time); the quick-settings battery tile glyph did **not** change (it is not drawn from `ic_battery_portrait_frame`). **Bug found in Phase 3 work:** the opaque pastel search sheet left the white status-bar icons unreadable by day (`LIGHT_STATUS_BAR` has no effect here, GravityBox forces white); fixed with a tinted strip under the bar. `build_launcher.sh` now aborts on compile errors (a failed compile had installed an empty APK) |
+
 ## Status
 
 | Area | State |

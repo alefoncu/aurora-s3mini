@@ -392,6 +392,10 @@ public class HomeActivity extends Activity {
         lp.topMargin = (int) (12 * d);
         col.addView(list, lp);
         searchLayer.addView(col, new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
+        // The status-bar icons stay white (GravityBox); over the pale day sheet they vanish, so tint the bar strip.
+        View strip = new View(this);
+        strip.setBackgroundColor(night ? 0xFF14123A : 0xFF8A97EE);
+        searchLayer.addView(strip, new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, (int) (24 * d), Gravity.TOP));
         content.addView(searchLayer, new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
         searchLayer.setAlpha(0f);
         searchLayer.animate().alpha(1f).setDuration(180).start();

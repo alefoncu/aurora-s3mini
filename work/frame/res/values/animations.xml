@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- iOS-like window transitions: the new window zooms in from 90 percent with a fade, the closing one shrinks and fades.
+     Only existing framework animations are referenced (no new animation files in the overlay: file resources
+     added by the Framework overlay failed to load in other processes, see README 32). Items use *android: so the
+     non-public attributes of the stock style can be kept. -->
+<resources>
+    <style name="Animation.Activity" parent="@*android:style/Animation">
+        <item name="*android:activityOpenEnterAnimation">@*android:anim/grow_fade_in_center</item>
+        <item name="*android:activityOpenExitAnimation">@*android:anim/fast_fade_out</item>
+        <item name="*android:activityCloseEnterAnimation">@*android:anim/fast_fade_in</item>
+        <item name="*android:activityCloseExitAnimation">@*android:anim/shrink_fade_out_center</item>
+        <item name="*android:taskOpenEnterAnimation">@*android:anim/grow_fade_in_center</item>
+        <item name="*android:taskOpenExitAnimation">@*android:anim/fast_fade_out</item>
+        <item name="*android:taskCloseEnterAnimation">@*android:anim/fast_fade_in</item>
+        <item name="*android:taskCloseExitAnimation">@*android:anim/shrink_fade_out_center</item>
+        <item name="*android:taskToFrontEnterAnimation">@*android:anim/grow_fade_in_center</item>
+        <item name="*android:taskToFrontExitAnimation">@*android:anim/fast_fade_out</item>
+        <item name="*android:taskToBackEnterAnimation">@*android:anim/fast_fade_in</item>
+        <item name="*android:taskToBackExitAnimation">@*android:anim/shrink_fade_out_center</item>
+        <item name="*android:wallpaperOpenEnterAnimation">@*android:anim/wallpaper_open_enter</item>
+        <item name="*android:wallpaperOpenExitAnimation">@*android:anim/wallpaper_open_exit</item>
+        <item name="*android:wallpaperCloseEnterAnimation">@*android:anim/wallpaper_close_enter</item>
+        <item name="*android:wallpaperCloseExitAnimation">@*android:anim/wallpaper_close_exit</item>
+        <item name="*android:wallpaperIntraOpenEnterAnimation">@*android:anim/wallpaper_intra_open_enter</item>
+        <item name="*android:wallpaperIntraOpenExitAnimation">@*android:anim/wallpaper_intra_open_exit</item>
+        <item name="*android:wallpaperIntraCloseEnterAnimation">@*android:anim/wallpaper_intra_close_enter</item>
+        <item name="*android:wallpaperIntraCloseExitAnimation">@*android:anim/wallpaper_intra_close_exit</item>
+        <item name="*android:fragmentOpenEnterAnimation">@*android:animator/fragment_open_enter</item>
+        <item name="*android:fragmentOpenExitAnimation">@*android:animator/fragment_open_exit</item>
+        <item name="*android:fragmentCloseEnterAnimation">@*android:animator/fragment_close_enter</item>
+        <item name="*android:fragmentCloseExitAnimation">@*android:animator/fragment_close_exit</item>
+        <item name="*android:fragmentFadeEnterAnimation">@*android:animator/fragment_fade_enter</item>
+        <item name="*android:fragmentFadeExitAnimation">@*android:animator/fragment_fade_exit</item>
+        <item name="*android:launchTaskBehindTargetAnimation">@*android:anim/launch_task_behind_target</item>
+        <item name="*android:launchTaskBehindSourceAnimation">@*android:anim/launch_task_behind_source</item>
+    </style>
+</resources>

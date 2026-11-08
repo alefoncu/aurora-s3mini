@@ -46,7 +46,8 @@ public class HomeActivity extends Activity {
     }
     private static final String[] FIRST = {
         "com.scratch.ioscontacts", "com.android.settings", "com.scratch.iosgallery", "com.scratch.iosclock",
-        "com.scratch.ioscalc", "com.scratch.ioscalendar", "com.android.email", "com.scratch.iosfiles", "com.scratch.iosmusic", "com.scratch.iosrecorder", "org.cyanogenmod.snap",
+        "com.scratch.ioscalc", "com.scratch.ioscalendar", "com.scratch.iosfiles", "com.scratch.iosmusic",
+        "com.scratch.iosrecorder", "com.android.email", "com.android.vending", "org.cyanogenmod.snap",
     };
 
     private boolean night;
@@ -787,7 +788,6 @@ public class HomeActivity extends Activity {
             }
             if (byPkg.containsKey("com.scratch.ioscamera")) byPkg.remove("org.cyanogenmod.snap");
             for (String hp : HIDDEN) { String own = OWN.get(hp); if (own != null && byPkg.containsKey(own)) byPkg.remove(hp); }
-            byPkg.remove("com.scratch.iosmessages"); // stock Messages (themed by overlay) is the default; own app is send-only
             List<App> dockApps = new ArrayList<>();
             final Set<String> dockFolderIds = new HashSet<>();
             String savedDock = getSharedPreferences("home", MODE_PRIVATE).getString("dock", "");
@@ -811,7 +811,11 @@ public class HomeActivity extends Activity {
                     if (a != null) { dockApps.add(a); byPkg.remove(c); break; }
                 }
             }
-            for (String hp : getSharedPreferences("home", MODE_PRIVATE).getString("hidden", "").split("\n")) if (!hp.isEmpty()) byPkg.remove(hp);
+            // hidden from the grid (user choice, plus AudioFX: it lives in Settings > Sound) but still found by the search
+            final List<App> hiddenApps = new ArrayList<>();
+            List<String> hide = new ArrayList<>(Arrays.asList(getSharedPreferences("home", MODE_PRIVATE).getString("hidden", "").split("\n")));
+            hide.add("org.cyanogenmod.audiofx");
+            for (String hp : hide) if (!hp.isEmpty()) { App ha = byPkg.remove(hp); if (ha != null) hiddenApps.add(ha); }
             List<App> grid = new ArrayList<>();
             for (String p : FIRST) { App a = byPkg.remove(p); if (a != null) grid.add(a); }
             List<App> rest = new ArrayList<>();
@@ -823,7 +827,7 @@ public class HomeActivity extends Activity {
             final List<App> flat = new ArrayList<>(grid);
             applyFolders(grid, dockFolderIds);
             applySavedOrder(grid);
-            allApps = new ArrayList<>(); for (App a : dockApps) { if (a.kids != null) allApps.addAll(a.kids); else allApps.add(a); } allApps.addAll(flat);
+            allApps = new ArrayList<>(); for (App a : dockApps) { if (a.kids != null) allApps.addAll(a.kids); else allApps.add(a); } allApps.addAll(flat); allApps.addAll(hiddenApps);
             // Publish usable icons before the expensive package metadata index is built.
             for (App a : allApps) { a.norm = Fuzzy.norm(a.label); a.doc = a.norm; }
             for (App a : allApps) icon(a);
@@ -1031,6 +1035,14 @@ public class HomeActivity extends Activity {
     }
 
     private void applyFolders(List<App> grid, Set<String> keepIds) {
+        SharedPreferences sp = getSharedPreferences("home", MODE_PRIVATE);
+        if (!sp.getBoolean("seeded_tools", false)) { // first run: group the root/Xposed tools in one folder
+            StringBuilder pk = new StringBuilder();
+            int n = 0;
+            for (App a : grid) if (TOOLS.contains(a.pkg)) { pk.append(n++ > 0 ? "," : "").append(a.pkg); }
+            if (n >= 2) sp.edit().putString("folders", sp.getString("folders", "") + "folder:tools|Herramientas|" + pk + "\n").apply();
+            sp.edit().putBoolean("seeded_tools", true).apply();
+        }
         List<String[]> keep = new ArrayList<>();
         for (String[] t : loadFolders()) {
             List<App> members = new ArrayList<>();

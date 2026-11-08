@@ -11,8 +11,7 @@ final class Glyphs {
         switch (pkg) {
             case "com.android.dialer":
             case "com.scratch.iosphone": return "phone";
-            case "com.android.messaging":
-            case "com.scratch.iosmessages": return "message";
+            case "com.android.messaging": return "message";
             case "com.scratch.ioscamera":
             case "org.cyanogenmod.snap": return "camera";
             case "com.android.contacts":

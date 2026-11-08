@@ -36,3 +36,5 @@ Status as of 2026-11-08. `[x]` = done and verified on the phone, `[ ]` = open, `
 - [x] Thin status-bar icons and quick-settings battery glyph; global window transitions (Framework overlay, values only).
 - [x] Cold reboots after every system change: 0 FATAL; overlay restore from a snapshot works.
 - [x] Settings subpages (Wi-Fi, Sound, Display, Apps), contact editor and Messages reviewed day and night.
+
+- [x] 2026-11-08 night: removed the unused own Messages app; home grid reorganised on one page; hidden apps are searchable (#54 in the README).

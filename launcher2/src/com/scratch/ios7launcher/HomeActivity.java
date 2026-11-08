@@ -636,6 +636,16 @@ public class HomeActivity extends Activity {
             int cw = w / COLS, ch = gridH / ROWS;
             final int base = p * per;
             g.setOnDragListener((v, e) -> {
+                if (e.getAction() == DragEvent.ACTION_DRAG_LOCATION) {
+                    long now = SystemClock.uptimeMillis();
+                    float ex = e.getX();
+                    if (now - lastEdge > 700) {
+                        int pg = pager.page();
+                        if (ex < 36 * d && pg > 1) { lastEdge = now; pager.goTo(pg - 1); }
+                        else if (ex > w - 36 * d && pg < dots.getChildCount() - 1) { lastEdge = now; pager.goTo(pg + 1); }
+                    }
+                    return true;
+                }
                 if (e.getAction() == DragEvent.ACTION_DROP && e.getLocalState() instanceof App) {
                     int col = Math.max(0, Math.min(COLS - 1, (int) (e.getX() / cw)));
                     int row = Math.max(0, Math.min(ROWS - 1, (int) (e.getY() / ch)));
@@ -678,6 +688,7 @@ public class HomeActivity extends Activity {
     // ---- user order (long-press and drag an icon to a new slot) ---------------------------------
 
     private List<App> curGrid, curDock;
+    private long lastEdge;
 
     private void applySavedOrder(List<App> grid) {
         String saved = getSharedPreferences("home", MODE_PRIVATE).getString("order", "");

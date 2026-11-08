@@ -183,7 +183,8 @@ public class HomeActivity extends Activity {
     private TextClock headTime, headDate;
     private LinearLayout todayCol;
     private boolean animateNext = true, wasPaused;
-    private TextView calView, batView, stoView, ramView, alarmView;
+    private TextView calView, batView, stoView, ramView, alarmView, noteView, musicView, torchBtn;
+    private View musicBox;
     private View batBar, stoBar, ramBar;
 
     /** A clear downward swipe anywhere on the home screen opens the notification shade. */
@@ -192,8 +193,9 @@ public class HomeActivity extends Activity {
         if (e.getAction() == MotionEvent.ACTION_DOWN) { downX = e.getX(); downY = e.getY(); }
         else if (e.getAction() == MotionEvent.ACTION_UP) {
             float dy = e.getY() - downY, dx = e.getX() - downX;
-            if (searchLayer == null && dy > 90 * d && Math.abs(dy) > 2 * Math.abs(dx) && downY < h * 0.6f) expandShade();
-            else if (searchLayer == null && dy < -100 * d && Math.abs(dy) > 2 * Math.abs(dx) && downY > h * 0.25f) showSearch();
+            boolean onToday = pager != null && pager.page() == 0; // the Today page scrolls vertically by itself
+            if (searchLayer == null && !onToday && dy > 90 * d && Math.abs(dy) > 2 * Math.abs(dx) && downY < h * 0.6f) expandShade();
+            else if (searchLayer == null && !onToday && dy < -100 * d && Math.abs(dy) > 2 * Math.abs(dx) && downY > h * 0.25f) showSearch();
         }
         return super.dispatchTouchEvent(e);
     }
@@ -205,6 +207,22 @@ public class HomeActivity extends Activity {
         col.setOrientation(LinearLayout.VERTICAL);
         col.setPadding((int) (18 * d), (int) (4 * d), (int) (18 * d), 0);
         alarmView = card(col, "PRÓXIMA ALARMA", 15, 0);
+        // quick actions: torch, camera, recorder
+        LinearLayout quick = cardBox(col, "ATAJOS");
+        LinearLayout qrow = new LinearLayout(this);
+        qrow.setOrientation(LinearLayout.HORIZONTAL);
+        qrow.setPadding(0, (int) (6 * d), 0, 0);
+        torchBtn = quickButton("Linterna", v -> toggleTorch());
+        qrow.addView(torchBtn, new LinearLayout.LayoutParams(0, -2, 1f) {{ rightMargin = (int) (6 * d); }});
+        qrow.addView(quickButton("Cámara", v -> openPkg("com.scratch.ioscamera")), new LinearLayout.LayoutParams(0, -2, 1f) {{ rightMargin = (int) (6 * d); }});
+        qrow.addView(quickButton("Grabadora", v -> openPkg("com.scratch.iosrecorder")), new LinearLayout.LayoutParams(0, -2, 1f));
+        quick.addView(qrow);
+        musicView = card(col, "MÚSICA", 15, 0);
+        musicBox = (View) musicView.getParent();
+        musicBox.setVisibility(View.GONE);
+        musicBox.setOnClickListener(v -> openPkg("com.scratch.iosmusic"));
+        noteView = card(col, "NOTAS", 14, 0);
+        ((View) noteView.getParent()).setOnLongClickListener(v -> { confirmClearNotes(); return true; });
         calView = card(col, "PRÓXIMOS EVENTOS", 14, 0);
         LinearLayout st = cardBox(col, "ESTADO");
         batView = row(st, "Batería");
@@ -213,9 +231,59 @@ public class HomeActivity extends Activity {
         stoBar = lastBar;
         ramView = row(st, "Memoria");
         ramBar = lastBar;
+        col.setPadding((int) (18 * d), (int) (4 * d), (int) (18 * d), (int) (24 * d));
         refreshToday();
         todayCol = col;
-        return col;
+        ScrollView sv = new ScrollView(this);
+        sv.setVerticalScrollBarEnabled(false);
+        sv.setOverScrollMode(View.OVER_SCROLL_NEVER);
+        sv.addView(col, new FrameLayout.LayoutParams(-1, -2));
+        return sv;
+    }
+
+    private TextView quickButton(String text, View.OnClickListener l) {
+        TextView t = new TextView(this);
+        t.setText(text);
+        t.setGravity(Gravity.CENTER);
+        t.setTextColor(labelColor);
+        t.setTextSize(TypedValue.COMPLEX_UNIT_SP, 13);
+        t.setTypeface(Typeface.create("sans-serif-light", Typeface.NORMAL));
+        t.setPadding(0, (int) (9 * d), 0, (int) (9 * d));
+        GradientDrawable g = new GradientDrawable();
+        g.setColor(boxFill); g.setStroke(Math.max(1, (int) d), boxStroke); g.setCornerRadius(18 * d);
+        t.setBackground(g);
+        t.setOnClickListener(l);
+        return t;
+    }
+
+    private void openPkg(String pkg) {
+        Intent i = pm.getLaunchIntentForPackage(pkg);
+        if (i != null) startActivity(i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
+    }
+
+    private void toggleTorch() {
+        try {
+            android.hardware.camera2.CameraManager cm = (android.hardware.camera2.CameraManager) getSystemService(CAMERA_SERVICE);
+            torchOn = !torchOn;
+            cm.setTorchMode(cm.getCameraIdList()[0], torchOn);
+            if (torchBtn != null) {
+                GradientDrawable g = new GradientDrawable();
+                g.setColor(torchOn ? 0xFFFFD60A : boxFill); g.setStroke(Math.max(1, (int) d), boxStroke); g.setCornerRadius(18 * d);
+                torchBtn.setBackground(g);
+                torchBtn.setTextColor(torchOn ? 0xFF14123A : labelColor);
+            }
+        } catch (Exception e) {
+            torchOn = false;
+            Toast.makeText(this, "No se pudo usar la linterna", Toast.LENGTH_SHORT).show();
+        }
+    }
+
+    private void confirmClearNotes() {
+        new android.app.AlertDialog.Builder(this, android.R.style.Theme_DeviceDefault_Light_Dialog_Alert)
+            .setTitle("¿Borrar todas las notas?")
+            .setNegativeButton("Cancelar", null)
+            .setPositiveButton("Borrar", (dlg, w2) -> { getSharedPreferences("home", MODE_PRIVATE).edit().putString("notes", "").apply(); refreshToday(); })
+            .show();
     }
 
     private View lastBar;
@@ -344,6 +412,21 @@ public class HomeActivity extends Activity {
         ramView.setText(String.format(Locale.getDefault(), "%d MB libres", mi.availMem >> 20));
         setBar(ramBar, (mi.totalMem - mi.availMem) / (float) mi.totalMem);
         loadEvents();
+        if (noteView != null) {
+            StringBuilder sb = new StringBuilder();
+            int n = 0;
+            for (String line : getSharedPreferences("home", MODE_PRIVATE).getString("notes", "").split("\n")) {
+                if (line.trim().isEmpty() || n >= 3) continue;
+                sb.append(n++ > 0 ? "\n" : "").append("\u2022 ").append(line.trim());
+            }
+            noteView.setText(n == 0 ? "Escribe «nota …» en la búsqueda" : sb.toString());
+            noteView.setAlpha(n == 0 ? 0.55f : 1f);
+        }
+        if (musicBox != null) {
+            boolean playing = ((android.media.AudioManager) getSystemService(AUDIO_SERVICE)).isMusicActive();
+            musicBox.setVisibility(playing ? View.VISIBLE : View.GONE);
+            if (playing) musicView.setText("Reproduciendo \u00b7 toca para abrir");
+        }
         if (alarmView != null) {
             android.app.AlarmManager.AlarmClockInfo ci = ((android.app.AlarmManager) getSystemService(ALARM_SERVICE)).getNextAlarmClock();
             if (ci == null) alarmView.setText("Sin alarmas");

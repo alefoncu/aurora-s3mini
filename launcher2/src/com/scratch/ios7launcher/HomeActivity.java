@@ -831,9 +831,10 @@ public class HomeActivity extends Activity {
         title.setTextSize(TypedValue.COMPLEX_UNIT_SP, 20);
         title.setTypeface(Typeface.create("sans-serif-light", Typeface.NORMAL));
         title.setGravity(Gravity.CENTER);
+        title.setOnClickListener(v -> renameFolder(f));
         panel.addView(title, new LinearLayout.LayoutParams(-1, -2));
         TextView hint = new TextView(this);
-        hint.setText("Mantén pulsado un icono para sacarlo");
+        hint.setText("Toca el nombre para cambiarlo · mantén pulsado un icono para sacarlo");
         hint.setTextColor(subColor);
         hint.setTextSize(TypedValue.COMPLEX_UNIT_SP, 11);
         hint.setGravity(Gravity.CENTER);
@@ -853,6 +854,27 @@ public class HomeActivity extends Activity {
         content.addView(folderLayer, new FrameLayout.LayoutParams(-1, -1));
         folderLayer.setAlpha(0f);
         folderLayer.animate().alpha(1f).setDuration(150).start();
+    }
+
+    private void renameFolder(App f) {
+        final EditText et = new EditText(this);
+        et.setText(f.label);
+        et.setSingleLine();
+        et.setTextColor(0xFF14123A);
+        et.setHintTextColor(0x8014123A);
+        et.selectAll();
+        new android.app.AlertDialog.Builder(this, android.R.style.Theme_DeviceDefault_Light_Dialog_Alert)
+            .setTitle("Nombre de la carpeta").setView(et)
+            .setNegativeButton("Cancelar", null)
+            .setPositiveButton("Guardar", (dlg, w2) -> {
+                String n = et.getText().toString().replace("|", " ").replace("\n", " ").trim();
+                if (n.isEmpty()) return;
+                List<String[]> fs = loadFolders();
+                for (String[] t : fs) if (t[0].equals(f.pkg)) t[1] = n;
+                saveFolders(fs);
+                closeFolder();
+                reload();
+            }).show();
     }
 
     private void closeFolder() {

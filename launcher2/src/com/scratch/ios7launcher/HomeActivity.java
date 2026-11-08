@@ -28,7 +28,8 @@ public class HomeActivity extends Activity {
     private static final java.util.Set<String> TOOLS = new java.util.HashSet<>(java.util.Arrays.asList(
         "com.topjohnwu.magisk", "de.robv.android.xposed.installer", "com.ceco.nougat.gravitybox"));
     /** Stock apps replaced by own ones: kept installed (the in-call UI needs them) but hidden from the grid. */
-    private static final java.util.Set<String> HIDDEN = new java.util.HashSet<>(java.util.Arrays.asList("com.android.dialer", "com.android.gallery3d", "com.android.contacts", "com.android.deskclock", "com.android.calculator2"));
+    private static final java.util.Set<String> HIDDEN = new java.util.HashSet<>(java.util.Arrays.asList("com.android.dialer", "com.android.gallery3d", "com.android.contacts", "com.android.deskclock", "com.android.calculator2",
+        "com.android.calendar", "com.google.android.calendar", "com.cyanogenmod.eleven", "com.android.documentsui", "org.lineageos.recorder"));
     private static final java.util.Map<String, String> OWN = new java.util.HashMap<>();
     static {
         OWN.put("com.android.dialer", "com.scratch.iosphone");
@@ -36,10 +37,15 @@ public class HomeActivity extends Activity {
         OWN.put("com.android.contacts", "com.scratch.ioscontacts");
         OWN.put("com.android.deskclock", "com.scratch.iosclock");
         OWN.put("com.android.calculator2", "com.scratch.ioscalc");
+        OWN.put("com.android.calendar", "com.scratch.ioscalendar");
+        OWN.put("com.google.android.calendar", "com.scratch.ioscalendar");
+        OWN.put("com.cyanogenmod.eleven", "com.scratch.iosmusic");
+        OWN.put("com.android.documentsui", "com.scratch.iosfiles");
+        OWN.put("org.lineageos.recorder", "com.scratch.iosrecorder");
     }
     private static final String[] FIRST = {
         "com.scratch.ioscontacts", "com.android.settings", "com.scratch.iosgallery", "com.scratch.iosclock",
-        "com.scratch.ioscalc", "com.google.android.calendar", "com.android.email", "org.cyanogenmod.snap",
+        "com.scratch.ioscalc", "com.scratch.ioscalendar", "com.android.email", "com.scratch.iosfiles", "com.scratch.iosmusic", "com.scratch.iosrecorder", "org.cyanogenmod.snap",
     };
 
     private boolean night;

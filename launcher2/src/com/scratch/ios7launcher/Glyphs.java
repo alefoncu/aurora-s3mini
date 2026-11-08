@@ -24,12 +24,16 @@ final class Glyphs {
             case "com.scratch.iosclock": return "clock";
             case "com.android.calculator2":
             case "com.scratch.ioscalc": return "calc";
-            case "com.android.documentsui": return "folder";
+            case "com.android.documentsui":
+            case "com.scratch.iosfiles": return "folder";
             case "com.android.email": return "mail";
             case "com.google.android.calendar":
-            case "com.android.calendar": return "calendar";
-            case "com.cyanogenmod.eleven": return "music";
-            case "org.lineageos.recorder": return "mic";
+            case "com.android.calendar":
+            case "com.scratch.ioscalendar": return "calendar";
+            case "com.cyanogenmod.eleven":
+            case "com.scratch.iosmusic": return "music";
+            case "org.lineageos.recorder":
+            case "com.scratch.iosrecorder": return "mic";
             case "com.android.vending": return "store";
             case "org.lineageos.jelly":
             case "com.android.chrome": return "globe";

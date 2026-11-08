@@ -13,8 +13,8 @@ Status as of 2026-11-08. `[x]` = done and verified on the phone, `[ ]` = open, `
 
 ## Added on 2026-11-08 evening and still unverified in some paths
 
-- [ ] Calendar: adding and deleting an event; Music: previous/next/shuffle/seek and playback in the background; Files: rename/delete/share; Recorder: playback/rename/share.
-- [ ] Control Center: Wi-Fi, Bluetooth and volume controls, day-mode look. Double-tap lock needs `dpm set-active-admin` after every launcher reinstall.
+- [ ] Music: previous/shuffle/seek and background playback; Files: share/details; Recorder: share; Calendar: deleting a recurring series. (Add/delete event, record/play/rename/delete, folder create/rename/delete and *next* were verified.)
+- [ ] Control Center: day-mode look (Wi-Fi, Bluetooth, volume, brightness and rotation were verified). Double-tap lock needs `dpm set-active-admin` after every launcher reinstall.
 - [ ] The new ringtone and notification tone have never been heard by me; the Today music card never appeared (nothing was playing).
 - [ ] Deliberately **not done**: stock Messages in dark, an own in-call screen, lock-screen restyling beyond the existing tokens.
 

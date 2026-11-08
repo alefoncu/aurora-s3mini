@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- the launcher only asks for one policy: lock the screen (double tap on an empty part of the home screen) -->
+<device-admin xmlns:android="http://schemas.android.com/apk/res/android">
+    <uses-policies>
+        <force-lock/>
+    </uses-policies>
+</device-admin>

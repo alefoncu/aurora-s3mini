@@ -106,6 +106,8 @@ Everything the owner has asked for, in order, with the result. This section is u
 
 | 49 | **Own Control Center** | Swipe up starting on the dock opens a bottom sheet: Wi-Fi, Bluetooth, torch and rotation-lock tiles (blue when on), brightness and media-volume sliders, shortcuts (Calc., Cámara, Reloj, Grabadora). Swipe up elsewhere still opens the search. New permissions in the launcher manifest (Wi-Fi/Bluetooth state, `WRITE_SETTINGS`); `WRITE_SETTINGS` is a special permission, granted with `su -c "appops set com.scratch.ios7launcher WRITE_SETTINGS allow"`. Verified on the phone: sheet renders at night; the brightness slider changed `screen_brightness` 195 → 67 (restored) and the rotation tile flipped `accelerometer_rotation` 1 → 0 → 1. **Not exercised:** the Wi-Fi and Bluetooth tiles, the volume slider, the shortcuts, the day-mode look. GravityBox's own panel in the shade is unchanged |
 
+| 50 | **Double tap to lock** | Double-tapping an empty part of the home screen (not on an icon, between 30 % of the height and the dock) locks the phone. First attempt used `su -c "input keyevent 223"` from the launcher: **LineageOS su rejected it** ("Allow chain exhausted"). Now the launcher is a device admin with only the `force-lock` policy (`AdminReceiver`, `res/xml/device_admin.xml`, `lockNow()`); `build_launcher.sh` compiles `res/`. **After installing the launcher run** `su -c "dpm set-active-admin --user 0 com.scratch.ios7launcher/.AdminReceiver"` (also after a restore; the admin cannot be uninstalled until deactivated). Verified with two injected taps 150 ms apart (screen went `Asleep`). Note: `svc power stayon true` (used for testing) keeps the screen awake and hides this feature |
+
 ## Status
 
 | Area | State |

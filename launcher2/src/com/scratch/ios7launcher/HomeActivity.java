@@ -191,6 +191,13 @@ public class HomeActivity extends Activity {
     /** A clear downward swipe anywhere on the home screen opens the notification shade. */
     @Override
     public boolean dispatchTouchEvent(MotionEvent e) {
+        if (e.getAction() == MotionEvent.ACTION_UP && !editing && searchLayer == null && folderLayer == null && ccLayer == null
+                && e.getY() > h * 0.30f && e.getY() < h - 130 * d && Math.abs(e.getX() - downX) < 10 * d && Math.abs(e.getY() - downY) < 10 * d) {
+            long now = SystemClock.uptimeMillis();
+            // double tap on an empty part of the home screen (not on an icon) locks the phone
+            if (now - lastTap < 350 && tapOnEmpty(e.getX(), e.getY())) { lastTap = 0; lockScreen(); }
+            else lastTap = now;
+        }
         if (e.getAction() == MotionEvent.ACTION_DOWN) { downX = e.getX(); downY = e.getY(); }
         else if (e.getAction() == MotionEvent.ACTION_UP) {
             float dy = e.getY() - downY, dx = e.getX() - downX;
@@ -681,6 +688,28 @@ public class HomeActivity extends Activity {
     }
 
     private boolean torchOn;
+    private long lastTap;
+
+    private boolean tapOnEmpty(float x, float y) {
+        View pv = pager == null ? null : pager.pageView(pager.page());
+        if (!(pv instanceof GridLayout)) return false;
+        GridLayout g = (GridLayout) pv;
+        int[] loc = new int[2]; g.getLocationOnScreen(loc);
+        for (int i = 0; i < g.getChildCount(); i++) {
+            View c = g.getChildAt(i);
+            if (x >= loc[0] + c.getLeft() && x <= loc[0] + c.getRight() && y >= loc[1] + c.getTop() && y <= loc[1] + c.getBottom()) return false;
+        }
+        return true;
+    }
+
+    /** Locks with DevicePolicyManager (the launcher is a device admin with only force-lock; see docs/restore.md). */
+    private void lockScreen() {
+        try {
+            android.app.admin.DevicePolicyManager dpm = (android.app.admin.DevicePolicyManager) getSystemService(DEVICE_POLICY_SERVICE);
+            if (dpm.isAdminActive(new ComponentName(this, AdminReceiver.class))) dpm.lockNow();
+            else Toast.makeText(this, "Activa el administrador del launcher para bloquear con doble toque", Toast.LENGTH_LONG).show();
+        } catch (Exception e) { android.util.Log.e("HomeTap", "lock failed", e); }
+    }
 
     private void runSmart(Smart.Item it) {
         try {

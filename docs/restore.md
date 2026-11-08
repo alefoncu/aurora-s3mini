@@ -36,6 +36,17 @@ adb reboot
 
 Known-good earlier versions: `backup/review_20261108/` (`FrameworkOverlay.before_anim.apk`, original `SystemUIOverlay.apk`).
 
+## After reinstalling the launcher
+
+The double-tap-to-lock feature needs the launcher to be a device admin again:
+
+```bash
+adb shell 'su -c "dpm set-active-admin --user 0 com.scratch.ios7launcher/.AdminReceiver"'
+adb shell 'su -c "appops set com.scratch.ios7launcher WRITE_SETTINGS allow"'   # Control Center brightness/rotation
+```
+
+To uninstall the launcher first run `dpm remove-active-admin com.scratch.ios7launcher/.AdminReceiver`.
+
 ## If the phone does not boot
 
 1. Boot into TWRP, open the file manager (or `adb shell` in recovery), mount `/system` read-write.

@@ -169,7 +169,7 @@ public class HomeActivity extends Activity {
     private AppIndex.Usage usage;
     private String lastQuery = "";
     private boolean firstBuild = true;
-    private TextView calView, batView, stoView, ramView;
+    private TextView calView, batView, stoView, ramView, alarmView;
     private View batBar, stoBar, ramBar;
 
     /** A clear downward swipe anywhere on the home screen opens the notification shade. */
@@ -190,7 +190,8 @@ public class HomeActivity extends Activity {
         LinearLayout col = new LinearLayout(this);
         col.setOrientation(LinearLayout.VERTICAL);
         col.setPadding((int) (18 * d), (int) (4 * d), (int) (18 * d), 0);
-        calView = card(col, "PRÓXIMOS EVENTOS", 14, 40);
+        alarmView = card(col, "PRÓXIMA ALARMA", 15, 0);
+        calView = card(col, "PRÓXIMOS EVENTOS", 14, 0);
         LinearLayout st = cardBox(col, "ESTADO");
         batView = row(st, "Batería");
         batBar = lastBar;
@@ -208,7 +209,7 @@ public class HomeActivity extends Activity {
     private TextView row(LinearLayout box, String name) {
         LinearLayout r = new LinearLayout(this);
         r.setOrientation(LinearLayout.HORIZONTAL);
-        r.setPadding(0, (int) (8 * d), 0, 0);
+        r.setPadding(0, (int) (5 * d), 0, 0);
         TextView n = new TextView(this);
         n.setText(name);
         n.setTextColor(labelColor);
@@ -229,7 +230,7 @@ public class HomeActivity extends Activity {
     private LinearLayout cardBox(LinearLayout parent, String title) {
         LinearLayout box = new LinearLayout(this);
         box.setOrientation(LinearLayout.VERTICAL);
-        box.setPadding((int) (18 * d), (int) (12 * d), (int) (18 * d), (int) (14 * d));
+        box.setPadding((int) (18 * d), (int) (9 * d), (int) (18 * d), (int) (10 * d));
         GradientDrawable g = new GradientDrawable();
         g.setColor(dockFill);
         g.setStroke(Math.max(1, (int) d), dockStroke);
@@ -242,7 +243,7 @@ public class HomeActivity extends Activity {
         t.setLetterSpacing(0.12f);
         box.addView(t);
         LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
-        lp.bottomMargin = (int) (10 * d);
+        lp.bottomMargin = (int) (7 * d);
         parent.addView(box, lp);
         return box;
     }
@@ -328,6 +329,21 @@ public class HomeActivity extends Activity {
         ramView.setText(String.format(Locale.getDefault(), "%d MB libres", mi.availMem >> 20));
         setBar(ramBar, (mi.totalMem - mi.availMem) / (float) mi.totalMem);
         loadEvents();
+        if (alarmView != null) {
+            android.app.AlarmManager.AlarmClockInfo ci = ((android.app.AlarmManager) getSystemService(ALARM_SERVICE)).getNextAlarmClock();
+            if (ci == null) alarmView.setText("Sin alarmas");
+            else {
+                long t = ci.getTriggerTime();
+                Calendar a = Calendar.getInstance(); a.setTimeInMillis(t);
+                Calendar n = Calendar.getInstance();
+                boolean today = a.get(Calendar.DAY_OF_YEAR) == n.get(Calendar.DAY_OF_YEAR) && a.get(Calendar.YEAR) == n.get(Calendar.YEAR);
+                n.add(Calendar.DAY_OF_YEAR, 1);
+                boolean tomorrow = a.get(Calendar.DAY_OF_YEAR) == n.get(Calendar.DAY_OF_YEAR) && a.get(Calendar.YEAR) == n.get(Calendar.YEAR);
+                String hm = new java.text.SimpleDateFormat("HH:mm", Locale.getDefault()).format(new Date(t));
+                String day = today ? "hoy" : tomorrow ? "mañana" : new java.text.SimpleDateFormat("EEEE d MMM", Locale.getDefault()).format(new Date(t));
+                alarmView.setText(hm + " · " + day);
+            }
+        }
     }
 
     private void loadEvents() {

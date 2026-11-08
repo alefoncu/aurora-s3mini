@@ -278,8 +278,8 @@ public class ClockActivity extends Activity {
             };
             style.run();
             chip.setOnClickListener(v -> { a.days ^= bit; style.run(); });
-            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams((int) (34 * d), (int) (34 * d));
-            lp.setMargins((int) (3 * d), 0, (int) (3 * d), 0);
+            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams((int) (28 * d), (int) (28 * d));
+            lp.setMargins((int) (2 * d), 0, (int) (2 * d), 0);
             days.addView(chip, lp);
         }
         box.addView(days);
@@ -309,6 +309,10 @@ public class ClockActivity extends Activity {
             List<Alarms.Alarm> list = Alarms.load(this);
             for (Iterator<Alarms.Alarm> it = list.iterator(); it.hasNext(); ) if (it.next().id == a.id) it.remove();
             Alarms.save(this, list);
+            // the registered system alarm must go too: rescheduleAll() only walks alarms that still exist
+            android.app.PendingIntent pi = Alarms.pending(this, a.id, "alarm");
+            ((android.app.AlarmManager) getSystemService(Context.ALARM_SERVICE)).cancel(pi);
+            pi.cancel();
             renderAlarms();
         });
         b.show();

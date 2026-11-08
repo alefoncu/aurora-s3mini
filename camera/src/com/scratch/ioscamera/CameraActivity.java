@@ -4,6 +4,7 @@ import android.app.Activity;
 import android.content.Context;
 import android.content.Intent;
 import android.graphics.*;
+import android.graphics.drawable.GradientDrawable;
 import android.hardware.Camera;
 import android.media.MediaScannerConnection;
 import android.media.ThumbnailUtils;
@@ -28,6 +29,12 @@ public class CameraActivity extends Activity implements SurfaceHolder.Callback {
     private static final int FLASH_OFF = 0, FLASH_AUTO = 1, FLASH_ON = 2;
 
     private Camera camera;
+    private int dispOrient;
+    private boolean frontCam;
+    private int zoomIdx;
+    private TextView zoomLabel;
+    private View focusRing;
+    private final Handler uiH = new Handler();
     private int cameraId = 0;
     private int flashMode = FLASH_OFF;
     private boolean surfaceReady, busy;
@@ -133,7 +140,113 @@ public class CameraActivity extends Activity implements SurfaceHolder.Callback {
         bar.addView(thumb, tp);
         thumb.setOnClickListener(v -> openLast());
 
+        zoomLabel = new TextView(this);
+        zoomLabel.setTextColor(Color.WHITE);
+        zoomLabel.setTextSize(15);
+        zoomLabel.setGravity(Gravity.CENTER);
+        zoomLabel.setPadding((int) (12 * d), (int) (4 * d), (int) (12 * d), (int) (4 * d));
+        GradientDrawable zb = new GradientDrawable();
+        zb.setColor(0x80000000);
+        zb.setCornerRadius(16 * d);
+        zoomLabel.setBackground(zb);
+        zoomLabel.setVisibility(View.GONE);
+        root.addView(zoomLabel, new FrameLayout.LayoutParams(-2, -2, Gravity.TOP | Gravity.CENTER_HORIZONTAL) {{ topMargin = topH + prevH - (int) (44 * d); }});
+
+        focusRing = new View(this);
+        GradientDrawable fr = new GradientDrawable();
+        fr.setShape(GradientDrawable.OVAL);
+        fr.setColor(0x00000000);
+        fr.setStroke((int) Math.max(2, 2 * d), 0xFFFFD60A);
+        focusRing.setBackground(fr);
+        focusRing.setVisibility(View.GONE);
+        root.addView(focusRing, new FrameLayout.LayoutParams((int) (64 * d), (int) (64 * d), Gravity.TOP | Gravity.LEFT));
+
+        final ScaleGestureDetector sgd = new ScaleGestureDetector(this, new ScaleGestureDetector.SimpleOnScaleGestureListener() {
+            private float ratio;
+            @Override public boolean onScaleBegin(ScaleGestureDetector det) { ratio = currentRatio(); return camera != null; }
+            @Override public boolean onScale(ScaleGestureDetector det) { ratio *= det.getScaleFactor(); setZoomRatio(ratio); return true; }
+        });
+        final GestureDetector gd = new GestureDetector(this, new GestureDetector.SimpleOnGestureListener() {
+            @Override public boolean onSingleTapUp(MotionEvent e) {
+                if (e.getY() > topH && e.getY() < topH + prevH) focusAt(e.getX(), e.getY() - topH, w, prevH, (int) e.getX(), (int) e.getY());
+                return true;
+            }
+        });
+        root.setOnTouchListener((v, e) -> { sgd.onTouchEvent(e); if (!sgd.isInProgress()) gd.onTouchEvent(e); return true; });
+
         setContentView(root);
+    }
+
+    private float currentRatio() {
+        try {
+            List<Integer> r = camera.getParameters().getZoomRatios();
+            return r == null ? 100f : r.get(zoomIdx);
+        } catch (Exception e) { return 100f; }
+    }
+
+    /** Pinch zoom: pick the closest hardware zoom step to the requested ratio (percent). */
+    private void setZoomRatio(float ratio) {
+        if (camera == null || busy) return;
+        try {
+            Camera.Parameters p = camera.getParameters();
+            if (!p.isZoomSupported()) return;
+            List<Integer> r = p.getZoomRatios();
+            int best = 0;
+            for (int i = 0; i < r.size(); i++) if (Math.abs(r.get(i) - ratio) < Math.abs(r.get(best) - ratio)) best = i;
+            if (best == zoomIdx) return;
+            zoomIdx = best;
+            p.setZoom(best);
+            camera.setParameters(p);
+            zoomLabel.setText(String.format(Locale.US, "%.1f×", r.get(best) / 100f));
+            zoomLabel.setVisibility(View.VISIBLE);
+            uiH.removeCallbacks(hideZoom);
+            uiH.postDelayed(hideZoom, 1200);
+        } catch (Exception ignored) { }
+    }
+
+    private final Runnable hideZoom = () -> { if (zoomLabel != null) zoomLabel.setVisibility(View.GONE); };
+
+    /** Tap to focus: map the tap into the camera's -1000..1000 space (see Camera.Parameters#setFocusAreas). */
+    private void focusAt(float x, float y, int vw, int vh, int rootX, int rootY) {
+        if (camera == null || busy) return;
+        try {
+            Camera.Parameters p = camera.getParameters();
+            if (p.getMaxNumFocusAreas() <= 0) return;
+            Matrix m = new Matrix();
+            m.setScale(frontCam ? -1 : 1, 1);
+            m.postRotate(dispOrient);
+            m.postScale(vw / 2000f, vh / 2000f);
+            m.postTranslate(vw / 2f, vh / 2f);
+            Matrix inv = new Matrix();
+            m.invert(inv);
+            float[] pt = {x, y};
+            inv.mapPoints(pt);
+            int cx = (int) pt[0], cy = (int) pt[1], r = 120;
+            Rect rect = new Rect(Math.max(-1000, cx - r), Math.max(-1000, cy - r), Math.min(1000, cx + r), Math.min(1000, cy + r));
+            List<String> fm = p.getSupportedFocusModes();
+            if (fm == null || !fm.contains(Camera.Parameters.FOCUS_MODE_AUTO)) return;
+            p.setFocusMode(Camera.Parameters.FOCUS_MODE_AUTO);
+            p.setFocusAreas(Collections.singletonList(new Camera.Area(rect, 1000)));
+            camera.cancelAutoFocus();
+            camera.setParameters(p);
+            camera.autoFocus((ok, c) -> {
+                try {
+                    Camera.Parameters q = c.getParameters();
+                    List<String> f2 = q.getSupportedFocusModes();
+                    if (f2 != null && f2.contains(Camera.Parameters.FOCUS_MODE_CONTINUOUS_PICTURE)) q.setFocusMode(Camera.Parameters.FOCUS_MODE_CONTINUOUS_PICTURE);
+                    q.setFocusAreas(null);
+                    c.setParameters(q);
+                } catch (Exception ignored) { }
+            });
+            FrameLayout.LayoutParams lp = (FrameLayout.LayoutParams) focusRing.getLayoutParams();
+            lp.leftMargin = rootX - lp.width / 2; lp.topMargin = rootY - lp.height / 2;
+            focusRing.setLayoutParams(lp);
+            focusRing.setVisibility(View.VISIBLE);
+            focusRing.setAlpha(1f);
+            focusRing.setScaleX(1.4f); focusRing.setScaleY(1.4f);
+            focusRing.animate().scaleX(1f).scaleY(1f).setDuration(180).withEndAction(() ->
+                focusRing.animate().alpha(0f).setStartDelay(700).setDuration(300).withEndAction(() -> focusRing.setVisibility(View.GONE)).start()).start();
+        } catch (Exception ignored) { }
     }
 
     @Override
@@ -247,6 +360,9 @@ public class CameraActivity extends Activity implements SurfaceHolder.Callback {
             int disp = info.facing == Camera.CameraInfo.CAMERA_FACING_FRONT
                     ? (360 - info.orientation) % 360 : info.orientation;
             camera.setDisplayOrientation(disp);
+            dispOrient = disp;
+            frontCam = info.facing == Camera.CameraInfo.CAMERA_FACING_FRONT;
+            zoomIdx = 0;
             Camera.Parameters p = camera.getParameters();
             Camera.Size ps = pickSize(p.getSupportedPreviewSizes(), 1000, 0);
             if (ps != null) p.setPreviewSize(ps.width, ps.height);

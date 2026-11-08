@@ -78,6 +78,8 @@ Everything the owner has asked for, in order, with the result. This section is u
 
 | 35 | **Today: next alarm; Clock fixes; Messages review** | Launcher Today page gets a "PRÓXIMA ALARMA" card (`AlarmManager.getNextAlarmClock()`, shows e.g. "17:00 · hoy"; card spacing tightened so the Estado card still fits). **Bug fixed in the Clock:** deleting an alarm left its system alarm registered (ghost alarm, status-bar alarm icon stayed; `rescheduleAll()` only walks existing alarms) — the delete button now cancels it; verified with `dumpsys alarm` (0 entries). The weekday chips in the alarm editor (L…D) were clipped by the dialog; now 28 dp and fully visible. Verified: the thin alarm icon renders in the status bar. Launcher "Mostrar ocultas" verified (hide then restore). Stock Messages (empty list and compose) reviewed: blue Aurora toolbar/bubbles fine, but the list/compose backgrounds are plain white/grey from the theme and cannot be changed with colour overlays |
 
+| 36 | **Camera: pinch zoom and tap to focus** | Pinch changes the hardware zoom step (label "1.6×" over the preview, hides after ~1 s); a tap focuses at that point (`FOCUS_MODE_AUTO` with a focus area mapped through the display orientation, yellow ring, then back to continuous picture). Verified on the phone with a real two-finger pinch injected by [`tools/device/pinch_test.sh`](tools/device/pinch_test.sh) (`sendevent` on `/dev/input/event2`, root) and a tap; 0 FATAL. **Not verified:** focus actually improving a subject (the scene was dark), front camera zoom, zoom while recording |
+
 ## Status
 
 | Area | State |

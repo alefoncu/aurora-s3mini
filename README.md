@@ -80,6 +80,8 @@ Everything the owner has asked for, in order, with the result. This section is u
 
 | 36 | **Camera: pinch zoom and tap to focus** | Pinch changes the hardware zoom step (label "1.6×" over the preview, hides after ~1 s); a tap focuses at that point (`FOCUS_MODE_AUTO` with a focus area mapped through the display orientation, yellow ring, then back to continuous picture). Verified on the phone with a real two-finger pinch injected by [`tools/device/pinch_test.sh`](tools/device/pinch_test.sh) (`sendevent` on `/dev/input/event2`, root) and a tap; 0 FATAL. **Not verified:** focus actually improving a subject (the scene was dark), front camera zoom, zoom while recording |
 
+| 37 | **Gallery viewer gestures verified** | The viewer already had pinch zoom (1×–4×), double-tap zoom/reset, one-finger pan while zoomed and swipe to the next photo, but none had been tried with real gestures. Verified on the phone with a real two-finger pinch ([`tools/device/pinch_test.sh`](tools/device/pinch_test.sh)), a drag while zoomed (image moved as expected) and a double tap (zoom reset, animated). 0 FATAL. **Not verified:** swipe to next/previous photo at 1×, zooming a video, very large photos |
+
 ## Status
 
 | Area | State |

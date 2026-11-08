@@ -4,6 +4,7 @@
 while [ "$(getprop sys.boot_completed)" != "1" ]; do sleep 5; done
 sleep 20
 last=""
+lastw=""
 while true; do
   mode=$(settings get system ios_theme_mode)
   [ "$mode" = "null" ] && mode=auto
@@ -16,16 +17,23 @@ while true; do
     day) n=1;; night) n=2;;
     *) if [ "$h" -ge "$sr" ] && [ "$h" -lt "$ss" ]; then n=1; else n=2; fi;;
   esac
+  # wallpaper: the hour before sunrise = dawn, the hour after sunset = dusk, otherwise day or night
+  if [ "$mode" = "auto" ] && [ "$h" -ge $((sr-1)) ] && [ "$h" -lt "$sr" ]; then wk=dawn
+  elif [ "$mode" = "auto" ] && [ "$h" -ge "$ss" ] && [ "$h" -lt $((ss+1)) ]; then wk=dusk
+  elif [ "$n" = "1" ]; then wk=day
+  else wk=night; fi
   if [ "$n" != "$last" ]; then
     service call uimode 4 i32 $n >/dev/null 2>&1
-    if [ "$(settings get system ios_wall_state)" != "$n" ]; then
-      if [ "$n" = "1" ]; then w=/data/local/ios/wall_day.jpg; else w=/data/local/ios/wall_night.jpg; fi
-      am start -n com.scratch.ios7launcher/.SetWallpaperActivity --es path $w >/dev/null 2>&1
-      settings put system ios_wall_state $n
-    fi
     # notification cards keep the colours they were inflated with: restart SystemUI on a real switch (not at boot)
     [ -n "$last" ] && pkill -f com.android.systemui
     last=$n
+  fi
+  if [ "$wk" != "$lastw" ]; then
+    if [ "$(settings get system ios_wall_state)" != "$wk" ]; then
+      am start -n com.scratch.ios7launcher/.SetWallpaperActivity --es path /data/local/ios/wall_$wk.jpg >/dev/null 2>&1
+      settings put system ios_wall_state $wk
+    fi
+    lastw=$wk
   fi
   sleep 30
 done

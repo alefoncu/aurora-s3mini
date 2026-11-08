@@ -90,6 +90,8 @@ Everything the owner has asked for, in order, with the result. This section is u
 
 | 41 | **System-wide window transitions (Framework overlay)** ("dale caña" to the global animations) | `work/frame/res/values/animations.xml` overrides the style `Animation.Activity` so every app opens with a 90 %→100 % zoom + fade and closes with a shrink + fade (existing framework anims `grow_fade_in_center`, `shrink_fade_out_center`, `fast_fade_in/out`; replaces the Material slide). **Values only**: no animation files were added, to avoid the file-resource failure of #32. Private attributes are referenced as `*android:`. Built clean, installed, cold reboot OK, 0 FATAL; verified by slowing the window animation scale to ×10 and catching the cross-fade. **Not verified:** the zoom itself frame by frame, the wallpaper-related transitions of apps that sit on the wallpaper (the stock `wallpaper*` items are still in the style, but could look different), long-term stability. The phone's animation scales are 0.5 (kept). **Rollback:** copy `backup/review_20261108/FrameworkOverlay.before_anim.apk` to `/system/vendor/overlay/FrameworkOverlay.apk` (mode 0644) and reboot; if the phone does not boot, delete the overlay from TWRP |
 
+| 42 | **Calculator motion** | Keys press down to 0.92 and release with an overshoot spring; the display "settles in" (fade + slide + scale) when a result, a clear or an error replaces the number. Regression-checked on the phone: 12 × 3,5 = 42, 42 ÷ 0 = Error, AC = 0, 0 FATAL. The animation itself was not caught frame by frame |
+
 ## Status
 
 | Area | State |

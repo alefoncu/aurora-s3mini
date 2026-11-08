@@ -106,8 +106,12 @@ public class CalcActivity extends Activity {
         t.setTextSize(TypedValue.COMPLEX_UNIT_SP, isOp(k) ? 34 : 28);
         style(t, k, false);
         t.setOnTouchListener((v, e) -> {
-            if (e.getAction() == MotionEvent.ACTION_DOWN) v.setAlpha(0.6f);
-            else if (e.getAction() == MotionEvent.ACTION_UP || e.getAction() == MotionEvent.ACTION_CANCEL) v.setAlpha(1f);
+            if (e.getAction() == MotionEvent.ACTION_DOWN) {
+                v.animate().cancel();
+                v.animate().scaleX(0.92f).scaleY(0.92f).setDuration(80).setInterpolator(new android.view.animation.DecelerateInterpolator()).start();
+            } else if (e.getAction() == MotionEvent.ACTION_UP || e.getAction() == MotionEvent.ACTION_CANCEL) {
+                v.animate().scaleX(1f).scaleY(1f).setDuration(320).setInterpolator(new android.view.animation.OvershootInterpolator(3.2f)).start();
+            }
             return false;
         });
         t.setOnClickListener(v -> press(k));
@@ -176,9 +180,20 @@ public class CalcActivity extends Activity {
         return (neg ? "-" : "") + sb + fp;
     }
 
+    private String lastShown = "0";
+
     private void show() {
         String s = pretty(cur);
+        boolean changedBig = !s.equals(lastShown) && (fresh || error || s.equals("0"));
+        lastShown = s;
         display.setText(s);
+        if (changedBig) { // a result, a clear or an error: the number settles in
+            display.animate().cancel();
+            display.setAlpha(0.35f); display.setTranslationY(10 * d); display.setScaleX(0.96f); display.setScaleY(0.96f);
+            display.setPivotX(display.getWidth()); display.setPivotY(display.getHeight());
+            display.animate().alpha(1f).translationY(0f).scaleX(1f).scaleY(1f).setDuration(260)
+                    .setInterpolator(new android.view.animation.DecelerateInterpolator(2f)).start();
+        }
         int sp = s.length() <= 7 ? 84 : s.length() <= 9 ? 68 : s.length() <= 11 ? 54 : 44;
         display.setTextSize(TypedValue.COMPLEX_UNIT_SP, sp);
         TextView ac = btn.get("AC");

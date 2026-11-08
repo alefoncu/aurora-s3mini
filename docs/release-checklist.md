@@ -14,13 +14,15 @@ Status as of 2026-11-08. `[x]` = done and verified on the phone, `[ ]` = open, `
 ## Open technical items (can be done without hardware)
 
 - [ ] Stock Messages stays **white at night** (hard-coded app theme; colour overlays cannot change it).
-- [ ] Uninstall path of the launcher edit mode (the × on a user app) and dragging a folder onto the dock were never exercised.
-- [ ] `restore_state.sh all` and `apps` were never run (`overlays` was).
-- [ ] No frame-rate measurement of the new animations.
 - [ ] A clean-room install from the README (new phone/ROM) was never tried.
-- [ ] The Apps list in Settings still shows the stock Calculator next to ours.
 
 ## Verified (2026-11-08)
+
+- [x] Launcher edit mode × on a user app opens Android's uninstall confirmation (checked with a dummy package, dialog dismissed with Back; the launcher drops the icon by itself when the package disappears). The actual uninstall confirmation was not tapped.
+- [x] Dragging a folder from the grid onto the dock works (it takes the slot; the displaced app goes to the grid).
+- [x] `restore_state.sh all` (reboot, 12 files md5-identical, 8 APKs reinstalled, 0 FATAL); `overlays` also verified earlier. `apps` alone not run separately.
+- [x] Frame stats of the launcher (`dumpsys gfxinfo`, 300 frames of page swipes, search and app open/close): p50 7 ms, p90 15 ms, p95 40 ms, p99 113 ms, 9 % janky (mainly search/app start).
+- [x] Stock Calculator hidden from Settings > Apps with `pm hide com.android.calculator2` (undo: `su -c "pm unhide com.android.calculator2"`).
 
 - [x] Launcher: reorder, folders (grid and dock), dock drag, edit mode (hide), Today page incl. next alarm, day and night.
 - [x] Own apps: Calculator, Clock (ghost-alarm bug fixed), Gallery gestures, Camera (zoom, focus, timer, grid), Contacts, Phone — day and night.

@@ -96,6 +96,8 @@ Everything the owner has asked for, in order, with the result. This section is u
 
 | 44 | **Final visual pass and release checklist** | Night captures of Settings (dashboard, Wi-Fi, Sound), Contacts, Phone, Gallery, Clock and stock Messages: all dark and legible **except stock Messages, which stays white at night** (theme limitation, as at day). Open items and the owner-only tasks (SIM, TWRP backup, flash/video, days of real use, Play Store and 720p decisions) are listed in [`docs/release-checklist.md`](docs/release-checklist.md). Also noted: `settings put system ios_theme_mode night` over a short `timeout` can silently not apply; verify with `settings get` |
 
+| 45 | **Technical leftovers closed** | Edit-mode × on a user app opens Android's uninstall dialog (verified with a dummy package; **a first attempt hit GravityBox's × by my own wrong coordinates, the system confirmation stopped it and I cancelled with Back**); a folder dragged from the grid onto the dock takes the slot; stock Calculator hidden from Settings > Apps with `pm hide` (a plain `pm disable-user` still lists it as "Inhabilitada"); `restore_state.sh all` verified end to end; launcher frame stats: p50 7 ms, p90 15 ms, p99 113 ms, 9 % janky over 300 frames. Dummy test package removed, launcher preferences reset |
+
 ## Status
 
 | Area | State |

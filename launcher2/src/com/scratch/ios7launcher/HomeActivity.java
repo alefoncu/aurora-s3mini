@@ -151,7 +151,7 @@ public class HomeActivity extends Activity {
         recreate();
     }
 
-    @Override public void onBackPressed() { if (searchLayer != null) hideSearch(); }
+    @Override public void onBackPressed() { if (folderLayer != null) closeFolder(); else if (searchLayer != null) hideSearch(); }
 
     private float downX, downY;
     private List<App> allApps = new ArrayList<>();
@@ -567,7 +567,7 @@ public class HomeActivity extends Activity {
 
     // ---- data -------------------------------------------------------------
 
-    private static class App { String pkg, label, norm; volatile String doc = ""; ComponentName cn; ResolveInfo ri; }
+    private static class App { String pkg, label, norm; volatile String doc = ""; ComponentName cn; ResolveInfo ri; List<App> kids; }
 
     private void reload() {
         new Thread(() -> {
@@ -602,11 +602,14 @@ public class HomeActivity extends Activity {
             Collections.sort(rest, (x, y) -> x.label.compareToIgnoreCase(y.label));
             grid.addAll(rest);
         grid.addAll(tools);
+            final List<App> flat = new ArrayList<>(grid);
+            applyFolders(grid);
             applySavedOrder(grid);
-            allApps = new ArrayList<>(); allApps.addAll(dockApps); allApps.addAll(grid);
+            allApps = new ArrayList<>(); allApps.addAll(dockApps); allApps.addAll(flat);
             // Publish usable icons before the expensive package metadata index is built.
             for (App a : allApps) { a.norm = Fuzzy.norm(a.label); a.doc = a.norm; }
             for (App a : dockApps) icon(a);
+            for (App a : flat) icon(a);
             for (App a : grid) icon(a);
             ui.post(() -> { if (!isDestroyed()) build(grid, dockApps); });
             Map<String, String> caps = AppIndex.capabilities(pm);
@@ -636,7 +639,9 @@ public class HomeActivity extends Activity {
                 if (e.getAction() == DragEvent.ACTION_DROP && e.getLocalState() instanceof App) {
                     int col = Math.max(0, Math.min(COLS - 1, (int) (e.getX() / cw)));
                     int row = Math.max(0, Math.min(ROWS - 1, (int) (e.getY() / ch)));
-                    moveApp((App) e.getLocalState(), base + row * COLS + col);
+                    float fx = (e.getX() - col * cw) / cw, fy = (e.getY() - row * ch) / ch;
+                    boolean onIcon = Math.abs(fx - 0.5f) < 0.28f && fy < 66 * d / ch;
+                    drop((App) e.getLocalState(), base + row * COLS + col, onIcon);
                 }
                 return true;
             });
@@ -701,6 +706,164 @@ public class HomeActivity extends Activity {
         ui.post(() -> build(gg, dd));
     }
 
+    // ---- folders: drop an icon on the middle of another to group them ---------------------------
+
+    private FrameLayout folderLayer;
+
+    private Bitmap folderIcon(App f, int s) {
+        Bitmap out = Bitmap.createBitmap(s, s, Bitmap.Config.ARGB_8888);
+        Canvas c = new Canvas(out);
+        Path sq = squircle(s);
+        Paint p = new Paint(Paint.ANTI_ALIAS_FLAG);
+        p.setColor(night ? 0x59FFFFFF : 0x80FFFFFF);
+        c.drawPath(sq, p);
+        p.setStyle(Paint.Style.STROKE);
+        p.setStrokeWidth(Math.max(1f, d * 0.75f));
+        p.setColor(night ? 0x66FFFFFF : 0xCCFFFFFF);
+        c.drawPath(sq, p);
+        int m = Math.round(s * 0.12f), cell = Math.round(s * 0.36f), gap = Math.round(s * 0.08f);
+        for (int i = 0; i < Math.min(4, f.kids.size()); i++) {
+            Bitmap b = cache.get(f.kids.get(i).pkg);
+            if (b == null) continue;
+            int x = m + (i % 2) * (cell + gap), y = m + (i / 2) * (cell + gap);
+            c.drawBitmap(b, null, new Rect(x, y, x + cell, y + cell), new Paint(Paint.FILTER_BITMAP_FLAG | Paint.ANTI_ALIAS_FLAG));
+        }
+        return out;
+    }
+
+    /** folders pref: one line per folder, "id|name|pkg,pkg". */
+    private List<String[]> loadFolders() {
+        List<String[]> out = new ArrayList<>();
+        for (String line : getSharedPreferences("home", MODE_PRIVATE).getString("folders", "").split("\n")) {
+            String[] t = line.split("\\|", 3);
+            if (t.length == 3 && !t[0].isEmpty()) out.add(t);
+        }
+        return out;
+    }
+
+    private void saveFolders(List<String[]> fs) {
+        StringBuilder sb = new StringBuilder();
+        for (String[] t : fs) if (!t[2].isEmpty()) sb.append(t[0]).append('|').append(t[1]).append('|').append(t[2]).append('\n');
+        getSharedPreferences("home", MODE_PRIVATE).edit().putString("folders", sb.toString()).apply();
+    }
+
+    private void saveOrder(List<String> ids) {
+        StringBuilder sb = new StringBuilder();
+        for (String x : ids) sb.append(x).append('\n');
+        getSharedPreferences("home", MODE_PRIVATE).edit().putString("order", sb.toString()).apply();
+    }
+
+    private void applyFolders(List<App> grid) {
+        List<String[]> keep = new ArrayList<>();
+        for (String[] t : loadFolders()) {
+            List<App> members = new ArrayList<>();
+            int first = Integer.MAX_VALUE;
+            for (String p : t[2].split(",")) {
+                for (int i = 0; i < grid.size(); i++) {
+                    if (grid.get(i).kids == null && grid.get(i).pkg.equals(p)) { first = Math.min(first, i); members.add(grid.get(i)); break; }
+                }
+            }
+            if (members.size() < 2) continue; // dissolved: the remaining member stays a plain icon
+            grid.removeAll(members);
+            App f = new App();
+            f.pkg = t[0]; f.label = t[1]; f.kids = members; f.norm = Fuzzy.norm(f.label); f.doc = f.norm;
+            grid.add(Math.min(first, grid.size()), f);
+            StringBuilder pk = new StringBuilder();
+            for (App m : members) pk.append(pk.length() > 0 ? "," : "").append(m.pkg);
+            keep.add(new String[]{t[0], t[1], pk.toString()});
+        }
+        saveFolders(keep);
+    }
+
+    private void drop(App dragged, int idx, boolean onIcon) {
+        List<App> g = curGrid;
+        if (g == null) return;
+        App target = idx < g.size() ? g.get(idx) : null;
+        if (onIcon && target != null && target != dragged && dragged.kids == null) {
+            List<String> ids = new ArrayList<>();
+            List<String[]> fs = loadFolders();
+            if (target.kids != null) {
+                for (String[] t : fs) if (t[0].equals(target.pkg)) t[2] = t[2] + "," + dragged.pkg;
+                for (App x : g) if (x != dragged) ids.add(x.pkg);
+            } else {
+                String id = "folder:" + System.currentTimeMillis();
+                fs.add(new String[]{id, "Carpeta", target.pkg + "," + dragged.pkg});
+                for (App x : g) { if (x == dragged) continue; ids.add(x == target ? id : x.pkg); }
+            }
+            saveFolders(fs); saveOrder(ids);
+            cache.remove(target.pkg);
+            reload();
+            return;
+        }
+        moveApp(dragged, idx);
+    }
+
+    private void openFolder(App f) {
+        if (folderLayer != null) return;
+        ViewGroup content = (ViewGroup) findViewById(android.R.id.content);
+        folderLayer = new FrameLayout(this);
+        folderLayer.setBackgroundColor(night ? 0xCC14123A : 0xCCF6F5FF);
+        folderLayer.setOnClickListener(v -> closeFolder());
+        LinearLayout panel = new LinearLayout(this);
+        panel.setOrientation(LinearLayout.VERTICAL);
+        int pd = (int) (16 * d);
+        panel.setPadding(pd, pd, pd, pd);
+        GradientDrawable bg = new GradientDrawable();
+        bg.setColor(night ? 0xFF2A2862 : 0xFFFFFFFF);
+        bg.setStroke(Math.max(1, (int) d), boxStroke);
+        bg.setCornerRadius(24 * d);
+        panel.setBackground(bg);
+        panel.setOnClickListener(v -> { });
+        TextView title = new TextView(this);
+        title.setText(f.label);
+        title.setTextColor(labelColor);
+        title.setTextSize(TypedValue.COMPLEX_UNIT_SP, 20);
+        title.setTypeface(Typeface.create("sans-serif-light", Typeface.NORMAL));
+        title.setGravity(Gravity.CENTER);
+        panel.addView(title, new LinearLayout.LayoutParams(-1, -2));
+        TextView hint = new TextView(this);
+        hint.setText("Mantén pulsado un icono para sacarlo");
+        hint.setTextColor(subColor);
+        hint.setTextSize(TypedValue.COMPLEX_UNIT_SP, 11);
+        hint.setGravity(Gravity.CENTER);
+        panel.addView(hint, new LinearLayout.LayoutParams(-1, -2));
+        GridLayout g = new GridLayout(this);
+        g.setColumnCount(3);
+        int cw = (w - (int) (32 * d) - 2 * pd) / 3;
+        for (final App kid : f.kids) {
+            View c = cell(kid, true);
+            c.setOnLongClickListener(v -> { v.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS); removeFromFolder(f, kid); return true; });
+            GridLayout.LayoutParams lp = new GridLayout.LayoutParams();
+            lp.width = cw; lp.height = (int) (84 * d);
+            g.addView(c, lp);
+        }
+        panel.addView(g, new LinearLayout.LayoutParams(-2, -2) {{ topMargin = (int) (10 * d); gravity = Gravity.CENTER_HORIZONTAL; }});
+        folderLayer.addView(panel, new FrameLayout.LayoutParams(w - (int) (32 * d), -2, Gravity.CENTER));
+        content.addView(folderLayer, new FrameLayout.LayoutParams(-1, -1));
+        folderLayer.setAlpha(0f);
+        folderLayer.animate().alpha(1f).setDuration(150).start();
+    }
+
+    private void closeFolder() {
+        if (folderLayer == null) return;
+        ((ViewGroup) folderLayer.getParent()).removeView(folderLayer);
+        folderLayer = null;
+    }
+
+    private void removeFromFolder(App f, App kid) {
+        List<String[]> fs = loadFolders();
+        for (String[] t : fs) {
+            if (!t[0].equals(f.pkg)) continue;
+            StringBuilder sb = new StringBuilder();
+            for (String p : t[2].split(",")) if (!p.equals(kid.pkg)) sb.append(sb.length() > 0 ? "," : "").append(p);
+            t[2] = sb.toString();
+        }
+        saveFolders(fs);
+        cache.remove(f.pkg);
+        closeFolder();
+        reload();
+    }
+
     private View cell(App a, boolean label) {
         LinearLayout c = new LinearLayout(this);
         c.setOrientation(LinearLayout.VERTICAL);
@@ -722,7 +885,7 @@ public class HomeActivity extends Activity {
             t.setGravity(Gravity.CENTER);
                         c.addView(t, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT) {{ topMargin = (int) (3 * d); }});
         }
-        c.setOnClickListener(v -> launch(a, iv));
+        c.setOnClickListener(v -> { if (a.kids != null) openFolder(a); else launch(a, iv); });
         if (label) c.setOnLongClickListener(v -> {
             v.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS);
             v.setAlpha(1f);
@@ -756,6 +919,7 @@ public class HomeActivity extends Activity {
     private void icon(App a) {
         if (cache.containsKey(a.pkg)) return;
         int s = (int) (54 * d);
+        if (a.kids != null) { cache.put(a.pkg, folderIcon(a, s)); return; }
         Bitmap out = Bitmap.createBitmap(s, s, Bitmap.Config.ARGB_8888);
         Canvas c = new Canvas(out);
         Path sq = squircle(s);

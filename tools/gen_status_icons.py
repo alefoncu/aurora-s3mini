@@ -36,19 +36,6 @@ open("%s/ic_battery_portrait_frame.xml" % dst, "w").write(
 ''')
 print("wrote ic_battery_portrait_frame")
 
-# --- framework-res (FrameworkOverlay): privacy-guard shield and USB-debugging ring --------------
-# usage (second argument): gen_status_icons.py <sysui drawable dir> <work/frame/res>
-if len(sys.argv) > 2:
-    import os, re
-    fw = sys.argv[2]
-    os.makedirs(fw + "/drawable", exist_ok=True); os.makedirs(fw + "/drawable-nodpi-v4", exist_ok=True)
-    S = ('android:fillColor="#00000000" android:strokeColor="#ffffffff" android:strokeWidth="%s" '
-         'android:strokeLineCap="round" android:strokeLineJoin="round"')
-    shield = re.search(r'pathData="([^"]*)"', open(os.path.expandvars("$TMPDIR/fw_stock/res/drawable/stat_notify_privacy_guard.xml")).read()).group(1)
-    open(fw + "/drawable/stat_notify_privacy_guard.xml", "w").write(
-        '<?xml version="1.0" encoding="utf-8"?>\n<vector android:height="24.0dp" android:width="26.0dp" android:viewportWidth="26.0" android:viewportHeight="24.0"\n'
-        '  xmlns:android="http://schemas.android.com/apk/res/android">\n    <path %s android:pathData="%s" />\n</vector>\n' % (S % "1.4", shield))
-    open(fw + "/drawable-nodpi-v4/stat_sys_adb.xml", "w").write(
-        '<?xml version="1.0" encoding="utf-8"?>\n<vector android:height="24.0dp" android:width="24.0dp" android:viewportWidth="24.0" android:viewportHeight="24.0"\n'
-        '  xmlns:android="http://schemas.android.com/apk/res/android">\n    <path %s android:pathData="M12,4a8,8 0 1 0 0,16a8,8 0 1 0 0,-16z M12,9.5a2.5,2.5 0 1 0 0,5a2.5,2.5 0 1 0 0,-5z" />\n</vector>\n' % (S % "1.5"))
-    print("wrote framework icons")
+# NOTE: the Privacy Guard shield (android:drawable/stat_notify_privacy_guard) and the USB-debugging ring
+# (stat_sys_adb) are posted by system_server; a FrameworkOverlay drawable for them fails with
+# Resources$NotFoundException at render time (tried with and without --no-version-vectors), so they stay stock.

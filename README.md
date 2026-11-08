@@ -94,6 +94,8 @@ Everything the owner has asked for, in order, with the result. This section is u
 
 | 43 | **Backup / restore tooling and stability audit** | [`tools/device/backup_state.sh`](tools/device/backup_state.sh) snapshots every project change on the phone; [`restore_state.sh`](tools/device/restore_state.sh) puts it back; procedure in [`docs/restore.md`](docs/restore.md). `overlays` restore verified end to end (reboot, md5 identical). Stability audit after ~11 min uptime: load 0.77, 0 FATAL, 0 ANR, 33 °C; the `system_server` watchdog dump in `/data/anr` is from **2026-11-01**, before the overlay work (the known `screencap`-loop crash, see lesson 23). A full TWRP backup is still the only complete protection and has to be made by the owner |
 
+| 44 | **Final visual pass and release checklist** | Night captures of Settings (dashboard, Wi-Fi, Sound), Contacts, Phone, Gallery, Clock and stock Messages: all dark and legible **except stock Messages, which stays white at night** (theme limitation, as at day). Open items and the owner-only tasks (SIM, TWRP backup, flash/video, days of real use, Play Store and 720p decisions) are listed in [`docs/release-checklist.md`](docs/release-checklist.md). Also noted: `settings put system ios_theme_mode night` over a short `timeout` can silently not apply; verify with `settings get` |
+
 ## Status
 
 | Area | State |

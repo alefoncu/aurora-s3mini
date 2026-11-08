@@ -34,3 +34,10 @@ The first installed changes survived a reboot (`sys.boot_completed=1`, no Java F
 Private captures include the day Contacts/Phone/Gallery/Clock/Messages screens, night main screens, Today, search, quick settings and a synthetic notification. Settings needed a longer loading wait. Camera controls can be inspected, but the black screenshot viewfinder proves nothing about preview quality. Some adb capture batches timed out under load and were repeated; failed captures were not accepted as evidence.
 
 The review is not exhaustive: populated message threads, all Settings subpages, stock contact editing, camera front/flash/capture intents and telephony still need separate checks. No claim is made that 480p H.264 playback has been tested (the earlier test was 320×240).
+
+## Follow-up, 2026-11-08
+
+- Settings subpages checked in day mode (Wi-Fi, Display, Sound, Apps): accent-blue toolbar, thin text and blue switches are consistent; no illegible text seen. The Apps list still shows the stock Calculator next to the own one, and "Android Developer Verifier". Not reviewed at night.
+- Stock contact editor (new contact): indigo toolbar and a light account-chooser dialog in both modes; legible. The editing fields themselves were not captured.
+- Own Calculator verified in day and night.
+- Still unchecked: populated message threads, flash firing, video recording, telephony/SMS (no SIM).

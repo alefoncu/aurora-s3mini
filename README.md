@@ -82,6 +82,8 @@ Everything the owner has asked for, in order, with the result. This section is u
 
 | 37 | **Gallery viewer gestures verified** | The viewer already had pinch zoom (1×–4×), double-tap zoom/reset, one-finger pan while zoomed and swipe to the next photo, but none had been tried with real gestures. Verified on the phone with a real two-finger pinch ([`tools/device/pinch_test.sh`](tools/device/pinch_test.sh)), a drag while zoomed (image moved as expected) and a double tap (zoom reset, animated). 0 FATAL. **Not verified:** swipe to next/previous photo at 1×, zooming a video, very large photos |
 
+| 38 | **Camera: self-timer and grid** | Top bar: timer button next to the flash cycles off → 3 s → 10 s (yellow stopwatch with the number), grid button next to the flip button toggles rule-of-thirds lines over the preview (remembered in `SharedPreferences cam/grid`). Pressing the shutter with the timer on shows a big thin countdown over the preview and takes the photo at 0; pressing the shutter again cancels it; leaving the app cancels it. Verified on the phone: 3 s countdown ("2" seen) and the photo appeared in DCIM, grid drawn, 0 FATAL. **Not verified:** the 10 s option, cancelling, timer in video mode (it is ignored there), `IMAGE_CAPTURE` with the timer |
+
 ## Status
 
 | Area | State |

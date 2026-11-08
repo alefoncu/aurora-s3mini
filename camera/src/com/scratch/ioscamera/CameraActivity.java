@@ -30,6 +30,12 @@ public class CameraActivity extends Activity implements SurfaceHolder.Callback {
 
     private Camera camera;
     private int dispOrient;
+    private int timerSec;          // 0 = off, 3 or 10
+    private boolean gridOn;
+    private IconView timerBtn, gridBtn;
+    private View gridView;
+    private TextView countdown;
+    private boolean counting;
     private boolean frontCam;
     private int zoomIdx;
     private TextView zoomLabel;
@@ -103,6 +109,45 @@ public class CameraActivity extends Activity implements SurfaceHolder.Callback {
         fp.rightMargin = (int) (8 * d);
         root.addView(flipBtn, fp);
 
+        timerBtn = new IconView(this, IconView.TIMER);
+        timerBtn.setOnClickListener(v -> { timerSec = timerSec == 0 ? 3 : timerSec == 3 ? 10 : 0; timerBtn.setState(timerSec); });
+        FrameLayout.LayoutParams tl = new FrameLayout.LayoutParams((int) (44 * d), topH, Gravity.TOP | Gravity.LEFT);
+        tl.leftMargin = (int) (52 * d);
+        root.addView(timerBtn, tl);
+
+        gridOn = getSharedPreferences("cam", MODE_PRIVATE).getBoolean("grid", false);
+        gridBtn = new IconView(this, IconView.GRID);
+        gridBtn.setState(gridOn ? 1 : 0);
+        FrameLayout.LayoutParams gl = new FrameLayout.LayoutParams((int) (44 * d), topH, Gravity.TOP | Gravity.RIGHT);
+        gl.rightMargin = (int) (64 * d);
+        root.addView(gridBtn, gl);
+        gridView = new View(this) {
+            private final Paint gp = new Paint();
+            @Override protected void onDraw(Canvas c) {
+                gp.setColor(0x66FFFFFF);
+                gp.setStrokeWidth(Math.max(1f, d));
+                int gw = getWidth(), gh = getHeight();
+                for (int i = 1; i <= 2; i++) { c.drawLine(gw * i / 3f, 0, gw * i / 3f, gh, gp); c.drawLine(0, gh * i / 3f, gw, gh * i / 3f, gp); }
+            }
+        };
+        gridView.setVisibility(gridOn ? View.VISIBLE : View.GONE);
+        root.addView(gridView, new FrameLayout.LayoutParams(w, prevH, Gravity.TOP) {{ topMargin = topH; }});
+        gridBtn.setOnClickListener(v -> {
+            gridOn = !gridOn;
+            gridBtn.setState(gridOn ? 1 : 0);
+            gridView.setVisibility(gridOn ? View.VISIBLE : View.GONE);
+            getSharedPreferences("cam", MODE_PRIVATE).edit().putBoolean("grid", gridOn).apply();
+        });
+
+        countdown = new TextView(this);
+        countdown.setTextColor(Color.WHITE);
+        countdown.setTextSize(96);
+        countdown.setTypeface(Typeface.create("sans-serif-thin", Typeface.NORMAL));
+        countdown.setShadowLayer(8f, 0, 2, 0x80000000);
+        countdown.setGravity(Gravity.CENTER);
+        countdown.setVisibility(View.GONE);
+        root.addView(countdown, new FrameLayout.LayoutParams(w, prevH, Gravity.TOP) {{ topMargin = topH; }});
+
         // mode tabs (top centre) and recording timer
         LinearLayout tabs = new LinearLayout(this);
         tabs.setGravity(Gravity.CENTER);
@@ -129,7 +174,7 @@ public class CameraActivity extends Activity implements SurfaceHolder.Callback {
         ShutterView shutter = shutterView = new ShutterView(this);
         int sd = (int) (64 * d);
         bar.addView(shutter, new FrameLayout.LayoutParams(sd, sd, Gravity.CENTER));
-        shutter.setOnClickListener(v -> { if (mode == 1) toggleRecord(); else capture(); });
+        shutter.setOnClickListener(v -> { if (mode == 1) toggleRecord(); else shootWithTimer(); });
 
         thumb = new ImageView(this);
         thumb.setScaleType(ImageView.ScaleType.CENTER_CROP);
@@ -336,6 +381,7 @@ public class CameraActivity extends Activity implements SurfaceHolder.Callback {
 
     @Override
     protected void onPause() {
+        cancelCountdown();
         if (recording) stopRecording();
         releaseCamera();
         super.onPause();
@@ -424,6 +470,39 @@ public class CameraActivity extends Activity implements SurfaceHolder.Callback {
                     : Camera.Parameters.FLASH_MODE_OFF;
             if (modes.contains(m)) { p.setFlashMode(m); camera.setParameters(p); }
         } catch (Exception ignored) {}
+    }
+
+    private int tickLeft;
+    private final Runnable tickRun = new Runnable() {
+        @Override public void run() {
+            if (!counting) return;
+            if (tickLeft > 0) {
+                countdown.setText(String.valueOf(tickLeft));
+                countdown.setVisibility(View.VISIBLE);
+                tickLeft--;
+                uiH.postDelayed(this, 1000);
+            } else {
+                counting = false;
+                countdown.setVisibility(View.GONE);
+                capture();
+            }
+        }
+    };
+
+    /** Photo with the self-timer: tapping the shutter again during the countdown cancels it. */
+    private void shootWithTimer() {
+        if (counting) { cancelCountdown(); return; }
+        if (timerSec == 0) { capture(); return; }
+        counting = true;
+        tickLeft = timerSec;
+        countdown.setVisibility(View.GONE);
+        uiH.post(tickRun);
+    }
+
+    private void cancelCountdown() {
+        counting = false;
+        uiH.removeCallbacks(tickRun);
+        if (countdown != null) countdown.setVisibility(View.GONE);
     }
 
     private void capture() {
@@ -534,7 +613,7 @@ public class CameraActivity extends Activity implements SurfaceHolder.Callback {
 
     /** Thin line icons drawn in code. */
     private static class IconView extends View {
-        static final int FLASH = 0, FLIP = 1;
+        static final int FLASH = 0, FLIP = 1, TIMER = 2, GRID = 3;
         private final int kind;
         private int state;
         private final Paint p = new Paint(Paint.ANTI_ALIAS_FLAG);
@@ -564,6 +643,28 @@ public class CameraActivity extends Activity implements SurfaceHolder.Callback {
                     p.setTextSize(9 * u);
                     cv.drawText("A", cx + 6 * u, cy - 6 * u, p);
                 }
+            } else if (kind == TIMER) {
+                p.setColor(state != 0 ? 0xFFFFD60A : Color.WHITE);
+                cv.drawCircle(cx, cy + 2 * u, 10 * u, p);
+                cv.drawLine(cx - 3 * u, cy - 11 * u, cx + 3 * u, cy - 11 * u, p);
+                cv.drawLine(cx, cy - 11 * u, cx, cy - 8 * u, p);
+                if (state == 0) cv.drawLine(cx, cy + 2 * u, cx + 5 * u, cy - 2 * u, p);
+                else {
+                    p.setStyle(Paint.Style.FILL);
+                    p.setTextSize(state >= 10 ? 9 * u : 11 * u);
+                    p.setTextAlign(Paint.Align.CENTER);
+                    cv.drawText(String.valueOf(state), cx, cy + 6 * u, p);
+                    p.setTextAlign(Paint.Align.LEFT);
+                }
+            } else if (kind == GRID) {
+                p.setColor(state != 0 ? 0xFFFFD60A : Color.WHITE);
+                p.setStrokeWidth(1.6f * u);
+                RectF r = new RectF(cx - 11 * u, cy - 11 * u, cx + 11 * u, cy + 11 * u);
+                cv.drawRoundRect(r, 3 * u, 3 * u, p);
+                cv.drawLine(cx - 3.7f * u, cy - 11 * u, cx - 3.7f * u, cy + 11 * u, p);
+                cv.drawLine(cx + 3.7f * u, cy - 11 * u, cx + 3.7f * u, cy + 11 * u, p);
+                cv.drawLine(cx - 11 * u, cy - 3.7f * u, cx + 11 * u, cy - 3.7f * u, p);
+                cv.drawLine(cx - 11 * u, cy + 3.7f * u, cx + 11 * u, cy + 3.7f * u, p);
             } else {
                 p.setColor(Color.WHITE);
                 RectF body = new RectF(cx - 13 * u, cy - 8 * u, cx + 13 * u, cy + 10 * u);

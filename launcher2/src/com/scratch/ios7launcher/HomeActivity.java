@@ -82,7 +82,7 @@ public class HomeActivity extends Activity {
         FrameLayout root = new FrameLayout(this);
 
         int statusH = (int) (24 * d);
-        TextClock time = new TextClock(this);
+        TextClock time = headTime = new TextClock(this);
         time.setFormat24Hour("HH:mm");
         time.setFormat12Hour("h:mm");
         time.setTypeface(Typeface.create("sans-serif-thin", Typeface.NORMAL));
@@ -92,7 +92,7 @@ public class HomeActivity extends Activity {
         time.setGravity(Gravity.LEFT | Gravity.CENTER_VERTICAL);
         time.setPadding((int) (24 * d), 0, 0, 0);
         root.addView(time, new FrameLayout.LayoutParams(w, (int) (72 * d), Gravity.TOP) {{ topMargin = statusH; }});
-        TextClock date = new TextClock(this);
+        TextClock date = headDate = new TextClock(this);
         date.setFormat24Hour("EEEE, d 'de' MMMM");
         date.setFormat12Hour("EEEE, d 'de' MMMM");
         date.setTypeface(Typeface.create("sans-serif-light", Typeface.NORMAL));
@@ -142,7 +142,12 @@ public class HomeActivity extends Activity {
         reload();
     }
 
-    @Override protected void onResume() { super.onResume(); refreshToday(); }
+    @Override protected void onPause() { wasPaused = true; super.onPause(); }
+    @Override protected void onResume() {
+        super.onResume();
+        refreshToday();
+        if (wasPaused) { wasPaused = false; popCurrent(); }
+    }
 
     @Override protected void onDestroy() { unregisterReceiver(pkgs); super.onDestroy(); }
 
@@ -169,6 +174,9 @@ public class HomeActivity extends Activity {
     private AppIndex.Usage usage;
     private String lastQuery = "";
     private boolean firstBuild = true;
+    private TextClock headTime, headDate;
+    private LinearLayout todayCol;
+    private boolean animateNext = true, wasPaused;
     private TextView calView, batView, stoView, ramView, alarmView;
     private View batBar, stoBar, ramBar;
 
@@ -200,6 +208,7 @@ public class HomeActivity extends Activity {
         ramView = row(st, "Memoria");
         ramBar = lastBar;
         refreshToday();
+        todayCol = col;
         return col;
     }
 
@@ -421,7 +430,8 @@ public class HomeActivity extends Activity {
         searchLayer.addView(strip, new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, (int) (24 * d), Gravity.TOP));
         content.addView(searchLayer, new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
         searchLayer.setAlpha(0f);
-        searchLayer.animate().alpha(1f).setDuration(180).start();
+        searchLayer.setTranslationY(36 * d);
+        searchLayer.animate().alpha(1f).translationY(0f).setDuration(260).setInterpolator(new android.view.animation.DecelerateInterpolator(2f)).start();
         searchBox.addTextChangedListener(new android.text.TextWatcher() {
             @Override public void beforeTextChanged(CharSequence c, int a, int b, int n) { }
             @Override public void onTextChanged(CharSequence c, int a, int b, int n) { runSearch(c.toString().trim()); }
@@ -438,9 +448,12 @@ public class HomeActivity extends Activity {
         if (searchLayer == null) return;
         ((android.view.inputmethod.InputMethodManager) getSystemService(INPUT_METHOD_SERVICE))
                 .hideSoftInputFromWindow(searchBox.getWindowToken(), 0);
-        ((ViewGroup) searchLayer.getParent()).removeView(searchLayer);
+        final View sheet = searchLayer;
         searchLayer = null;
         results.clear();
+        sheet.animate().alpha(0f).translationY(30 * d).setDuration(170).withEndAction(() -> {
+            if (sheet.getParent() != null) ((ViewGroup) sheet.getParent()).removeView(sheet);
+        }).start();
     }
 
     /** Contacts are matched in memory: SQL LIKE cannot ignore accents or tolerate typos. */
@@ -729,9 +742,48 @@ public class HomeActivity extends Activity {
         }
         pager.setOnPage(pg -> {
             for (int i = 0; i < dots.getChildCount(); i++) dots.getChildAt(i).setAlpha(i == pg ? 1f : 0.4f);
+            if (pg == 0) popToday();
+        });
+        pager.setOnScroll(x -> { // the clock and date glide away more slowly than the page
+            float k = Math.max(0, x - w);
+            float a = 1f - Math.min(1f, k / w) * 0.7f;
+            if (headTime != null) { headTime.setTranslationX(-k * 0.35f); headTime.setAlpha(a); }
+            if (headDate != null) { headDate.setTranslationX(-k * 0.35f); headDate.setAlpha(a); }
         });
         final int fc = cur;
         pager.post(() -> pager.goToNow(fc));
+        if (animateNext) { animateNext = false; pager.post(this::popCurrent); }
+    }
+
+    // ---- animations -----------------------------------------------------------------------------
+
+    private void popCurrent() {
+        View pv = pager.pageView(pager.page());
+        if (pv instanceof GridLayout) popIn((ViewGroup) pv);
+        for (int i = 0; i < dock.getChildCount(); i++) pop(dock.getChildAt(i), 120 + i * 40);
+        if (pager.page() == 0) popToday();
+    }
+
+    private void popIn(ViewGroup page) {
+        for (int i = 0; i < page.getChildCount(); i++) pop(page.getChildAt(i), i * 20);
+    }
+
+    private void pop(View c, long delay) {
+        c.animate().cancel();
+        c.setAlpha(0f); c.setScaleX(0.7f); c.setScaleY(0.7f); c.setTranslationY(10 * d);
+        c.animate().alpha(1f).scaleX(1f).scaleY(1f).translationY(0f).setStartDelay(delay).setDuration(340)
+                .setInterpolator(new android.view.animation.OvershootInterpolator(1.7f)).start();
+    }
+
+    private void popToday() {
+        if (todayCol == null) return;
+        for (int i = 0; i < todayCol.getChildCount(); i++) {
+            View v = todayCol.getChildAt(i);
+            v.animate().cancel();
+            v.setAlpha(0f); v.setTranslationY(28 * d);
+            v.animate().alpha(1f).translationY(0f).setStartDelay(i * 70L).setDuration(420)
+                    .setInterpolator(new android.view.animation.DecelerateInterpolator(2f)).start();
+        }
     }
 
     // ---- user order (long-press and drag an icon to a new slot) ---------------------------------
@@ -940,7 +992,10 @@ public class HomeActivity extends Activity {
         folderLayer.addView(panel, new FrameLayout.LayoutParams(w - (int) (32 * d), -2, Gravity.CENTER));
         content.addView(folderLayer, new FrameLayout.LayoutParams(-1, -1));
         folderLayer.setAlpha(0f);
-        folderLayer.animate().alpha(1f).setDuration(150).start();
+        folderLayer.animate().alpha(1f).setDuration(160).start();
+        folderPanel = panel;
+        panel.setScaleX(0.6f); panel.setScaleY(0.6f); panel.setAlpha(0f);
+        panel.animate().scaleX(1f).scaleY(1f).alpha(1f).setDuration(300).setInterpolator(new android.view.animation.OvershootInterpolator(1.15f)).start();
     }
 
     /** A dock icon dropped on a grid icon: they swap places. */
@@ -1066,10 +1121,16 @@ public class HomeActivity extends Activity {
             }).show();
     }
 
+    private View folderPanel;
+
     private void closeFolder() {
         if (folderLayer == null) return;
-        ((ViewGroup) folderLayer.getParent()).removeView(folderLayer);
-        folderLayer = null;
+        final FrameLayout layer = folderLayer;
+        folderLayer = null; // reopening is allowed right away
+        if (folderPanel != null) folderPanel.animate().scaleX(0.8f).scaleY(0.8f).alpha(0f).setDuration(160).start();
+        layer.animate().alpha(0f).setDuration(170).withEndAction(() -> {
+            if (layer.getParent() != null) ((ViewGroup) layer.getParent()).removeView(layer);
+        }).start();
     }
 
     private void removeFromFolder(App f, App kid) {
@@ -1095,6 +1156,10 @@ public class HomeActivity extends Activity {
         iv.setImageBitmap(cache.get(a.pkg));
         int s = (int) (54 * d);
         FrameLayout ic = new FrameLayout(this);
+        ic.setElevation(night ? 3 * d : 4 * d);
+        ic.setOutlineProvider(new ViewOutlineProvider() {
+            @Override public void getOutline(View v, Outline o) { o.setRoundRect(0, 0, v.getWidth(), v.getHeight(), v.getWidth() * 0.225f); o.setAlpha(0.9f); }
+        });
         ic.addView(iv, new FrameLayout.LayoutParams(s, s));
         if (editing) {
             TextView x = new TextView(this);
@@ -1131,8 +1196,10 @@ public class HomeActivity extends Activity {
             return v.startDrag(null, new View.DragShadowBuilder(v), a, 0);
         });
         c.setOnTouchListener((v, e) -> {
-            if (e.getAction() == MotionEvent.ACTION_DOWN) v.setAlpha(0.6f);
-            else if (e.getAction() == MotionEvent.ACTION_UP || e.getAction() == MotionEvent.ACTION_CANCEL) v.setAlpha(1f);
+            if (e.getAction() == MotionEvent.ACTION_DOWN) v.animate().cancel(); 
+            if (e.getAction() == MotionEvent.ACTION_DOWN) v.animate().scaleX(0.9f).scaleY(0.9f).setStartDelay(0).setDuration(90).setInterpolator(new android.view.animation.DecelerateInterpolator()).start();
+            else if (e.getAction() == MotionEvent.ACTION_UP || e.getAction() == MotionEvent.ACTION_CANCEL)
+                v.animate().scaleX(1f).scaleY(1f).setStartDelay(0).setDuration(300).setInterpolator(new android.view.animation.OvershootInterpolator(3f)).start();
             return false;
         });
         return c;
@@ -1247,6 +1314,7 @@ public class HomeActivity extends Activity {
         private final LinearLayout strip;
         private int pageW = 1, cur;
         private OnPage cb;
+        private java.util.function.IntConsumer scrollCb;
         PagerView(Context c) {
             super(c);
             setHorizontalScrollBarEnabled(false);
@@ -1257,6 +1325,7 @@ public class HomeActivity extends Activity {
         void clear() { strip.removeAllViews(); }
         @Override protected void onScrollChanged(int l, int t, int ol, int ot) {
             super.onScrollChanged(l, t, ol, ot);
+            if (scrollCb != null) scrollCb.accept(l);
             for (int i = 0; i < strip.getChildCount(); i++) {
                 float off = Math.min(1f, Math.abs((l - i * pageW) / (float) pageW));
                 View v = strip.getChildAt(i);
@@ -1267,6 +1336,8 @@ public class HomeActivity extends Activity {
         }
         void addPage(View v, int w) { pageW = w; strip.addView(v, new LinearLayout.LayoutParams(w, ViewGroup.LayoutParams.MATCH_PARENT)); }
         void setOnPage(OnPage o) { cb = o; }
+        void setOnScroll(java.util.function.IntConsumer c) { scrollCb = c; }
+        View pageView(int i) { return i >= 0 && i < strip.getChildCount() ? strip.getChildAt(i) : null; }
         int page() { return cur; }
         void goTo(int p) { smoothScrollTo(p * pageW, 0); set(p); }
         void goToNow(int p) { p = Math.min(p, Math.max(0, strip.getChildCount() - 1)); scrollTo(p * pageW, 0); set(p); }

@@ -84,6 +84,8 @@ Everything the owner has asked for, in order, with the result. This section is u
 
 | 38 | **Camera: self-timer and grid** | Top bar: timer button next to the flash cycles off → 3 s → 10 s (yellow stopwatch with the number), grid button next to the flip button toggles rule-of-thirds lines over the preview (remembered in `SharedPreferences cam/grid`). Pressing the shutter with the timer on shows a big thin countdown over the preview and takes the photo at 0; pressing the shutter again cancels it; leaving the app cancels it. Verified on the phone: 3 s countdown ("2" seen) and the photo appeared in DCIM, grid drawn, 0 FATAL. **Not verified:** the 10 s option, cancelling, timer in video mode (it is ignored there), `IMAGE_CAPTURE` with the timer |
 
+| 39 | **Launcher motion and depth pass** ("mejorar el diseño y las animaciones") | Icons now cast a soft elevation shadow (rounded outline at 22.5 % radius). Pressing an icon shrinks it to 0.9 and releases with an overshoot spring (replaces the old alpha dip). Icons and dock pop in with a staggered scale/fade overshoot when the launcher starts and every time you return to it from another app. Today cards slide up in sequence when the page appears. The clock and date glide away at 35 % speed and fade as you move past the Today/first page. Folder panel scales in with overshoot and out again; the search sheet slides up with a decelerate curve and slides down on close. Verified on the phone: pop-in caught mid-animation, final frames of folder, search and parallax, 0 FATAL. **Not verified:** frame rate on this hardware (no measurement), the spring feel under a real finger |
+
 ## Status
 
 | Area | State |

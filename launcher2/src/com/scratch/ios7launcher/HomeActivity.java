@@ -125,6 +125,13 @@ public class HomeActivity extends Activity {
         dock.setBackground(dbg);
         root.addView(dock, new FrameLayout.LayoutParams(w - (int) (16 * d), dockH, Gravity.BOTTOM | Gravity.CENTER_HORIZONTAL) {{ bottomMargin = dockMargin; }});
 
+        doneBtn = pill("Listo");
+        doneBtn.setOnClickListener(v -> setEditing(false));
+        root.addView(doneBtn, new FrameLayout.LayoutParams(-2, -2, Gravity.TOP | Gravity.RIGHT) {{ topMargin = statusH + (int) (6 * d); rightMargin = (int) (20 * d); }});
+        restoreBtn = pill("Mostrar ocultas");
+        restoreBtn.setOnClickListener(v -> { getSharedPreferences("home", MODE_PRIVATE).edit().putString("hidden", "").apply(); setEditing(true); reload(); });
+        root.addView(restoreBtn, new FrameLayout.LayoutParams(-2, -2, Gravity.TOP | Gravity.RIGHT) {{ topMargin = statusH + (int) (46 * d); rightMargin = (int) (20 * d); }});
+
         setContentView(root);
         IntentFilter f = new IntentFilter();
         f.addAction(Intent.ACTION_PACKAGE_ADDED);
@@ -151,7 +158,7 @@ public class HomeActivity extends Activity {
         recreate();
     }
 
-    @Override public void onBackPressed() { if (folderLayer != null) closeFolder(); else if (searchLayer != null) hideSearch(); }
+    @Override public void onBackPressed() { if (folderLayer != null) closeFolder(); else if (searchLayer != null) hideSearch(); else if (editing) setEditing(false); }
 
     private float downX, downY;
     private List<App> allApps = new ArrayList<>();
@@ -588,11 +595,21 @@ public class HomeActivity extends Activity {
             for (String hp : HIDDEN) { String own = OWN.get(hp); if (own != null && byPkg.containsKey(own)) byPkg.remove(hp); }
             byPkg.remove("com.scratch.iosmessages"); // stock Messages (themed by overlay) is the default; own app is send-only
             List<App> dockApps = new ArrayList<>();
+            final Set<String> dockFolderIds = new HashSet<>();
             String savedDock = getSharedPreferences("home", MODE_PRIVATE).getString("dock", "");
             if (!savedDock.isEmpty()) {
+                List<String[]> fl = loadFolders();
                 List<App> sd = new ArrayList<>();
-                for (String p : savedDock.split("\n")) { App a = byPkg.get(p); if (a != null) sd.add(a); }
-                if (sd.size() == DOCK.length) { for (App a : sd) byPkg.remove(a.pkg); dockApps.addAll(sd); }
+                for (String tok : savedDock.split("\n")) {
+                    if (tok.startsWith("folder:")) {
+                        App f = dockFolder(tok, fl, byPkg);
+                        if (f != null) { sd.add(f); if (f.kids != null) dockFolderIds.add(tok); }
+                    } else { App a = byPkg.get(tok); if (a != null) sd.add(a); }
+                }
+                if (!sd.isEmpty()) {
+                    for (App a : sd) { if (a.kids != null) for (App k : a.kids) byPkg.remove(k.pkg); else byPkg.remove(a.pkg); }
+                    dockApps.addAll(sd);
+                }
             }
             if (dockApps.isEmpty()) for (String[] cands : DOCK) {
                 for (String c : cands) {
@@ -600,6 +617,7 @@ public class HomeActivity extends Activity {
                     if (a != null) { dockApps.add(a); byPkg.remove(c); break; }
                 }
             }
+            for (String hp : getSharedPreferences("home", MODE_PRIVATE).getString("hidden", "").split("\n")) if (!hp.isEmpty()) byPkg.remove(hp);
             List<App> grid = new ArrayList<>();
             for (String p : FIRST) { App a = byPkg.remove(p); if (a != null) grid.add(a); }
             List<App> rest = new ArrayList<>();
@@ -609,13 +627,13 @@ public class HomeActivity extends Activity {
             grid.addAll(rest);
         grid.addAll(tools);
             final List<App> flat = new ArrayList<>(grid);
-            applyFolders(grid);
+            applyFolders(grid, dockFolderIds);
             applySavedOrder(grid);
-            allApps = new ArrayList<>(); allApps.addAll(dockApps); allApps.addAll(flat);
+            allApps = new ArrayList<>(); for (App a : dockApps) { if (a.kids != null) allApps.addAll(a.kids); else allApps.add(a); } allApps.addAll(flat);
             // Publish usable icons before the expensive package metadata index is built.
             for (App a : allApps) { a.norm = Fuzzy.norm(a.label); a.doc = a.norm; }
+            for (App a : allApps) icon(a);
             for (App a : dockApps) icon(a);
-            for (App a : flat) icon(a);
             for (App a : grid) icon(a);
             ui.post(() -> { if (!isDestroyed()) build(grid, dockApps); });
             Map<String, String> caps = AppIndex.capabilities(pm);
@@ -678,7 +696,8 @@ public class HomeActivity extends Activity {
             if (e.getAction() == DragEvent.ACTION_DROP && e.getLocalState() instanceof App && dock.getWidth() > 0) {
                 int n = Math.max(1, dock.getChildCount());
                 int slot = Math.max(0, Math.min(n - 1, (int) (e.getX() / (dock.getWidth() / (float) n))));
-                dropOnDock((App) e.getLocalState(), slot);
+                float fx = e.getX() / (dock.getWidth() / (float) n) - slot;
+                dropOnDock((App) e.getLocalState(), slot, Math.abs(fx - 0.5f) < 0.28f);
             }
             return true;
         });
@@ -778,7 +797,7 @@ public class HomeActivity extends Activity {
         getSharedPreferences("home", MODE_PRIVATE).edit().putString("order", sb.toString()).apply();
     }
 
-    private void applyFolders(List<App> grid) {
+    private void applyFolders(List<App> grid, Set<String> keepIds) {
         List<String[]> keep = new ArrayList<>();
         for (String[] t : loadFolders()) {
             List<App> members = new ArrayList<>();
@@ -788,7 +807,7 @@ public class HomeActivity extends Activity {
                     if (grid.get(i).kids == null && grid.get(i).pkg.equals(p)) { first = Math.min(first, i); members.add(grid.get(i)); break; }
                 }
             }
-            if (members.size() < 2) continue; // dissolved: the remaining member stays a plain icon
+            if (members.size() < 2) { if (keepIds.contains(t[0])) keep.add(t); continue; } // dissolved: the remaining member stays a plain icon
             grid.removeAll(members);
             App f = new App();
             f.pkg = t[0]; f.label = t[1]; f.kids = members; f.norm = Fuzzy.norm(f.label); f.doc = f.norm;
@@ -800,10 +819,46 @@ public class HomeActivity extends Activity {
         saveFolders(keep);
     }
 
+    /** Folder token from the saved dock: a real folder, or its only remaining member, or null. */
+    private App dockFolder(String id, List<String[]> fl, Map<String, App> byPkg) {
+        for (String[] t : fl) {
+            if (!t[0].equals(id)) continue;
+            List<App> members = new ArrayList<>();
+            for (String p : t[2].split(",")) { App a = byPkg.get(p); if (a != null) members.add(a); }
+            if (members.size() >= 2) {
+                App f = new App();
+                f.pkg = id; f.label = t[1]; f.kids = members; f.norm = Fuzzy.norm(f.label); f.doc = f.norm;
+                return f;
+            }
+            return members.isEmpty() ? null : members.get(0);
+        }
+        return null;
+    }
+
+    private void saveDock(List<String> tokens) {
+        StringBuilder sb = new StringBuilder();
+        for (String x : tokens) sb.append(x).append('\n');
+        getSharedPreferences("home", MODE_PRIVATE).edit().putString("dock", sb.toString()).apply();
+    }
+
+    private List<String> dockTokens() {
+        List<String> out = new ArrayList<>();
+        if (curDock != null) for (App a : curDock) out.add(a.pkg);
+        return out;
+    }
+
+    private List<String> gridTokens() {
+        List<String> out = new ArrayList<>();
+        if (curGrid != null) for (App a : curGrid) out.add(a.pkg);
+        return out;
+    }
+
     private void drop(App dragged, int idx, boolean onIcon) {
         List<App> g = curGrid;
         if (g == null) return;
         App target = idx < g.size() ? g.get(idx) : null;
+        if (curDock != null && curDock.contains(dragged)) { dockToGrid(dragged, target); return; }
+        if (target == dragged) { ui.post(() -> setEditing(!editing)); return; }
         if (onIcon && target != null && target != dragged && dragged.kids == null) {
             List<String> ids = new ArrayList<>();
             List<String[]> fs = loadFolders();
@@ -856,6 +911,7 @@ public class HomeActivity extends Activity {
         GridLayout g = new GridLayout(this);
         g.setColumnCount(3);
         int cw = (w - (int) (32 * d) - 2 * pd) / 3;
+        boolean e0 = editing; editing = false;
         for (final App kid : f.kids) {
             View c = cell(kid, true);
             c.setOnLongClickListener(v -> { v.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS); removeFromFolder(f, kid); return true; });
@@ -863,6 +919,7 @@ public class HomeActivity extends Activity {
             lp.width = cw; lp.height = (int) (84 * d);
             g.addView(c, lp);
         }
+        editing = e0;
         panel.addView(g, new LinearLayout.LayoutParams(-2, -2) {{ topMargin = (int) (10 * d); gravity = Gravity.CENTER_HORIZONTAL; }});
         folderLayer.addView(panel, new FrameLayout.LayoutParams(w - (int) (32 * d), -2, Gravity.CENTER));
         content.addView(folderLayer, new FrameLayout.LayoutParams(-1, -1));
@@ -870,17 +927,105 @@ public class HomeActivity extends Activity {
         folderLayer.animate().alpha(1f).setDuration(150).start();
     }
 
-    /** Drop a grid icon on a dock slot: the two swap places; the dock order is persisted. */
-    private void dropOnDock(App dragged, int slot) {
-        List<App> g = curGrid, dk = curDock;
-        if (g == null || dk == null || dragged.kids != null || slot >= dk.size() || !g.contains(dragged)) return;
-        App out = dk.get(slot);
-        StringBuilder d2 = new StringBuilder();
-        for (int i = 0; i < dk.size(); i++) d2.append(i == slot ? dragged.pkg : dk.get(i).pkg).append('\n');
-        getSharedPreferences("home", MODE_PRIVATE).edit().putString("dock", d2.toString()).apply();
-        List<String> ids = new ArrayList<>();
-        for (App x : g) ids.add(x == dragged ? out.pkg : x.pkg);
-        saveOrder(ids);
+    /** A dock icon dropped on a grid icon: they swap places. */
+    private void dockToGrid(App dragged, App target) {
+        if (target == null || curGrid == null || curDock == null) return;
+        int slot = curDock.indexOf(dragged);
+        List<String> dk = dockTokens(), gr = gridTokens();
+        dk.set(slot, target.pkg);
+        gr.set(gr.indexOf(target.pkg), dragged.pkg);
+        saveDock(dk); saveOrder(gr);
+        reload();
+    }
+
+    /** Drop on a dock slot: reorder inside the dock, swap with a grid icon, or group into a (dock) folder. */
+    private void dropOnDock(App dragged, int slot, boolean onIcon) {
+        List<App> g = curGrid, dkl = curDock;
+        if (g == null || dkl == null || slot >= dkl.size()) return;
+        App target = dkl.get(slot);
+        boolean fromDock = dkl.contains(dragged);
+        List<String> dk = dockTokens(), gr = gridTokens();
+        if (target == dragged) { ui.post(() -> setEditing(!editing)); return; }
+        if (onIcon && dragged.kids == null) {
+            List<String[]> fs = loadFolders();
+            if (target.kids != null) {
+                for (String[] t : fs) if (t[0].equals(target.pkg)) t[2] = t[2] + "," + dragged.pkg;
+                dk.remove(dragged.pkg); gr.remove(dragged.pkg);
+            } else if (target.kids == null) {
+                String id = "folder:" + System.currentTimeMillis();
+                fs.add(new String[]{id, "Carpeta", target.pkg + "," + dragged.pkg});
+                dk.set(dk.indexOf(target.pkg), id); dk.remove(dragged.pkg); gr.remove(dragged.pkg);
+            }
+            saveFolders(fs); saveDock(dk); saveOrder(gr);
+            cache.remove(target.pkg);
+            reload();
+            return;
+        }
+        if (fromDock) { int a = dk.indexOf(dragged.pkg); dk.set(a, target.pkg); dk.set(slot, dragged.pkg); saveDock(dk); }
+        else if (g.contains(dragged)) { dk.set(slot, dragged.pkg); gr.set(gr.indexOf(dragged.pkg), target.pkg); saveDock(dk); saveOrder(gr); }
+        else return;
+        reload();
+    }
+
+    // ---- edit ("jiggle") mode: drop an icon where it was to toggle; × hides, dissolves or uninstalls --------
+
+    private boolean editing;
+    private TextView doneBtn, restoreBtn;
+
+    private void setEditing(boolean on) {
+        editing = on;
+        if (doneBtn != null) doneBtn.setVisibility(on ? View.VISIBLE : View.GONE);
+        if (restoreBtn != null) restoreBtn.setVisibility(on && !getSharedPreferences("home", MODE_PRIVATE).getString("hidden", "").isEmpty() ? View.VISIBLE : View.GONE);
+        if (curGrid != null) build(curGrid, curDock);
+    }
+
+    private void wobble(View c) {
+        final android.animation.ObjectAnimator an = android.animation.ObjectAnimator.ofFloat(c, "rotation", -1.6f, 1.6f);
+        an.setDuration(110 + (int) (Math.random() * 40));
+        an.setRepeatCount(android.animation.ValueAnimator.INFINITE);
+        an.setRepeatMode(android.animation.ValueAnimator.REVERSE);
+        an.setCurrentPlayTime((long) (Math.random() * 100));
+        c.addOnAttachStateChangeListener(new View.OnAttachStateChangeListener() {
+            @Override public void onViewAttachedToWindow(View v) { an.start(); }
+            @Override public void onViewDetachedFromWindow(View v) { an.cancel(); v.setRotation(0f); }
+        });
+    }
+
+    private TextView pill(String text) {
+        TextView t = new TextView(this);
+        t.setText(text);
+        t.setTextColor(labelColor);
+        t.setTextSize(TypedValue.COMPLEX_UNIT_SP, 14);
+        t.setPadding((int) (16 * d), (int) (6 * d), (int) (16 * d), (int) (6 * d));
+        GradientDrawable g = new GradientDrawable();
+        g.setColor(boxFill); g.setStroke(Math.max(1, (int) d), boxStroke); g.setCornerRadius(20 * d);
+        t.setBackground(g);
+        t.setVisibility(View.GONE);
+        return t;
+    }
+
+    private void removeApp(App a) {
+        if (a.kids != null) { // dissolve the folder: members go back to the grid
+            List<String[]> fs = loadFolders();
+            for (java.util.Iterator<String[]> it = fs.iterator(); it.hasNext();) if (it.next()[0].equals(a.pkg)) it.remove();
+            saveFolders(fs);
+            List<String> dk = dockTokens();
+            if (dk.contains(a.pkg)) { dk.set(dk.indexOf(a.pkg), a.kids.get(0).pkg); saveDock(dk); }
+            cache.remove(a.pkg);
+            reload();
+            return;
+        }
+        boolean own = a.pkg.startsWith("com.scratch.");
+        boolean system = false;
+        try { system = (pm.getApplicationInfo(a.pkg, 0).flags & ApplicationInfo.FLAG_SYSTEM) != 0; } catch (Exception e) { }
+        if (!own && !system) { // ordinary user app: the system asks for confirmation
+            startActivity(new Intent(Intent.ACTION_DELETE, Uri.parse("package:" + a.pkg)));
+            return;
+        }
+        if (curDock != null && curDock.contains(a)) return; // keep the dock populated
+        SharedPreferences sp = getSharedPreferences("home", MODE_PRIVATE);
+        sp.edit().putString("hidden", sp.getString("hidden", "") + a.pkg + "\n").apply();
+        if (restoreBtn != null && editing) restoreBtn.setVisibility(View.VISIBLE);
         reload();
     }
 
@@ -933,7 +1078,23 @@ public class HomeActivity extends Activity {
         ImageView iv = new ImageView(this);
         iv.setImageBitmap(cache.get(a.pkg));
         int s = (int) (54 * d);
-        c.addView(iv, new LinearLayout.LayoutParams(s, s));
+        FrameLayout ic = new FrameLayout(this);
+        ic.addView(iv, new FrameLayout.LayoutParams(s, s));
+        if (editing) {
+            TextView x = new TextView(this);
+            x.setText("\u00d7");
+            x.setTextColor(Color.WHITE);
+            x.setTextSize(TypedValue.COMPLEX_UNIT_SP, 15);
+            x.setGravity(Gravity.CENTER);
+            GradientDrawable xb = new GradientDrawable();
+            xb.setShape(GradientDrawable.OVAL);
+            xb.setColor(0xE6444466);
+            xb.setStroke(Math.max(1, (int) d), 0xFFFFFFFF);
+            x.setBackground(xb);
+            x.setOnClickListener(v -> removeApp(a));
+            ic.addView(x, new FrameLayout.LayoutParams((int) (22 * d), (int) (22 * d), Gravity.TOP | Gravity.LEFT));
+        }
+        c.addView(ic, new LinearLayout.LayoutParams(s, s));
         if (label) {
             TextView t = new TextView(this);
             t.setText(a.label);
@@ -946,8 +1107,9 @@ public class HomeActivity extends Activity {
             t.setGravity(Gravity.CENTER);
                         c.addView(t, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT) {{ topMargin = (int) (3 * d); }});
         }
-        c.setOnClickListener(v -> { if (a.kids != null) openFolder(a); else launch(a, iv); });
-        if (label) c.setOnLongClickListener(v -> {
+        c.setOnClickListener(v -> { if (editing) return; if (a.kids != null) openFolder(a); else launch(a, iv); });
+        if (editing) wobble(c);
+        c.setOnLongClickListener(v -> {
             v.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS);
             v.setAlpha(1f);
             return v.startDrag(null, new View.DragShadowBuilder(v), a, 0);

@@ -79,7 +79,7 @@ Pendiente de esta fase: iconos de batería, sin SIM, linterna, rotación y notif
 - **RAM:** ~20 MB libres de 803 MB con GMS y Play Store detenidos. Cuidado con añadir servicios.
 - **`at_distributor`:** se cierra con SIGABRT cada ~5 s (`cannot locate symbol "GetClientData"`). Ya ocurría antes de estos cambios; consume CPU de fondo. Sin investigar.
 - **Magisk:** sigue apareciendo la app `com.topjohnwu.magisk`; no se usa para el root (el root es el addonsu).
-- El launcher v2 no incluye el Centro de Control simulado de la v1.1 (GravityBox gestiona el real) ni arrastrar/reordenar iconos.
+- El launcher v2 no incluye el Centro de Control simulado de la v1.1 (GravityBox gestiona el real) (actualización 2026-11-08: ya permite reordenar iconos, crear y renombrar carpetas y arrastrar entre páginas; faltan soltar sobre el dock y el modo temblor).
 - Un overlay solo cambia valores de recursos (colores, dimensiones, estilos). No cambia formas ni iconos propios de cada app.
 
 ## Pendiente

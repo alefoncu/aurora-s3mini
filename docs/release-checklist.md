@@ -11,6 +11,13 @@ Status as of 2026-11-08. `[x]` = done and verified on the phone, `[ ]` = open, `
 - [ ] (owner) Decide about Play Store / GMS CPU use (they dominate load for minutes after boot): leave, disable until needed, or remove.
 - [ ] (owner) Decide about 720p video: playback drops ~84 % of frames with the software decoder (480p is fine). Accept, or look for another decoder.
 
+## Added on 2026-11-08 evening and still unverified in some paths
+
+- [ ] Calendar: adding and deleting an event; Music: previous/next/shuffle/seek and playback in the background; Files: rename/delete/share; Recorder: playback/rename/share.
+- [ ] Control Center: Wi-Fi, Bluetooth and volume controls, day-mode look. Double-tap lock needs `dpm set-active-admin` after every launcher reinstall.
+- [ ] The new ringtone and notification tone have never been heard by me; the Today music card never appeared (nothing was playing).
+- [ ] Deliberately **not done**: stock Messages in dark, an own in-call screen, lock-screen restyling beyond the existing tokens.
+
 ## Open technical items (can be done without hardware)
 
 - [ ] Stock Messages stays **white at night** (hard-coded app theme; colour overlays cannot change it).

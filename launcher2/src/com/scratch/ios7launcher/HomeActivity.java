@@ -588,7 +588,13 @@ public class HomeActivity extends Activity {
             for (String hp : HIDDEN) { String own = OWN.get(hp); if (own != null && byPkg.containsKey(own)) byPkg.remove(hp); }
             byPkg.remove("com.scratch.iosmessages"); // stock Messages (themed by overlay) is the default; own app is send-only
             List<App> dockApps = new ArrayList<>();
-            for (String[] cands : DOCK) {
+            String savedDock = getSharedPreferences("home", MODE_PRIVATE).getString("dock", "");
+            if (!savedDock.isEmpty()) {
+                List<App> sd = new ArrayList<>();
+                for (String p : savedDock.split("\n")) { App a = byPkg.get(p); if (a != null) sd.add(a); }
+                if (sd.size() == DOCK.length) { for (App a : sd) byPkg.remove(a.pkg); dockApps.addAll(sd); }
+            }
+            if (dockApps.isEmpty()) for (String[] cands : DOCK) {
                 for (String c : cands) {
                     App a = byPkg.get(c);
                     if (a != null) { dockApps.add(a); byPkg.remove(c); break; }
@@ -668,6 +674,14 @@ public class HomeActivity extends Activity {
             View cell = cell(a, false);
             dock.addView(cell, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.MATCH_PARENT, 1f));
         }
+        dock.setOnDragListener((v, e) -> {
+            if (e.getAction() == DragEvent.ACTION_DROP && e.getLocalState() instanceof App && dock.getWidth() > 0) {
+                int n = Math.max(1, dock.getChildCount());
+                int slot = Math.max(0, Math.min(n - 1, (int) (e.getX() / (dock.getWidth() / (float) n))));
+                dropOnDock((App) e.getLocalState(), slot);
+            }
+            return true;
+        });
         dots.removeAllViews();
         for (int p = 0; p < pages + 1; p++) {
             View dot = new View(this);
@@ -854,6 +868,20 @@ public class HomeActivity extends Activity {
         content.addView(folderLayer, new FrameLayout.LayoutParams(-1, -1));
         folderLayer.setAlpha(0f);
         folderLayer.animate().alpha(1f).setDuration(150).start();
+    }
+
+    /** Drop a grid icon on a dock slot: the two swap places; the dock order is persisted. */
+    private void dropOnDock(App dragged, int slot) {
+        List<App> g = curGrid, dk = curDock;
+        if (g == null || dk == null || dragged.kids != null || slot >= dk.size() || !g.contains(dragged)) return;
+        App out = dk.get(slot);
+        StringBuilder d2 = new StringBuilder();
+        for (int i = 0; i < dk.size(); i++) d2.append(i == slot ? dragged.pkg : dk.get(i).pkg).append('\n');
+        getSharedPreferences("home", MODE_PRIVATE).edit().putString("dock", d2.toString()).apply();
+        List<String> ids = new ArrayList<>();
+        for (App x : g) ids.add(x == dragged ? out.pkg : x.pkg);
+        saveOrder(ids);
+        reload();
     }
 
     private void renameFolder(App f) {

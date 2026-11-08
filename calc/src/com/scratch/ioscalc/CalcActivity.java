@@ -186,4 +186,11 @@ public class CalcActivity extends Activity {
         for (String k : new String[]{"÷", "×", "−", "+"})
             style(btn.get(k), k, pending != 0 && fresh && k.charAt(0) == pending);
     }
+
+    /** Aurora exit transition (res/anim/app_exit): soft zoom-out and fade instead of the ROM default. */
+    @Override public void finish() {
+        super.finish();
+        int id = getResources().getIdentifier("app_exit", "anim", getPackageName());
+        if (id != 0) overridePendingTransition(0, id);
+    }
 }

@@ -112,6 +112,7 @@ public class GalleryActivity extends Activity {
         grid.setOnItemClickListener((p, v, i, id) -> {
             Media.current = new ArrayList<>(shown);
             startActivity(new Intent(this, ViewerActivity.class).putExtra("pos", i));
+            { int enterId = getResources().getIdentifier("app_enter", "anim", getPackageName()); if (enterId != 0) overridePendingTransition(enterId, 0); }
         });
         empty = new TextView(this);
         empty.setText("Sin fotos ni vídeos");
@@ -187,5 +188,12 @@ public class GalleryActivity extends Activity {
                 cv.restore();
             }
         }
+    }
+
+    /** Aurora exit transition (res/anim/app_exit): soft zoom-out and fade instead of the ROM default. */
+    @Override public void finish() {
+        super.finish();
+        int id = getResources().getIdentifier("app_exit", "anim", getPackageName());
+        if (id != 0) overridePendingTransition(0, id);
     }
 }

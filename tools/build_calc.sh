@@ -7,7 +7,8 @@ BT=~/Library/Android/sdk/build-tools/30.0.3
 AJ=~/Library/Android/sdk/platforms/android-25/android.jar
 rm -rf build dex res.zip base.apk out.apk aligned.apk IOSCalc.apk
 mkdir -p build/classes dex
-$JAVAC --release 8 -cp $AJ -d build/classes src/com/scratch/ioscalc/*.java 2>&1 | grep -v "^Note" || true
+out=$($JAVAC --release 8 -cp $AJ -d build/classes src/com/scratch/ioscalc/*.java 2>&1) || { echo "$out"; echo "javac failed: not installing" >&2; exit 1; }
+echo "$out" | grep -v "^Note" || true
 $BT/d8 --release --min-api 22 --lib $AJ --output dex $(find build/classes -name '*.class')
 $BT/aapt2 compile --dir res -o res.zip
 $BT/aapt2 link -I $AJ --manifest AndroidManifest.xml --min-sdk-version 22 --target-sdk-version 22 -o base.apk res.zip

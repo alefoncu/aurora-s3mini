@@ -523,4 +523,11 @@ public class PhoneActivity extends Activity {
             cv.restore();
         }
     }
+
+    /** Aurora exit transition (res/anim/app_exit): soft zoom-out and fade instead of the ROM default. */
+    @Override public void finish() {
+        super.finish();
+        int id = getResources().getIdentifier("app_exit", "anim", getPackageName());
+        if (id != 0) overridePendingTransition(0, id);
+    }
 }

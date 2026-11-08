@@ -92,6 +92,8 @@ Everything the owner has asked for, in order, with the result. This section is u
 
 | 42 | **Calculator motion** | Keys press down to 0.92 and release with an overshoot spring; the display "settles in" (fade + slide + scale) when a result, a clear or an error replaces the number. Regression-checked on the phone: 12 × 3,5 = 42, 42 ÷ 0 = Error, AC = 0, 0 FATAL. The animation itself was not caught frame by frame |
 
+| 43 | **Backup / restore tooling and stability audit** | [`tools/device/backup_state.sh`](tools/device/backup_state.sh) snapshots every project change on the phone; [`restore_state.sh`](tools/device/restore_state.sh) puts it back; procedure in [`docs/restore.md`](docs/restore.md). `overlays` restore verified end to end (reboot, md5 identical). Stability audit after ~11 min uptime: load 0.77, 0 FATAL, 0 ANR, 33 °C; the `system_server` watchdog dump in `/data/anr` is from **2026-11-01**, before the overlay work (the known `screencap`-loop crash, see lesson 23). A full TWRP backup is still the only complete protection and has to be made by the owner |
+
 ## Status
 
 | Area | State |

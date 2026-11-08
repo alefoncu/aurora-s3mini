@@ -602,6 +602,7 @@ public class HomeActivity extends Activity {
             Collections.sort(rest, (x, y) -> x.label.compareToIgnoreCase(y.label));
             grid.addAll(rest);
         grid.addAll(tools);
+            applySavedOrder(grid);
             allApps = new ArrayList<>(); allApps.addAll(dockApps); allApps.addAll(grid);
             // Publish usable icons before the expensive package metadata index is built.
             for (App a : allApps) { a.norm = Fuzzy.norm(a.label); a.doc = a.norm; }
@@ -618,6 +619,7 @@ public class HomeActivity extends Activity {
     }
 
     private void build(List<App> grid, List<App> dockApps) {
+        curGrid = grid; curDock = dockApps;
         int per = COLS * ROWS;
         int pages = Math.max(1, (grid.size() + per - 1) / per);
         int cur = pager.page();
@@ -629,6 +631,15 @@ public class HomeActivity extends Activity {
             g.setColumnCount(COLS);
             g.setRowCount(ROWS);
             int cw = w / COLS, ch = gridH / ROWS;
+            final int base = p * per;
+            g.setOnDragListener((v, e) -> {
+                if (e.getAction() == DragEvent.ACTION_DROP && e.getLocalState() instanceof App) {
+                    int col = Math.max(0, Math.min(COLS - 1, (int) (e.getX() / cw)));
+                    int row = Math.max(0, Math.min(ROWS - 1, (int) (e.getY() / ch)));
+                    moveApp((App) e.getLocalState(), base + row * COLS + col);
+                }
+                return true;
+            });
             for (int i = p * per; i < Math.min(grid.size(), (p + 1) * per); i++) {
                 View cell = cell(grid.get(i), true);
                 GridLayout.LayoutParams lp = new GridLayout.LayoutParams();
@@ -659,6 +670,37 @@ public class HomeActivity extends Activity {
         pager.post(() -> pager.goToNow(fc));
     }
 
+    // ---- user order (long-press and drag an icon to a new slot) ---------------------------------
+
+    private List<App> curGrid, curDock;
+
+    private void applySavedOrder(List<App> grid) {
+        String saved = getSharedPreferences("home", MODE_PRIVATE).getString("order", "");
+        if (saved.isEmpty()) return;
+        Map<String, App> by = new LinkedHashMap<>();
+        for (App a : grid) by.put(a.pkg, a);
+        List<App> out = new ArrayList<>();
+        for (String p : saved.split("\n")) { App a = by.remove(p); if (a != null) out.add(a); }
+        out.addAll(by.values()); // apps installed since: keep their default position order, at the end
+        grid.clear(); grid.addAll(out);
+    }
+
+    private void moveApp(App a, int to) {
+        List<App> g = curGrid;
+        if (g == null) return;
+        int from = g.indexOf(a);
+        if (from < 0) return;
+        to = Math.max(0, Math.min(g.size() - 1, to));
+        if (to == from) return;
+        g.remove(from);
+        g.add(to, a);
+        StringBuilder sb = new StringBuilder();
+        for (App x : g) sb.append(x.pkg).append('\n');
+        getSharedPreferences("home", MODE_PRIVATE).edit().putString("order", sb.toString()).apply();
+        final List<App> gg = g, dd = curDock;
+        ui.post(() -> build(gg, dd));
+    }
+
     private View cell(App a, boolean label) {
         LinearLayout c = new LinearLayout(this);
         c.setOrientation(LinearLayout.VERTICAL);
@@ -681,6 +723,11 @@ public class HomeActivity extends Activity {
                         c.addView(t, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT) {{ topMargin = (int) (3 * d); }});
         }
         c.setOnClickListener(v -> launch(a, iv));
+        if (label) c.setOnLongClickListener(v -> {
+            v.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS);
+            v.setAlpha(1f);
+            return v.startDrag(null, new View.DragShadowBuilder(v), a, 0);
+        });
         c.setOnTouchListener((v, e) -> {
             if (e.getAction() == MotionEvent.ACTION_DOWN) v.setAlpha(0.6f);
             else if (e.getAction() == MotionEvent.ACTION_UP || e.getAction() == MotionEvent.ACTION_CANCEL) v.setAlpha(1f);

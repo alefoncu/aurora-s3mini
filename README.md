@@ -72,6 +72,8 @@ Everything the owner has asked for, in order, with the result. This section is u
 
 | 32 | **Thin status-bar icons + search-bar legibility** ("continúa con el centro de control y la barra de estado") | [`tools/gen_status_icons.py`](tools/gen_status_icons.py) writes hairline vibrate, alarm and location status icons and the portrait battery frame into the SystemUI overlay, and the privacy-guard shield and USB-debugging ring into the Framework overlay. Verified after two cold reboots (0 FATAL): vibrate icon is thin. **Not seen rendered:** alarm, location, shield and adb icons (not active at capture time); the quick-settings battery tile glyph did **not** change (it is not drawn from `ic_battery_portrait_frame`). **Bug found in Phase 3 work:** the opaque pastel search sheet left the white status-bar icons unreadable by day (`LIGHT_STATUS_BAR` has no effect here, GravityBox forces white); fixed with a tinted strip under the bar. `build_launcher.sh` now aborts on compile errors (a failed compile had installed an empty APK) |
 
+| 33 | **Reorder icons in the launcher** ("reordenar iconos y carpetas") | Long-press an icon in the grid and drop it on another slot of the same page (framework `startDrag`/`DragEvent`); the order is saved in `SharedPreferences` (`home/order`) and reapplied at every reload (apps installed later are appended). Verified on the phone: Calculadora moved to slot 1, the rest shifted, order survived a `force-stop` of the launcher. **Not done:** dragging across pages or onto the dock, jiggle/delete mode, folders. `build_launcher.sh` fixed again (a first fail-fast version silently aborted under `set -e`) |
+
 ## Status
 
 | Area | State |

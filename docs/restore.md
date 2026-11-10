@@ -57,3 +57,20 @@ To uninstall the launcher first run `dpm remove-active-admin com.scratch.ios7lau
 
 - `at_distributor` crashing every 5 s on boot (factory-test service, `libatparser.so` lacks `GetClientData`). `setprop ctl.stop at_distributor` silences it until the next reboot.
 - Play Store and GMS hog the CPU for a few minutes after boot.
+
+
+## After a reboot or a launcher reinstall (added 2026-11-10)
+- `su -c "dpm set-active-admin --user 0 com.scratch.ios7launcher/.AdminReceiver"` (double-tap lock)
+- `pm grant com.scratch.ios7launcher android.permission.WRITE_CALENDAR` (search creates events)
+- `su -c "settings put secure enabled_notification_listeners com.scratch.ios7launcher/com.scratch.ios7launcher.BadgeService"` (icon badges)
+- If the lock screen shows the stock wallpaper after SystemUI restarts or a reboot: `am start -n com.scratch.ios7launcher/.SetWallpaperActivity --es path /data/local/ios/wall_<day|night|dawn|dusk>.jpg`. The scheduler (`daynight.sh`) only re-applies a wallpaper when its state key changes, and may not be running after a reboot: `su -c 'sh /data/local/userinit.sh'`.
+
+- To undo the closed-device cleanup: `tools/device/debloat.sh enable` and `tools/device/gms_slim.sh enable`.
+
+- Live wallpaper (Aurora): `pm enable com.android.wallpaper.livepicker`, `settings put system ios_live_wall 1`, then `am start -n com.scratch.ios7launcher/.SetWallpaperActivity --ez aurora true` and tap *Establecer fondo de pantalla* → *Pantalla de inicio y de bloqueo*. Copy `tools/device/daynight.sh` to `/data/local/ios/` so the scheduler leaves it alone.
+
+- After reinstalling the launcher the wallpaper falls back to the stock one: run `tools/device/set_aurora.sh`.
+
+- Routines: `su -c 'appops set com.scratch.ios7launcher WRITE_SETTINGS allow'` (the battery guardian and the search command *brillo N* change the brightness).
+
+- Multitarea (app switcher + split screen): `su -c 'appops set com.scratch.ios7launcher GET_USAGE_STATS allow'`; `su -c 'settings put secure enabled_accessibility_services com.scratch.ios7launcher/com.scratch.ios7launcher.SplitService'`; `su -c 'settings put secure accessibility_enabled 1'`.

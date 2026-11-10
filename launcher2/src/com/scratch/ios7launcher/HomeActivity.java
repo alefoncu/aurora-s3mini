@@ -63,6 +63,57 @@ public class HomeActivity extends Activity {
         @Override public void onReceive(Context c, Intent i) { reload(); }
     };
 
+    /** Frosted-glass background for a view (blurred wallpaper + tint + highlight + hairline). */
+    private Glass glass(View v, float rDp, float[] radii) { return glass(v, rDp, 0, radii); }
+
+    /** strength 0 = light glass (cards, dock), 1 = denser glass for sheets that hold controls. */
+    private Glass glass(View v, float rDp, int strength, float[] radii) {
+        int tint = strength == 0 ? (night ? 0x3CFFFFFF : 0x5CFFFFFF) : (night ? 0xA0191746 : 0xA6FFFFFF);
+        Glass gl = new Glass(v, rDp * d, radii, tint, dockStroke, Math.max(1f, d));
+        gl.dark = night;
+        return gl;
+    }
+
+    private final java.util.Map<String, TextView> badgeViews = new java.util.HashMap<>();
+    private final BroadcastReceiver badges = new BroadcastReceiver() {
+        @Override public void onReceive(Context c, Intent i) {
+            for (java.util.Iterator<java.util.Map.Entry<String, TextView>> it = badgeViews.entrySet().iterator(); it.hasNext(); ) {
+                java.util.Map.Entry<String, TextView> e = it.next();
+                if (!e.getValue().isAttachedToWindow()) { it.remove(); continue; }
+                applyBadge(e.getKey(), e.getValue());
+            }
+        }
+    };
+
+    private void applyBadge(String pkg, TextView b) {
+        Integer n = BadgeService.counts.get(pkg);
+        if (n == null || n <= 0) { b.setVisibility(View.GONE); return; }
+        boolean was = b.getVisibility() == View.VISIBLE;
+        b.setText(n > 9 ? "9+" : String.valueOf(n));
+        b.setVisibility(View.VISIBLE);
+        if (!was) { b.setScaleX(0f); b.setScaleY(0f); b.animate().scaleX(1f).scaleY(1f).setDuration(300).setInterpolator(new android.view.animation.OvershootInterpolator(3f)).start(); }
+    }
+
+    private Glass darkGlass(Glass g) { g.dark = night; return g; }
+
+    private final java.util.Map<String, ImageView> liveViews = new java.util.HashMap<>();
+    private final BroadcastReceiver tick = new BroadcastReceiver() {
+        @Override public void onReceive(Context c, Intent i) {
+            int s = (int) (54 * d);
+            for (java.util.Iterator<ImageView> it = liveViews.values().iterator(); it.hasNext(); ) if (!it.next().isAttachedToWindow()) it.remove();
+            for (java.util.Map.Entry<String, ImageView> e : liveViews.entrySet()) {
+                int[] g = Glyphs.gradientFor(Glyphs.kindFor(e.getKey()), e.getKey());
+                Bitmap nb = LiveIcons.make(e.getKey(), s, g, squircle(s), d);
+                cache.put(e.getKey(), nb);
+                e.getValue().setImageBitmap(nb);
+            }
+        }
+    };
+
+    private final BroadcastReceiver wallChanged = new BroadcastReceiver() {
+        @Override public void onReceive(Context c, Intent i) { Glass.rebuild(HomeActivity.this, w, h); }
+    };
+
     @Override
     protected void onCreate(Bundle b) {
         super.onCreate(b);
@@ -121,16 +172,14 @@ public class HomeActivity extends Activity {
 
         dots = new LinearLayout(this);
         dots.setGravity(Gravity.CENTER);
-        root.addView(dots, new FrameLayout.LayoutParams(w, dotsH, Gravity.BOTTOM) {{ bottomMargin = dockH + dockMargin * 2; }});
+        dots.setPadding((int) (8 * d), 0, (int) (8 * d), 0);
+        dots.setBackground(glass(dots, 10, null));
+        root.addView(dots, new FrameLayout.LayoutParams(-2, (int) (18 * d), Gravity.BOTTOM | Gravity.CENTER_HORIZONTAL) {{ bottomMargin = dockH + dockMargin * 2 + (int) (1 * d); }});
 
         dock = new LinearLayout(this);
         dock.setOrientation(LinearLayout.HORIZONTAL);
         dock.setGravity(Gravity.CENTER);
-        GradientDrawable dbg = new GradientDrawable();
-        dbg.setColor(dockFill);
-        dbg.setStroke(Math.max(1, (int) d), dockStroke);
-        dbg.setCornerRadius(30 * d);
-        dock.setBackground(dbg);
+        dock.setBackground(glass(dock, 30, null));
         root.addView(dock, new FrameLayout.LayoutParams(w - (int) (16 * d), dockH, Gravity.BOTTOM | Gravity.CENTER_HORIZONTAL) {{ bottomMargin = dockMargin; }});
 
         doneBtn = pill("Listo");
@@ -141,27 +190,41 @@ public class HomeActivity extends Activity {
         root.addView(restoreBtn, new FrameLayout.LayoutParams(-2, -2, Gravity.TOP | Gravity.RIGHT) {{ topMargin = statusH + (int) (46 * d); rightMargin = (int) (20 * d); }});
 
         setContentView(root);
+        Glass.rebuild(this, w, h);
+        registerReceiver(wallChanged, new IntentFilter(Intent.ACTION_WALLPAPER_CHANGED));
+        IntentFilter tf = new IntentFilter(Intent.ACTION_TIME_TICK);
+        tf.addAction(Intent.ACTION_DATE_CHANGED); tf.addAction(Intent.ACTION_TIMEZONE_CHANGED); tf.addAction(Intent.ACTION_TIME_CHANGED);
+        registerReceiver(tick, tf);
+        registerReceiver(badges, new IntentFilter(BadgeService.ACTION));
         IntentFilter f = new IntentFilter();
         f.addAction(Intent.ACTION_PACKAGE_ADDED);
         f.addAction(Intent.ACTION_PACKAGE_REMOVED);
         f.addAction(Intent.ACTION_PACKAGE_REPLACED);
+        f.addAction(Intent.ACTION_PACKAGE_CHANGED);
         f.addDataScheme("package");
         registerReceiver(pkgs, f);
         reload();
     }
 
-    @Override protected void onPause() { wasPaused = true; super.onPause(); }
+    private boolean resumed; private long resumedAt;
+    @Override protected void onPause() { resumed = false; wasPaused = true; AuroraField.launcherVisible = false; super.onPause(); }
     @Override protected void onResume() {
         super.onResume();
+        AuroraField.launcherVisible = true;
+        resumed = true; resumedAt = SystemClock.uptimeMillis();
         refreshToday();
         if (wasPaused) { wasPaused = false; popCurrent(); }
     }
 
-    @Override protected void onDestroy() { unregisterReceiver(pkgs); super.onDestroy(); }
+    @Override protected void onDestroy() { unregisterReceiver(pkgs); unregisterReceiver(wallChanged); unregisterReceiver(tick); unregisterReceiver(badges); Glass.release(); super.onDestroy(); }
 
     @Override
     protected void onNewIntent(Intent i) {
         super.onNewIntent(i);
+        if (swLayer != null) { hideSwitcher(); return; }
+        // Home pressed again while already on the main page: open Multitarea
+        boolean onMain = pager != null && pager.page() == 1;
+        if (hasWindowFocus() && SystemClock.uptimeMillis() - resumedAt > 1500 && onMain && !editing && searchLayer == null && folderLayer == null && ccLayer == null && hasWindowFocus()) { showSwitcher(); return; }
         if (pager != null) pager.goTo(1);
     }
 
@@ -171,7 +234,7 @@ public class HomeActivity extends Activity {
         recreate();
     }
 
-    @Override public void onBackPressed() { if (ccLayer != null) hideControl(); else if (folderLayer != null) closeFolder(); else if (searchLayer != null) hideSearch(); else if (editing) setEditing(false); }
+    @Override public void onBackPressed() { if (swLayer != null) hideSwitcher(); else if (ccLayer != null) hideControl(); else if (folderLayer != null) closeFolder(); else if (searchLayer != null) hideSearch(); else if (editing) setEditing(false); }
 
     private float downX, downY;
     private List<App> allApps = new ArrayList<>();
@@ -192,6 +255,37 @@ public class HomeActivity extends Activity {
     /** A clear downward swipe anywhere on the home screen opens the notification shade. */
     @Override
     public boolean dispatchTouchEvent(MotionEvent e) {
+        // Control Center follows the finger when the drag starts on the dock
+        switch (e.getAction()) {
+            case MotionEvent.ACTION_DOWN:
+                ccArmed = searchLayer == null && folderLayer == null && ccLayer == null && swLayer == null && !editing && e.getY() > h - 120 * d;
+                ccDownX = e.getX(); ccDownY = e.getY();
+                if (ccVel != null) ccVel.recycle();
+                ccVel = android.view.VelocityTracker.obtain(); ccVel.addMovement(e);
+                break;
+            case MotionEvent.ACTION_MOVE:
+                if (ccVel != null) ccVel.addMovement(e);
+                if (ccArmed && !ccDragging) {
+                    float dy = e.getY() - ccDownY, dx = e.getX() - ccDownX;
+                    if (dy < -14 * d && Math.abs(dy) > Math.abs(dx) * 1.3f) {
+                        ccDragging = true;
+                        MotionEvent cancel = MotionEvent.obtain(e); cancel.setAction(MotionEvent.ACTION_CANCEL);
+                        super.dispatchTouchEvent(cancel); cancel.recycle();
+                        showControl(true);
+                    }
+                }
+                if (ccDragging) { ccDrag(e.getY() - ccDownY); return true; }
+                break;
+            case MotionEvent.ACTION_UP: case MotionEvent.ACTION_CANCEL:
+                if (ccDragging) {
+                    float vy = 0;
+                    if (ccVel != null) { ccVel.addMovement(e); ccVel.computeCurrentVelocity(1000); vy = ccVel.getYVelocity(); }
+                    ccSettle(vy); ccArmed = false;
+                    return true;
+                }
+                ccArmed = false;
+                break;
+        }
         if (e.getAction() == MotionEvent.ACTION_UP && !editing && searchLayer == null && folderLayer == null && ccLayer == null
                 && e.getY() > h * 0.30f && e.getY() < h - 130 * d && Math.abs(e.getX() - downX) < 10 * d && Math.abs(e.getY() - downY) < 10 * d) {
             long now = SystemClock.uptimeMillis();
@@ -213,42 +307,121 @@ public class HomeActivity extends Activity {
     // ---- today page ---------------------------------------------------------
 
     private View todayPage() {
+        // One fixed page, no scrolling: greeting/suggestions on top, then two rows of two compact cards.
         LinearLayout col = new LinearLayout(this);
         col.setOrientation(LinearLayout.VERTICAL);
-        col.setPadding((int) (18 * d), (int) (4 * d), (int) (18 * d), 0);
-        alarmView = card(col, "PRÓXIMA ALARMA", 15, 0);
-        // quick actions: torch, camera, recorder
-        LinearLayout quick = cardBox(col, "ATAJOS");
-        LinearLayout qrow = new LinearLayout(this);
-        qrow.setOrientation(LinearLayout.HORIZONTAL);
-        qrow.setPadding(0, (int) (6 * d), 0, 0);
-        torchBtn = quickButton("Linterna", v -> toggleTorch());
-        qrow.addView(torchBtn, new LinearLayout.LayoutParams(0, -2, 1f) {{ rightMargin = (int) (6 * d); }});
-        qrow.addView(quickButton("Cámara", v -> openPkg("com.scratch.ioscamera")), new LinearLayout.LayoutParams(0, -2, 1f) {{ rightMargin = (int) (6 * d); }});
-        qrow.addView(quickButton("Grabadora", v -> openPkg("com.scratch.iosrecorder")), new LinearLayout.LayoutParams(0, -2, 1f));
-        quick.addView(qrow);
-        musicView = card(col, "MÚSICA", 15, 0);
-        musicBox = (View) musicView.getParent();
-        musicBox.setVisibility(View.GONE);
-        musicBox.setOnClickListener(v -> openPkg("com.scratch.iosmusic"));
-        noteView = card(col, "NOTAS", 14, 0);
-        ((View) noteView.getParent()).setOnLongClickListener(v -> { confirmClearNotes(); return true; });
-        calView = card(col, "PRÓXIMOS EVENTOS", 14, 0);
-        LinearLayout st = cardBox(col, "ESTADO");
-        batView = row(st, "Batería");
-        batBar = lastBar;
-        stoView = row(st, "Almacenamiento");
-        stoBar = lastBar;
-        ramView = row(st, "Memoria");
-        ramBar = lastBar;
-        col.setPadding((int) (18 * d), (int) (4 * d), (int) (18 * d), (int) (24 * d));
+        col.setPadding((int) (18 * d), (int) (0 * d), (int) (18 * d), (int) (6 * d));
+        // --- suggestions
+        sugBox = cardBox(col, "SUGERIDAS");
+        sugBox.setPadding((int) (14 * d), (int) (6 * d), (int) (14 * d), (int) (3 * d));
+        sugRow = new LinearLayout(this);
+        sugRow.setOrientation(LinearLayout.HORIZONTAL);
+        sugRow.setPadding(0, (int) (2 * d), 0, 0);
+        sugBox.addView(sugRow);
+        sugBox.setVisibility(View.GONE);
+        // --- row 1: weather | status
+        LinearLayout row1 = row2(col);
+        LinearLayout wbox = halfBox(row1, "TIEMPO", true);
+        wTitle = (TextView) wbox.getChildAt(0);
+        LinearLayout wrow = new LinearLayout(this);
+        wrow.setOrientation(LinearLayout.HORIZONTAL);
+        wrow.setGravity(Gravity.CENTER_VERTICAL);
+        wIcon = new ImageView(this);
+        wrow.addView(wIcon, new LinearLayout.LayoutParams((int) (30 * d), (int) (30 * d)) {{ rightMargin = (int) (6 * d); }});
+        wTemp = new TextView(this);
+        wTemp.setTextColor(labelColor);
+        wTemp.setTextSize(TypedValue.COMPLEX_UNIT_SP, 30);
+        wTemp.setTypeface(Typeface.create("sans-serif-thin", Typeface.NORMAL));
+        wTemp.setIncludeFontPadding(false);
+        wrow.addView(wTemp);
+        wbox.addView(wrow, new LinearLayout.LayoutParams(-1, -2) {{ topMargin = (int) (4 * d); }});
+        wDesc = new TextView(this);
+        wDesc.setTextColor(subColor);
+        wDesc.setTextSize(TypedValue.COMPLEX_UNIT_SP, 11);
+        wDesc.setTypeface(Typeface.create("sans-serif-light", Typeface.NORMAL));
+        wDesc.setSingleLine(); wDesc.setEllipsize(TextUtils_END);
+        wbox.addView(wDesc);
+        wbox.setOnClickListener(v -> openPkg("com.scratch.iosweather"));
+        wbox.setOnLongClickListener(v -> { refreshWeather(true); return true; });
+        weatherBox = wbox;
+        LinearLayout st = halfBox(row1, "ESTADO", false);
+        LinearLayout rings = new LinearLayout(this);
+        rings.setOrientation(LinearLayout.HORIZONTAL);
+        int track = night ? 0x33FFFFFF : 0x2614123A;
+        int[][] cols = {{0xFF34D399, 0xFF22D3EE}, {0xFF60A5FA, 0xFF818CF8}, {0xFFF472B6, 0xFFA78BFA}};
+        String[] names = {"Bat.", "Disco", "RAM"};
+        Ring[] rs = new Ring[3];
+        for (int i = 0; i < 3; i++) {
+            LinearLayout cell = new LinearLayout(this);
+            cell.setOrientation(LinearLayout.VERTICAL);
+            cell.setGravity(Gravity.CENTER_HORIZONTAL);
+            rs[i] = new Ring(this, d, track, labelColor, cols[i][0], cols[i][1], 3f, 10f);
+            cell.addView(rs[i], new LinearLayout.LayoutParams((int) (38 * d), (int) (38 * d)));
+            TextView nm = new TextView(this);
+            nm.setText(names[i]); nm.setTextColor(subColor); nm.setTextSize(TypedValue.COMPLEX_UNIT_SP, 9);
+            nm.setTypeface(Typeface.create("sans-serif-light", Typeface.NORMAL));
+            cell.addView(nm);
+            rings.addView(cell, new LinearLayout.LayoutParams(0, -2, 1f));
+        }
+        st.addView(rings, new LinearLayout.LayoutParams(-1, -2) {{ topMargin = (int) (6 * d); }});
+        batView = new TextView(this); stoView = new TextView(this); ramView = new TextView(this);   // detail texts are not shown on the compact page
+        batBar = rs[0]; stoBar = rs[1]; ramBar = rs[2];
+        // --- row 2: agenda | notes
+        LinearLayout row2 = row2(col);
+        LinearLayout agenda = halfBox(row2, "AGENDA", true);
+        alarmView = new TextView(this);
+        alarmView.setTextColor(labelColor); alarmView.setTextSize(TypedValue.COMPLEX_UNIT_SP, 13);
+        alarmView.setTypeface(Typeface.create("sans-serif-light", Typeface.NORMAL));
+        alarmView.setSingleLine(); alarmView.setEllipsize(TextUtils_END);
+        alarmView.setPadding(0, (int) (5 * d), 0, 0);
+        agenda.addView(alarmView);
+        calView = new TextView(this);
+        calView.setTextColor(subColor); calView.setTextSize(TypedValue.COMPLEX_UNIT_SP, 12);
+        calView.setTypeface(Typeface.create("sans-serif-light", Typeface.NORMAL));
+        calView.setMaxLines(2); calView.setEllipsize(TextUtils_END);
+        calView.setPadding(0, (int) (3 * d), 0, 0);
+        agenda.addView(calView);
+        agenda.setOnClickListener(v -> openPkg("com.scratch.ioscalendar"));
+        LinearLayout notes = halfBox(row2, "NOTAS", false);
+        noteView = new TextView(this);
+        noteView.setTextColor(labelColor); noteView.setTextSize(TypedValue.COMPLEX_UNIT_SP, 12);
+        noteView.setTypeface(Typeface.create("sans-serif-light", Typeface.NORMAL));
+        noteView.setMaxLines(3); noteView.setEllipsize(TextUtils_END);
+        noteView.setPadding(0, (int) (5 * d), 0, 0);
+        notes.addView(noteView);
+        notes.setOnClickListener(v -> openPkg("com.scratch.iosnotes"));
+        notes.setOnLongClickListener(v -> { confirmClearNotes(); return true; });
+        musicView = new TextView(this);   // not shown on the compact page
         refreshToday();
         todayCol = col;
-        ScrollView sv = new ScrollView(this);
-        sv.setVerticalScrollBarEnabled(false);
-        sv.setOverScrollMode(View.OVER_SCROLL_NEVER);
-        sv.addView(col, new FrameLayout.LayoutParams(-1, -2));
-        return sv;
+        return col;
+    }
+
+    /** A horizontal row that shares the free height of the page with its siblings. */
+    private LinearLayout row2(LinearLayout col) {
+        LinearLayout r = new LinearLayout(this);
+        r.setOrientation(LinearLayout.HORIZONTAL);
+        col.addView(r, new LinearLayout.LayoutParams(-1, 0, 1f));
+        return r;
+    }
+
+    /** Compact glass card taking half of a row. */
+    private LinearLayout halfBox(LinearLayout row, String title, boolean left) {
+        LinearLayout box = new LinearLayout(this);
+        box.setOrientation(LinearLayout.VERTICAL);
+        box.setPadding((int) (13 * d), (int) (7 * d), (int) (13 * d), (int) (6 * d));
+        box.setBackground(glass(box, 22, null));
+        TextView t = new TextView(this);
+        t.setText(title);
+        t.setTextColor(subColor);
+        t.setTextSize(TypedValue.COMPLEX_UNIT_SP, 10);
+        t.setLetterSpacing(0.12f);
+        box.addView(t);
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(0, -1, 1f);
+        lp.topMargin = (int) (6 * d);
+        if (left) lp.rightMargin = (int) (3 * d); else lp.leftMargin = (int) (3 * d);
+        row.addView(box, lp);
+        return box;
     }
 
     private TextView quickButton(String text, View.OnClickListener l) {
@@ -324,11 +497,7 @@ public class HomeActivity extends Activity {
         LinearLayout box = new LinearLayout(this);
         box.setOrientation(LinearLayout.VERTICAL);
         box.setPadding((int) (18 * d), (int) (9 * d), (int) (18 * d), (int) (10 * d));
-        GradientDrawable g = new GradientDrawable();
-        g.setColor(dockFill);
-        g.setStroke(Math.max(1, (int) d), dockStroke);
-        g.setCornerRadius(24 * d);
-        box.setBackground(g);
+        box.setBackground(glass(box, 24, null));
         TextView t = new TextView(this);
         t.setText(title);
         t.setTextColor(subColor);
@@ -394,6 +563,7 @@ public class HomeActivity extends Activity {
     }
 
     private void setBar(View fill, float frac) {
+        if (fill instanceof Ring) { ((Ring) fill).set(frac); return; }
         final View f = fill;
         final float fr = Math.max(0f, Math.min(1f, frac));
         ((View) f.getParent()).post(() -> {
@@ -403,14 +573,114 @@ public class HomeActivity extends Activity {
         });
     }
 
+    private LinearLayout sugBox, sugRow;
+    private String sugKey = "";
+
+    /** Apps you tend to open at this time of day (needs a few launches to learn). */
+    private void refreshSuggestions() {
+        if (sugBox == null || curGrid == null) return;
+        final List<App> all = new ArrayList<>();
+        for (App a : curGrid) { if (a.kids != null) all.addAll(a.kids); else all.add(a); }
+        if (curDock != null) for (App a : curDock) { if (a.kids == null) all.add(a); }
+        // context boosts: what makes sense right now, on top of what you usually open
+        final int hr = Calendar.getInstance().get(Calendar.HOUR_OF_DAY);
+        final boolean headset = ((android.media.AudioManager) getSystemService(AUDIO_SERVICE)).isWiredHeadsetOn();
+        Intent bat = registerReceiver(null, new IntentFilter(Intent.ACTION_BATTERY_CHANGED));
+        final boolean charging = bat != null && (bat.getIntExtra("status", 0) == 2 || bat.getIntExtra("status", 0) == 5);
+        final java.util.Map<String, Float> boost = new HashMap<>();
+        if (headset) boost.put("com.scratch.iosmusic", 200f);
+        if (hr >= 5 && hr < 11) { boost.put("com.scratch.iosweather", 12f); boost.put("com.scratch.iosclock", 8f); }
+        if (hr >= 22 || hr < 5) { boost.put("com.scratch.iosclock", charging ? 40f : 6f); }
+        if (hr >= 17 && hr < 22) boost.put("com.scratch.ioscalendar", 6f);
+        final java.util.function.ToDoubleFunction<App> score = a -> usage.suggest(a.pkg) + (boost.containsKey(a.pkg) ? boost.get(a.pkg) : 0f);
+        java.util.Collections.sort(all, (x, y) -> Double.compare(score.applyAsDouble(y), score.applyAsDouble(x)));
+        String greet = hr < 6 ? "BUENAS NOCHES" : hr < 13 ? "BUENOS D\u00cdAS" : hr < 21 ? "BUENAS TARDES" : "BUENAS NOCHES";
+        if (headset) greet = "CON AURICULARES";
+        ((TextView) sugBox.getChildAt(0)).setText(greet);
+        List<App> top = new ArrayList<>();
+        Set<String> seen = new HashSet<>();
+        for (App a : all) {
+            if (top.size() >= 4 || score.applyAsDouble(a) <= 0) break;
+            if (seen.add(a.pkg)) top.add(a);
+        }
+        StringBuilder k = new StringBuilder(greet).append(':');
+        for (App a : top) k.append(a.pkg).append(',');
+        if (k.toString().equals(sugKey)) return;
+        sugKey = k.toString();
+        sugRow.removeAllViews();
+        if (top.isEmpty()) { sugBox.setVisibility(View.GONE); return; }
+        sugBox.setVisibility(View.VISIBLE);
+        cellScale = 0.78f;
+        for (App a : top) {
+            View c = cell(a, true);
+            sugRow.addView(c, new LinearLayout.LayoutParams(0, -2, 1f));
+        }
+        cellScale = 1f;
+    }
+
+    private LinearLayout weatherBox;
+    private TextView wTitle, wTemp, wDesc;
+    private ImageView wIcon;
+    private boolean wBusy;
+    private int wGen;
+
+    private void showWeather(Weather w) {
+        if (weatherBox == null || w == null || !w.ok) return;
+        wTitle.setText("TIEMPO \u00b7 " + w.city.toUpperCase(Locale.getDefault()));
+        wTemp.setText(w.temp + "\u00b0");
+        wDesc.setText(w.desc + " \u00b7 " + w.hi + "\u00b0/" + w.lo + "\u00b0");
+        wIcon.setImageBitmap(Tiles.make(w.kind(), (int) (30 * d), labelColor));
+    }
+
+    /** Shows the cached weather at once and refreshes it in the background when it is older than 30 minutes. */
+    private void refreshWeather(boolean force) {
+        final SharedPreferences p = getSharedPreferences("home", MODE_PRIVATE);
+        final String city = p.getString("weather_city", Weather.defaultCity());
+        Weather c = Weather.cached(p);
+        if (c.ok && !c.city.isEmpty()) showWeather(c);
+        if (!force && (wBusy || (c.ok && System.currentTimeMillis() - c.ts < Weather.MAX_AGE))) return;
+        wBusy = true;
+        final int gen = ++wGen;
+        new Thread(() -> {
+            final Weather n = Weather.fetch(city);
+            runOnUiThread(() -> {
+                if (gen != wGen) return;
+                wBusy = false;
+                if (n != null) { n.save(p); showWeather(n); if (force) popToday(); }
+                else if (force) Toast.makeText(this, "No se pudo obtener el tiempo", Toast.LENGTH_SHORT).show();
+            });
+        }).start();
+    }
+
+    private static final android.net.Uri NOTES_URI = android.net.Uri.parse("content://com.scratch.iosnotes/notes");
+
+    /** One-off: notes typed before the Notas app existed move into its provider. */
+    private void migrateNotes() {
+        SharedPreferences p = getSharedPreferences("home", MODE_PRIVATE);
+        String old = p.getString("notes", "");
+        if (old.trim().isEmpty()) return;
+        try {
+            String[] lines = old.split("\n");
+            for (int i = lines.length - 1; i >= 0; i--) {
+                if (lines[i].trim().isEmpty()) continue;
+                android.content.ContentValues v = new android.content.ContentValues();
+                v.put("body", lines[i].trim());
+                if (getContentResolver().insert(NOTES_URI, v) == null) return;
+            }
+            p.edit().remove("notes").apply();
+        } catch (Exception e) { /* provider missing: keep the old notes */ }
+    }
+
     private void refreshToday() {
         if (batView == null) return;
+        refreshWeather(false);
+        refreshSuggestions();
         Intent b = registerReceiver(null, new IntentFilter(Intent.ACTION_BATTERY_CHANGED));
         if (b != null) {
             int lvl = b.getIntExtra("level", 0), sc = Math.max(1, b.getIntExtra("scale", 100));
             int st = b.getIntExtra("status", 0);
             boolean chg = st == 2 || st == 5;
-            batView.setText((lvl * 100 / sc) + "%" + (chg ? (st == 5 ? " · completa" : " · cargando") : ""));
+            batView.setText(chg ? (st == 5 ? "completa" : "cargando") : "");
             setBar(batBar, lvl / (float) sc);
         }
         StatFs fs = new StatFs(Environment.getDataDirectory().getPath());
@@ -423,14 +693,20 @@ public class HomeActivity extends Activity {
         setBar(ramBar, (mi.totalMem - mi.availMem) / (float) mi.totalMem);
         loadEvents();
         if (noteView != null) {
+            migrateNotes();
             StringBuilder sb = new StringBuilder();
             int n = 0;
-            for (String line : getSharedPreferences("home", MODE_PRIVATE).getString("notes", "").split("\n")) {
-                if (line.trim().isEmpty() || n >= 3) continue;
-                sb.append(n++ > 0 ? "\n" : "").append("\u2022 ").append(line.trim());
-            }
-            noteView.setText(n == 0 ? "Escribe «nota …» en la búsqueda" : sb.toString());
-            noteView.setAlpha(n == 0 ? 0.55f : 1f);
+            android.database.Cursor cur = null;
+            try {
+                cur = getContentResolver().query(NOTES_URI, new String[]{"body"}, null, null, "pinned DESC, updated DESC LIMIT 3");
+                while (cur != null && cur.moveToNext()) {
+                    String first = cur.getString(0) == null ? "" : cur.getString(0).split("\n")[0].trim();
+                    if (first.isEmpty()) continue;
+                    sb.append(n++ > 0 ? "\n" : "").append("\u2022 ").append(first);
+                }
+            } catch (Exception e) { /* Notas not installed */ } finally { if (cur != null) cur.close(); }
+            noteView.setText(sb.toString());
+            if (n == 0) { noteView.setText("Escribe «nota …» en la búsqueda"); noteView.setAlpha(0.55f); } else noteView.setAlpha(1f);
         }
         if (musicBox != null) {
             boolean playing = ((android.media.AudioManager) getSystemService(AUDIO_SERVICE)).isMusicActive();
@@ -449,7 +725,7 @@ public class HomeActivity extends Activity {
                 boolean tomorrow = a.get(Calendar.DAY_OF_YEAR) == n.get(Calendar.DAY_OF_YEAR) && a.get(Calendar.YEAR) == n.get(Calendar.YEAR);
                 String hm = new java.text.SimpleDateFormat("HH:mm", Locale.getDefault()).format(new Date(t));
                 String day = today ? "hoy" : tomorrow ? "mañana" : new java.text.SimpleDateFormat("EEEE d MMM", Locale.getDefault()).format(new Date(t));
-                alarmView.setText(hm + " · " + day);
+                alarmView.setText("Alarma " + hm + " · " + day);
             }
         }
     }
@@ -469,7 +745,7 @@ public class HomeActivity extends Activity {
                     java.text.SimpleDateFormat day = new java.text.SimpleDateFormat("EEE d", Locale.getDefault());
                     java.text.SimpleDateFormat hour = new java.text.SimpleDateFormat("HH:mm", Locale.getDefault());
                     int n = 0;
-                    while (c != null && c.moveToNext() && n < 3) {
+                    while (c != null && c.moveToNext() && n < 2) {
                         Date dt = new Date(c.getLong(1));
                         if (n > 0) sb.append('\n');
                         sb.append(c.getInt(2) == 1 ? day.format(dt) : day.format(dt) + " · " + hour.format(dt)).append("   ").append(c.getString(0));
@@ -488,7 +764,7 @@ public class HomeActivity extends Activity {
         if (searchLayer != null) return;
         ViewGroup content = (ViewGroup) findViewById(android.R.id.content);
         searchLayer = new FrameLayout(this);
-        searchLayer.setBackgroundColor(scrim);
+        searchLayer.setBackground(darkGlass(new Glass(searchLayer, 0, null, night ? 0xCC141238 : 0xD6F6F5FF, 0, 0)));
         searchLayer.setOnClickListener(v -> hideSearch());
         LinearLayout col = new LinearLayout(this);
         col.setOrientation(LinearLayout.VERTICAL);
@@ -502,11 +778,7 @@ public class HomeActivity extends Activity {
         searchBox.setTypeface(Typeface.create("sans-serif-light", Typeface.NORMAL));
         searchBox.setSingleLine();
         searchBox.setPadding((int) (20 * d), (int) (14 * d), (int) (20 * d), (int) (14 * d));
-        GradientDrawable bg = new GradientDrawable();
-        bg.setColor(boxFill);
-        bg.setStroke(Math.max(1, (int) d), boxStroke);
-        bg.setCornerRadius(28 * d);
-        searchBox.setBackground(bg);
+        searchBox.setBackground(glass(searchBox, 28, night ? 1 : 0, null));
         col.addView(searchBox, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
         ListView list = new ListView(this);
         list.setDivider(null);
@@ -600,6 +872,89 @@ public class HomeActivity extends Activity {
         }).start();
     }
 
+    /** Answers that need the phone's own state: contacts for \"llama a …\", battery, cached weather. */
+    private List<Smart.Item> contextItems(String nq) {
+        List<Smart.Item> out = new ArrayList<>();
+        java.util.regex.Matcher m = java.util.regex.Pattern.compile("^(llama a|llamar a|llamar|llama|telefono a|mensaje a|sms a|escribe a|escribir a|whatsapp a|manda mensaje a|envia mensaje a) (.+)$").matcher(nq);
+        if (m.matches()) {
+            boolean call = m.group(1).startsWith("llama") || m.group(1).startsWith("telefono");
+            String who = m.group(2).trim();
+            List<Object[]> hits = new ArrayList<>();
+            Set<String> seen = new HashSet<>();
+            synchronized (contactIndex) {
+                for (String[] c : contactIndex) {
+                    int sc = Math.max(Fuzzy.score(who, c[2]), Fuzzy.score(who, c[4]) * 7 / 10);
+                    if (sc > 0 && c[1] != null && seen.add(c[0])) hits.add(new Object[]{c, sc});
+                }
+            }
+            Collections.sort(hits, (x, y) -> (Integer) y[1] - (Integer) x[1]);
+            for (int i = 0; i < hits.size() && i < 3; i++) {
+                String[] c = (String[]) hits.get(i)[0];
+                Smart.Item it = new Smart.Item(call ? "\u260e" : "\u2709", call ? 0xFF22C55E : 0xFF3B82F6, (call ? "Llamar a " : "Mensaje a ") + c[0], c[1]);
+                it.intent = new Intent(call ? Intent.ACTION_DIAL : Intent.ACTION_SENDTO, Uri.parse((call ? "tel:" : "smsto:") + Uri.encode(c[1])));
+                out.add(it);
+            }
+            return out;
+        }
+        if (nq.equals("rutinas") || nq.equals("automatizaciones")) {
+            Smart.Item st = new Smart.Item("\u2699", 0xFF8B5CF6, "Rutinas activas", Routines.describe(this).replace("\n", "  \u00b7  "));
+            out.add(st);
+        }
+        if (nq.equals("bateria") || nq.equals("cuanta bateria queda") || nq.equals("bateria restante")) {
+            Intent b = registerReceiver(null, new IntentFilter(Intent.ACTION_BATTERY_CHANGED));
+            if (b != null) {
+                int lvl = b.getIntExtra("level", 0) * 100 / Math.max(1, b.getIntExtra("scale", 100)), st = b.getIntExtra("status", 0);
+                Smart.Item it = new Smart.Item("\u26a1", 0xFF22C55E, "Batería al " + lvl + " %", st == 5 ? "Completa" : st == 2 ? "Cargando" : "Con batería");
+                out.add(it);
+            }
+        }
+        if (nq.equals("tiempo") || nq.equals("clima") || nq.equals("que tiempo hace") || nq.equals("hace frio") || nq.equals("hace calor") || nq.equals("va a llover") || nq.equals("llueve")) {
+            Weather w = Weather.cached(getSharedPreferences("home", MODE_PRIVATE));
+            if (w.ok) {
+                Smart.Item it = new Smart.Item("\u2601", 0xFF38BDF8, w.temp + "\u00b0 " + w.desc, w.city + " \u00b7 máx " + w.hi + "\u00b0 mín " + w.lo + "\u00b0");
+                it.intent = pm.getLaunchIntentForPackage("com.scratch.iosweather");
+                out.add(it);
+            }
+        }
+        return out;
+    }
+
+    /** Live currency conversion (Frankfurter / ECB rates, https, no key); a rate is cached for 6 hours. */
+    private void fxLookup(final String nq, final String[] fx) {
+        final SharedPreferences p = getSharedPreferences("fx", MODE_PRIVATE);
+        final String key = fx[1] + fx[2];
+        final float cached = p.getFloat(key, 0f);
+        final boolean fresh = cached > 0 && System.currentTimeMillis() - p.getLong(key + "t", 0) < 6 * 3600 * 1000L;
+        if (fresh) { showFx(nq, fx, cached, true); return; }
+        if (cached > 0) showFx(nq, fx, cached, false);
+        new Thread(() -> {
+            try {
+                java.net.HttpURLConnection c = (java.net.HttpURLConnection) new java.net.URL("https://api.frankfurter.app/latest?amount=1&from=" + fx[1] + "&to=" + fx[2]).openConnection();
+                c.setConnectTimeout(6000); c.setReadTimeout(6000);
+                java.io.ByteArrayOutputStream o = new java.io.ByteArrayOutputStream();
+                try (java.io.InputStream in = c.getInputStream()) { byte[] b = new byte[2048]; int n; while ((n = in.read(b)) > 0) o.write(b, 0, n); }
+                final float rate = (float) new org.json.JSONObject(o.toString("UTF-8")).getJSONObject("rates").getDouble(fx[2]);
+                p.edit().putFloat(key, rate).putLong(key + "t", System.currentTimeMillis()).apply();
+                ui.post(() -> showFx(nq, fx, rate, true));
+            } catch (Exception e) { /* offline: the cached rate (if any) is already shown */ }
+        }).start();
+    }
+
+    private void showFx(String nq, String[] fx, float rate, boolean live) {
+        if (searchLayer == null || !nq.equals(lastQuery)) return;
+        for (int i = results.size() - 1; i >= 0; i--) {
+            Object[] r = results.get(i);
+            if (r[0] instanceof Smart.Item && "fx".equals(((Smart.Item) r[0]).glyphTag)) results.remove(i);
+        }
+        double amount = Double.parseDouble(fx[0]);
+        String out = String.format(new Locale("es", "ES"), "%,.2f", amount * rate) + " " + fx[2];
+        Smart.Item it = new Smart.Item("\u20ac", 0xFF14B8A6, out, fx[0] + " " + fx[1] + (live ? " \u00b7 tasa de hoy (BCE)" : " \u00b7 tasa guardada, sin conexión") + " \u00b7 toca para copiar");
+        it.glyphTag = "fx";
+        it.special = "copy:" + out;
+        results.add(0, new Object[]{it});
+        searchAdapter.notifyDataSetChanged();
+    }
+
     private void runSearch(String q) {
         results.clear();
         final String nq = Fuzzy.norm(q);
@@ -613,6 +968,9 @@ public class HomeActivity extends Activity {
             searchAdapter.notifyDataSetChanged();
             return;
         }
+        final String[] fx = Brain.parseFx(nq);
+        if (fx != null) fxLookup(nq, fx);
+        for (Smart.Item si : contextItems(nq)) results.add(new Object[]{si});
         for (Smart.Item si : Smart.answer(q)) results.add(new Object[]{si});
         final List<Object[]> apps = new ArrayList<>();
         for (App a : allApps) {
@@ -723,9 +1081,71 @@ public class HomeActivity extends Activity {
                 android.hardware.camera2.CameraManager cm = (android.hardware.camera2.CameraManager) getSystemService(CAMERA_SERVICE);
                 torchOn = !torchOn;
                 cm.setTorchMode(cm.getCameraIdList()[0], torchOn);
+            } else if (sp.startsWith("routine:")) {
+                String[] r = sp.split(":");
+                if (r[1].equals("tomorrow")) { Routines.tomorrowCheck(this, true); Toast.makeText(this, "Revisión de mañana enviada", Toast.LENGTH_SHORT).show(); }
+                else if (r[1].equals("meet")) { Routines.setMeet(this, r[2].equals("on")); Toast.makeText(this, r[2].equals("on") ? "Silencio en reuniones activado" : "Silencio en reuniones desactivado", Toast.LENGTH_SHORT).show(); }
+                else if (r[1].equals("leave")) { if (!Routines.leaveAdvice(this)) Toast.makeText(this, "Hoy no hace falta ningún consejo", Toast.LENGTH_SHORT).show(); }
+                else if (r[1].equals("brief")) {
+                    if (r[2].equals("now")) { Routines.briefing(this); Toast.makeText(this, "Resumen enviado a las notificaciones", Toast.LENGTH_SHORT).show(); }
+                    else if (r[2].equals("off")) { Routines.setBrief(this, -1, 0); Toast.makeText(this, "Resumen diario desactivado", Toast.LENGTH_SHORT).show(); }
+                    else { Routines.setBrief(this, Integer.parseInt(r[2]), Integer.parseInt(r[3])); Toast.makeText(this, "Resumen diario a las " + r[2] + ":" + (r[3].length() < 2 ? "0" + r[3] : r[3]), Toast.LENGTH_SHORT).show(); }
+                } else {
+                    if (r[2].equals("off")) { Routines.setQuiet(this, -1, 7); Toast.makeText(this, "Silencio nocturno desactivado", Toast.LENGTH_SHORT).show(); }
+                    else { Routines.setQuiet(this, Integer.parseInt(r[2]), Integer.parseInt(r[3])); Toast.makeText(this, "Silencio nocturno " + r[2] + ":00 a " + r[3] + ":00", Toast.LENGTH_SHORT).show(); }
+                }
+            } else if (sp.startsWith("remind:")) {
+                int bar = sp.indexOf('|');
+                long at = Long.parseLong(sp.substring(7, bar));
+                Reminders.add(this, at, sp.substring(bar + 1));
+                Toast.makeText(this, "Te lo recordaré: " + new java.text.SimpleDateFormat("EEE d MMM HH:mm", new Locale("es", "ES")).format(new Date(at)), Toast.LENGTH_LONG).show();
+            } else if (sp.startsWith("event:")) {
+                int bar = sp.indexOf('|');
+                long start = Long.parseLong(sp.substring(6, bar));
+                String title = sp.substring(bar + 1);
+                android.database.Cursor cc = getContentResolver().query(android.provider.CalendarContract.Calendars.CONTENT_URI,
+                        new String[]{android.provider.CalendarContract.Calendars._ID}, "calendar_access_level>=500 AND visible=1", null, "_id ASC");
+                long calId = -1;
+                try { if (cc != null && cc.moveToFirst()) calId = cc.getLong(0); } finally { if (cc != null) cc.close(); }
+                if (calId < 0) { Toast.makeText(this, "No hay calendario disponible", Toast.LENGTH_SHORT).show(); return; }
+                android.content.ContentValues ev = new android.content.ContentValues();
+                ev.put(android.provider.CalendarContract.Events.CALENDAR_ID, calId);
+                ev.put(android.provider.CalendarContract.Events.TITLE, title);
+                ev.put(android.provider.CalendarContract.Events.DTSTART, start);
+                ev.put(android.provider.CalendarContract.Events.DTEND, start + 3600000L);
+                ev.put(android.provider.CalendarContract.Events.EVENT_TIMEZONE, java.util.TimeZone.getDefault().getID());
+                getContentResolver().insert(android.provider.CalendarContract.Events.CONTENT_URI, ev);
+                Toast.makeText(this, "Evento creado: " + title, Toast.LENGTH_SHORT).show();
+                Routines.meetings(this);
+                refreshToday();
+            } else if (sp.startsWith("bright:")) {
+                int pct = Integer.parseInt(sp.substring(7));
+                Settings.System.putInt(getContentResolver(), Settings.System.SCREEN_BRIGHTNESS_MODE, Settings.System.SCREEN_BRIGHTNESS_MODE_MANUAL);
+                Settings.System.putInt(getContentResolver(), Settings.System.SCREEN_BRIGHTNESS, Math.max(10, pct * 255 / 100));
+                Toast.makeText(this, "Brillo " + pct + " %", Toast.LENGTH_SHORT).show();
+            } else if (sp.startsWith("vol:")) {
+                android.media.AudioManager am = (android.media.AudioManager) getSystemService(AUDIO_SERVICE);
+                int pct = Integer.parseInt(sp.substring(4));
+                am.setStreamVolume(android.media.AudioManager.STREAM_MUSIC, Math.round(pct / 100f * am.getStreamMaxVolume(android.media.AudioManager.STREAM_MUSIC)), 0);
+                Toast.makeText(this, "Volumen " + pct + " %", Toast.LENGTH_SHORT).show();
+            } else if (sp.startsWith("ring:")) {
+                android.media.AudioManager am = (android.media.AudioManager) getSystemService(AUDIO_SERVICE);
+                boolean vib = sp.endsWith("vib");
+                am.setRingerMode(vib ? android.media.AudioManager.RINGER_MODE_VIBRATE : android.media.AudioManager.RINGER_MODE_NORMAL);
+                Toast.makeText(this, vib ? "Modo vibración" : "Timbre activado", Toast.LENGTH_SHORT).show();
+            } else if (sp.startsWith("city:")) {
+                getSharedPreferences("home", MODE_PRIVATE).edit().putString("weather_city", sp.substring(5)).remove("weather").apply();
+                Toast.makeText(this, "Ciudad: " + sp.substring(5), Toast.LENGTH_SHORT).show();
+                refreshWeather(true);
             } else if (sp.startsWith("note:")) {
-                SharedPreferences prefs = getSharedPreferences("home", MODE_PRIVATE);
-                prefs.edit().putString("notes", sp.substring(5).replace('\n', ' ') + "\n" + prefs.getString("notes", "")).apply();
+                try {
+                    android.content.ContentValues v = new android.content.ContentValues();
+                    v.put("body", sp.substring(5));
+                    if (getContentResolver().insert(NOTES_URI, v) == null) throw new IllegalStateException("no provider");
+                } catch (Exception e) {
+                    SharedPreferences prefs = getSharedPreferences("home", MODE_PRIVATE);
+                    prefs.edit().putString("notes", sp.substring(5).replace('\n', ' ') + "\n" + prefs.getString("notes", "")).apply();
+                }
                 Toast.makeText(this, "Nota guardada en Hoy", Toast.LENGTH_SHORT).show();
                 refreshToday();
             }
@@ -853,6 +1273,7 @@ public class HomeActivity extends Activity {
         pager.addPage(todayPage(), w);
         for (int p = 0; p < pages; p++) {
             GridLayout g = new GridLayout(this);
+            g.setClipChildren(false); g.setClipToPadding(false);
             g.setColumnCount(COLS);
             g.setRowCount(ROWS);
             int cw = w / COLS, ch = gridH / ROWS;
@@ -907,13 +1328,18 @@ public class HomeActivity extends Activity {
             gd.setColor(dotColor);
             dot.setBackground(gd);
             dot.setAlpha(p == cur ? 1f : 0.4f);
+            dot.setScaleX(p == cur ? 1.25f : 1f); dot.setScaleY(p == cur ? 1.25f : 1f);
             dots.addView(dot, new LinearLayout.LayoutParams((int) (7 * d), (int) (7 * d)) {{ leftMargin = rightMargin = (int) (4 * d); }});
         }
         pager.setOnPage(pg -> {
-            for (int i = 0; i < dots.getChildCount(); i++) dots.getChildAt(i).setAlpha(i == pg ? 1f : 0.4f);
+            for (int i = 0; i < dots.getChildCount(); i++) { View dv = dots.getChildAt(i); float sc = i == pg ? 1.25f : 1f; dv.animate().alpha(i == pg ? 1f : 0.4f).scaleX(sc).scaleY(sc).setDuration(200).start(); }
             if (pg == 0) popToday();
         });
         pager.setOnScroll(x -> { // the clock and date glide away more slowly than the page
+            int np = Math.max(1, pager.count() - 1);
+            float o = Math.min(1f, x / (float) (np * pager.pageWidth()));
+            Glass.setOffset(o);
+            try { android.app.WallpaperManager.getInstance(this).setWallpaperOffsets(pager.getWindowToken(), o, 0.5f); } catch (Exception e) { }
             float k = Math.max(0, x - w);
             float a = 1f - Math.min(1f, k / w) * 0.7f;
             if (headTime != null) { headTime.setTranslationX(-k * 0.35f); headTime.setAlpha(a); }
@@ -921,6 +1347,8 @@ public class HomeActivity extends Activity {
         });
         final int fc = cur;
         pager.post(() -> pager.goToNow(fc));
+        sugKey = "";
+        refreshSuggestions();
         if (animateNext) { animateNext = false; pager.post(this::popCurrent); }
     }
 
@@ -1099,6 +1527,7 @@ public class HomeActivity extends Activity {
     }
 
     private void drop(App dragged, int idx, boolean onIcon) {
+        dock.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY);
         List<App> g = curGrid;
         if (g == null) return;
         App target = idx < g.size() ? g.get(idx) : null;
@@ -1127,17 +1556,13 @@ public class HomeActivity extends Activity {
         if (folderLayer != null) return;
         ViewGroup content = (ViewGroup) findViewById(android.R.id.content);
         folderLayer = new FrameLayout(this);
-        folderLayer.setBackgroundColor(night ? 0xCC14123A : 0xCCF6F5FF);
+        folderLayer.setBackground(darkGlass(new Glass(folderLayer, 0, null, night ? 0x9914123A : 0x99F6F5FF, 0, 0)));
         folderLayer.setOnClickListener(v -> closeFolder());
         LinearLayout panel = new LinearLayout(this);
         panel.setOrientation(LinearLayout.VERTICAL);
         int pd = (int) (16 * d);
         panel.setPadding(pd, pd, pd, pd);
-        GradientDrawable bg = new GradientDrawable();
-        bg.setColor(night ? 0xFF2A2862 : 0xFFFFFFFF);
-        bg.setStroke(Math.max(1, (int) d), boxStroke);
-        bg.setCornerRadius(24 * d);
-        panel.setBackground(bg);
+        panel.setBackground(glass(panel, 24, 1, null));
         panel.setOnClickListener(v -> { });
         TextView title = new TextView(this);
         title.setText(f.label);
@@ -1222,6 +1647,7 @@ public class HomeActivity extends Activity {
 
     private void setEditing(boolean on) {
         editing = on;
+        if (dock != null) dock.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS);
         if (doneBtn != null) doneBtn.setVisibility(on ? View.VISIBLE : View.GONE);
         if (restoreBtn != null) restoreBtn.setVisibility(on && !getSharedPreferences("home", MODE_PRIVATE).getString("hidden", "").isEmpty() ? View.VISIBLE : View.GONE);
         if (curGrid != null) build(curGrid, curDock);
@@ -1288,11 +1714,9 @@ public class HomeActivity extends Activity {
         LinearLayout box = new LinearLayout(this);
         box.setOrientation(LinearLayout.VERTICAL);
         box.setGravity(Gravity.CENTER_HORIZONTAL);
-        final TextView c = new TextView(this);
-        c.setText(glyph);
-        c.setGravity(Gravity.CENTER);
-        c.setTextSize(TypedValue.COMPLEX_UNIT_SP, 20);
-        c.setTypeface(Typeface.create("sans-serif-light", Typeface.NORMAL));
+        final ImageView c = new ImageView(this);
+        c.setScaleType(ImageView.ScaleType.CENTER);
+        final int gs = (int) (28 * d);
         final Runnable style = new Runnable() {
             boolean state = on;
             @Override public void run() {
@@ -1301,7 +1725,7 @@ public class HomeActivity extends Activity {
                 g.setColor(state ? (night ? 0xFF7BA7FF : 0xFF3B6BEA) : boxFill);
                 g.setStroke(Math.max(1, (int) d), boxStroke);
                 c.setBackground(g);
-                c.setTextColor(state ? (night ? 0xFF14123A : Color.WHITE) : labelColor);
+                c.setImageBitmap(Tiles.make(glyph, gs, state ? (night ? 0xFF14123A : Color.WHITE) : labelColor));
             }
         };
         style.run();
@@ -1313,7 +1737,8 @@ public class HomeActivity extends Activity {
             g.setColor(st[0] ? (night ? 0xFF7BA7FF : 0xFF3B6BEA) : boxFill);
             g.setStroke(Math.max(1, (int) d), boxStroke);
             c.setBackground(g);
-            c.setTextColor(st[0] ? (night ? 0xFF14123A : Color.WHITE) : labelColor);
+            c.setImageBitmap(Tiles.make(glyph, gs, st[0] ? (night ? 0xFF14123A : Color.WHITE) : labelColor));
+            c.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY);
             c.animate().cancel(); c.setScaleX(0.88f); c.setScaleY(0.88f);
             c.animate().scaleX(1f).scaleY(1f).setDuration(300).setInterpolator(new android.view.animation.OvershootInterpolator(3f)).start();
         });
@@ -1344,7 +1769,9 @@ public class HomeActivity extends Activity {
         return v;
     }
 
-    private void showControl() {
+    private void showControl() { showControl(false); }
+
+    private void showControl(final boolean interactive) {
         if (ccLayer != null) return;
         ViewGroup content = (ViewGroup) findViewById(android.R.id.content);
         ccLayer = new FrameLayout(this);
@@ -1354,11 +1781,7 @@ public class HomeActivity extends Activity {
         panel.setOrientation(LinearLayout.VERTICAL);
         int pd = (int) (18 * d);
         panel.setPadding(pd, (int) (10 * d), pd, pd);
-        GradientDrawable bg = new GradientDrawable();
-        bg.setColor(night ? 0xF51E1B4B : 0xF5F6F5FF);
-        bg.setStroke(Math.max(1, (int) d), boxStroke);
-        bg.setCornerRadii(new float[]{28 * d, 28 * d, 28 * d, 28 * d, 0, 0, 0, 0});
-        panel.setBackground(bg);
+        panel.setBackground(glass(panel, 28, 1, new float[]{28 * d, 28 * d, 28 * d, 28 * d, 0, 0, 0, 0}));
         panel.setOnClickListener(v -> { });
 
         View grip = new View(this);
@@ -1370,15 +1793,40 @@ public class HomeActivity extends Activity {
         final android.bluetooth.BluetoothAdapter bt = android.bluetooth.BluetoothAdapter.getDefaultAdapter();
         LinearLayout tiles = new LinearLayout(this);
         tiles.setOrientation(LinearLayout.HORIZONTAL);
-        tiles.addView(ccTile("Wi-Fi", "Wi-Fi", wm != null && wm.isWifiEnabled(), () -> { boolean on = !wm.isWifiEnabled(); wm.setWifiEnabled(on); return on; }), new LinearLayout.LayoutParams(0, -2, 1f));
-        tiles.addView(ccTile("BT", "Bluetooth", bt != null && bt.isEnabled(), () -> { if (bt.isEnabled()) { bt.disable(); return false; } bt.enable(); return true; }), new LinearLayout.LayoutParams(0, -2, 1f));
-        tiles.addView(ccTile("\u2600", "Linterna", torchOn, () -> { toggleTorch(); return torchOn; }), new LinearLayout.LayoutParams(0, -2, 1f));
-        tiles.addView(ccTile("\u21bb", "Rotación", Settings.System.getInt(getContentResolver(), Settings.System.ACCELEROMETER_ROTATION, 0) == 1, () -> {
+        tiles.addView(ccTile("wifi", "Wi-Fi", wm != null && wm.isWifiEnabled(), () -> { boolean on = !wm.isWifiEnabled(); wm.setWifiEnabled(on); return on; }), new LinearLayout.LayoutParams(0, -2, 1f));
+        tiles.addView(ccTile("bt", "Bluetooth", bt != null && bt.isEnabled(), () -> { if (bt.isEnabled()) { bt.disable(); return false; } bt.enable(); return true; }), new LinearLayout.LayoutParams(0, -2, 1f));
+        tiles.addView(ccTile("torch", "Linterna", torchOn, () -> { toggleTorch(); return torchOn; }), new LinearLayout.LayoutParams(0, -2, 1f));
+        tiles.addView(ccTile("rot", "Rotación", Settings.System.getInt(getContentResolver(), Settings.System.ACCELEROMETER_ROTATION, 0) == 1, () -> {
             boolean on = Settings.System.getInt(getContentResolver(), Settings.System.ACCELEROMETER_ROTATION, 0) != 1;
             Settings.System.putInt(getContentResolver(), Settings.System.ACCELEROMETER_ROTATION, on ? 1 : 0);
             return on;
         }), new LinearLayout.LayoutParams(0, -2, 1f));
         panel.addView(tiles);
+        // second row: ringer, dark mode, reduced motion
+        final android.media.AudioManager aum = (android.media.AudioManager) getSystemService(AUDIO_SERVICE);
+        LinearLayout tiles2 = new LinearLayout(this);
+        tiles2.setOrientation(LinearLayout.HORIZONTAL);
+        tiles2.setPadding(0, (int) (10 * d), 0, 0);
+        tiles2.addView(ccTile("mute", "Silencio", aum.getRingerMode() != android.media.AudioManager.RINGER_MODE_NORMAL, () -> {
+            boolean on = aum.getRingerMode() == android.media.AudioManager.RINGER_MODE_NORMAL;
+            aum.setRingerMode(on ? android.media.AudioManager.RINGER_MODE_VIBRATE : android.media.AudioManager.RINGER_MODE_NORMAL);
+            return on;
+        }), new LinearLayout.LayoutParams(0, -2, 1f));
+        final String curMode = Settings.System.getString(getContentResolver(), "ios_theme_mode");
+        tiles2.addView(ccTile("moon", "Oscuro", "night".equals(curMode), () -> {
+            boolean on = !"night".equals(Settings.System.getString(getContentResolver(), "ios_theme_mode"));
+            Settings.System.putString(getContentResolver(), "ios_theme_mode", on ? "night" : "auto");
+            try { ((android.app.UiModeManager) getSystemService(UI_MODE_SERVICE)).setNightMode(on ? android.app.UiModeManager.MODE_NIGHT_YES : android.app.UiModeManager.MODE_NIGHT_AUTO); } catch (Exception ignored) { }
+            return on;
+        }), new LinearLayout.LayoutParams(0, -2, 1f));
+        tiles2.addView(ccTile("aurora", "Aurora en pausa", AuroraField.reduced, () -> {
+            boolean on = !AuroraField.reduced;
+            AuroraField.reduced = on;
+            getSharedPreferences("home", MODE_PRIVATE).edit().putBoolean("aurora_reduced", on).apply();
+            return on;
+        }), new LinearLayout.LayoutParams(0, -2, 1f));
+        tiles2.addView(new View(this), new LinearLayout.LayoutParams(0, 1, 1f));
+        panel.addView(tiles2);
 
         panel.addView(ccLabel("BRILLO"));
         int br = 128;
@@ -1420,9 +1868,38 @@ public class HomeActivity extends Activity {
         ccLayer.addView(panel, new FrameLayout.LayoutParams(-1, -2, Gravity.BOTTOM));
         content.addView(ccLayer, new FrameLayout.LayoutParams(-1, -1));
         ccLayer.setAlpha(0f);
-        ccLayer.animate().alpha(1f).setDuration(180).start();
         panel.setTranslationY(420 * d);
-        panel.animate().translationY(0f).setDuration(320).setInterpolator(new android.view.animation.DecelerateInterpolator(2.2f)).start();
+        if (!interactive) {
+            ccLayer.animate().alpha(1f).setDuration(180).start();
+            panel.animate().translationY(0f).setDuration(380).setInterpolator(new android.view.animation.OvershootInterpolator(0.9f)).start();
+        }
+    }
+
+    // ---- interactive Control Center: the sheet follows the finger from the dock ----------------------------
+
+    private boolean ccArmed, ccDragging;
+    private float ccDownY, ccDownX;
+    private android.view.VelocityTracker ccVel;
+
+    private void ccDrag(float dy) {
+        if (ccPanel == null || ccLayer == null) return;
+        float hgt = ccPanel.getHeight() > 0 ? ccPanel.getHeight() : 400 * d;
+        float lift = Math.max(0f, Math.min(hgt, -dy));
+        ccPanel.setTranslationY(hgt - lift + (lift >= hgt ? 0f : 0f));
+        ccLayer.setAlpha(lift / hgt);
+    }
+
+    private void ccSettle(float vy) {
+        if (ccLayer == null || ccPanel == null) { ccDragging = false; return; }
+        float hgt = ccPanel.getHeight() > 0 ? ccPanel.getHeight() : 400 * d;
+        boolean open = (hgt - ccPanel.getTranslationY()) > hgt * 0.35f || vy < -900 * d;
+        if (vy > 900 * d) open = false;
+        ccDragging = false;
+        if (open) {
+            ccLayer.animate().alpha(1f).setDuration(200).start();
+            ccPanel.animate().translationY(0f).setDuration(420).setInterpolator(new android.view.animation.OvershootInterpolator(1.1f)).start();
+            ccPanel.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY);
+        } else hideControl();
     }
 
     private void hideControl() {
@@ -1480,20 +1957,37 @@ public class HomeActivity extends Activity {
         reload();
     }
 
+    private float cellScale = 1f;
+
     private View cell(App a, boolean label) {
         LinearLayout c = new LinearLayout(this);
         c.setOrientation(LinearLayout.VERTICAL);
+        c.setClipChildren(false); c.setClipToPadding(false);
         c.setGravity(label ? Gravity.CENTER_HORIZONTAL | Gravity.TOP : Gravity.CENTER);
         c.setPadding(0, label ? (int) (6 * d) : 0, 0, 0);
         ImageView iv = new ImageView(this);
         iv.setImageBitmap(cache.get(a.pkg));
-        int s = (int) (54 * d);
+        if (LiveIcons.isLive(a.pkg)) liveViews.put(a.pkg, iv);
+        final TextView badge = new TextView(this);
+        badge.setTextColor(Color.WHITE);
+        badge.setTextSize(TypedValue.COMPLEX_UNIT_SP, 11);
+        badge.setGravity(Gravity.CENTER);
+        badge.setTypeface(Typeface.create("sans-serif-medium", Typeface.NORMAL));
+        GradientDrawable bgd = new GradientDrawable();
+        bgd.setColor(0xFFFF3B5C); bgd.setCornerRadius(10 * d); bgd.setStroke(Math.max(1, (int) d), 0xFFFFFFFF);
+        badge.setBackground(bgd);
+        badge.setVisibility(View.GONE);
+        if (a.kids == null) badgeViews.put(a.pkg, badge);
+        int s = (int) (54 * d * cellScale);
         FrameLayout ic = new FrameLayout(this);
         ic.setElevation(night ? 3 * d : 4 * d);
         ic.setOutlineProvider(new ViewOutlineProvider() {
             @Override public void getOutline(View v, Outline o) { o.setRoundRect(0, 0, v.getWidth(), v.getHeight(), v.getWidth() * 0.225f); o.setAlpha(0.9f); }
         });
         ic.addView(iv, new FrameLayout.LayoutParams(s, s));
+        ic.setClipChildren(false);
+        ic.addView(badge, new FrameLayout.LayoutParams((int) (20 * d), (int) (20 * d), Gravity.TOP | Gravity.RIGHT) {{ topMargin = (int) (-3 * d); rightMargin = (int) (-3 * d); }});
+        applyBadge(a.pkg, badge);
         if (editing) {
             TextView x = new TextView(this);
             x.setText("\u00d7");
@@ -1552,6 +2046,164 @@ public class HomeActivity extends Activity {
         }
     }
 
+
+    // ---- Multitarea: recent apps as glass cards, split screen, swipe up to close ---------------------------
+
+    private FrameLayout swLayer;
+
+    /** Apps that came to the foreground recently, newest first (needs the usage-stats permission, see docs/restore.md). */
+    private List<Object[]> recentApps() {
+        List<Object[]> out = new ArrayList<>();
+        try {
+            android.app.usage.UsageStatsManager usm = (android.app.usage.UsageStatsManager) getSystemService(USAGE_STATS_SERVICE);
+            long now = System.currentTimeMillis();
+            android.app.usage.UsageEvents ev = usm.queryEvents(now - 12L * 3600 * 1000, now);
+            android.app.usage.UsageEvents.Event e = new android.app.usage.UsageEvents.Event();
+            java.util.LinkedHashMap<String, Long> last = new java.util.LinkedHashMap<>();
+            while (ev != null && ev.hasNextEvent()) {
+                ev.getNextEvent(e);
+                if (e.getEventType() == android.app.usage.UsageEvents.Event.MOVE_TO_FOREGROUND) { last.remove(e.getPackageName()); last.put(e.getPackageName(), e.getTimeStamp()); }
+            }
+            List<String> keys = new ArrayList<>(last.keySet());
+            Collections.reverse(keys);
+            for (String k : keys) {
+                if (out.size() >= 8) break;
+                if (k.equals(getPackageName()) || k.equals("com.android.systemui")) continue;
+                for (App a : allApps) if (a.pkg.equals(k) && a.kids == null) { out.add(new Object[]{a, last.get(k)}); break; }
+            }
+        } catch (Exception ignored) { }
+        return out;
+    }
+
+    private String ago(long t) {
+        long m = Math.max(0, (System.currentTimeMillis() - t) / 60000);
+        return m < 1 ? "ahora mismo" : m < 60 ? "hace " + m + " min" : "hace " + (m / 60) + " h";
+    }
+
+    private void showSwitcher() {
+        if (swLayer != null) return;
+        ViewGroup content = (ViewGroup) findViewById(android.R.id.content);
+        swLayer = new FrameLayout(this);
+        swLayer.setBackground(darkGlass(new Glass(swLayer, 0, null, night ? 0xB3141238 : 0xB8F6F5FF, 0, 0)));
+        swLayer.setOnClickListener(v -> hideSwitcher());
+        swLayer.setAlpha(0f);
+        TextView title = new TextView(this);
+        title.setText("Multitarea"); title.setTextColor(labelColor); title.setTextSize(TypedValue.COMPLEX_UNIT_SP, 28);
+        title.setTypeface(Typeface.create("sans-serif-thin", Typeface.NORMAL));
+        swLayer.addView(title, new FrameLayout.LayoutParams(-2, -2, Gravity.TOP | Gravity.CENTER_HORIZONTAL) {{ topMargin = (int) (52 * d); }});
+        final List<Object[]> recents = recentApps();
+        if (recents.isEmpty()) {
+            TextView none = new TextView(this);
+            none.setText("Aún no hay apps recientes"); none.setTextColor(subColor); none.setTextSize(TypedValue.COMPLEX_UNIT_SP, 16);
+            swLayer.addView(none, new FrameLayout.LayoutParams(-2, -2, Gravity.CENTER));
+        } else {
+            final HorizontalScrollView hs = new HorizontalScrollView(this);
+            hs.setHorizontalScrollBarEnabled(false);
+            hs.setClipChildren(false);
+            final LinearLayout row = new LinearLayout(this);
+            row.setOrientation(LinearLayout.HORIZONTAL);
+            row.setClipChildren(false);
+            int side = (int) ((w - 190 * d) / 2);
+            row.setPadding(side, 0, side, 0);
+            int i = 0;
+            for (Object[] r : recents) {
+                View card = switcherCard((App) r[0], (Long) r[1], row);
+                row.addView(card, new LinearLayout.LayoutParams((int) (190 * d), (int) (300 * d)) {{ leftMargin = (int) (8 * d); rightMargin = (int) (8 * d); }});
+                card.setAlpha(0f); card.setTranslationY(60 * d);
+                card.animate().alpha(1f).translationY(0f).setStartDelay(60L * i++).setDuration(420).setInterpolator(new android.view.animation.OvershootInterpolator(1.4f)).start();
+            }
+            hs.addView(row, new FrameLayout.LayoutParams(-2, -1));
+            swLayer.addView(hs, new FrameLayout.LayoutParams(-1, (int) (320 * d), Gravity.CENTER_VERTICAL) {{ topMargin = (int) (20 * d); }});
+            // cards shrink and fade toward the edges
+            hs.getViewTreeObserver().addOnScrollChangedListener(() -> {
+                float mid = hs.getScrollX() + w / 2f;
+                for (int k = 0; k < row.getChildCount(); k++) {
+                    View c = row.getChildAt(k);
+                    float off = Math.min(1f, Math.abs((c.getLeft() + c.getWidth() / 2f) - mid) / (w * 0.7f));
+                    c.setScaleX(1f - 0.12f * off); c.setScaleY(1f - 0.12f * off);
+                }
+            });
+            TextView hint = new TextView(this);
+            hint.setText("Desliza una tarjeta hacia arriba para cerrarla"); hint.setTextColor(subColor); hint.setTextSize(TypedValue.COMPLEX_UNIT_SP, 12);
+            swLayer.addView(hint, new FrameLayout.LayoutParams(-2, -2, Gravity.BOTTOM | Gravity.CENTER_HORIZONTAL) {{ bottomMargin = (int) (58 * d); }});
+        }
+        content.addView(swLayer, new FrameLayout.LayoutParams(-1, -1));
+        swLayer.animate().alpha(1f).setDuration(220).start();
+        for (View v : new View[]{pager, dock, headTime, headDate, dots}) if (v != null) v.animate().scaleX(0.9f).scaleY(0.9f).alpha(0.35f).setDuration(260).setInterpolator(new android.view.animation.DecelerateInterpolator(2f)).start();
+        swLayer.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY);
+    }
+
+    private View switcherCard(final App a, long when, final LinearLayout row) {
+        final LinearLayout card = new LinearLayout(this);
+        card.setOrientation(LinearLayout.VERTICAL);
+        card.setGravity(Gravity.CENTER_HORIZONTAL);
+        card.setPadding((int) (14 * d), (int) (26 * d), (int) (14 * d), (int) (14 * d));
+        card.setBackground(glass(card, 26, null));
+        card.setElevation(10 * d);
+        ImageView ic = new ImageView(this);
+        ic.setImageBitmap(cache.get(a.pkg));
+        card.addView(ic, new LinearLayout.LayoutParams((int) (84 * d), (int) (84 * d)));
+        TextView name = new TextView(this);
+        name.setText(a.label); name.setTextColor(labelColor); name.setTextSize(TypedValue.COMPLEX_UNIT_SP, 20);
+        name.setTypeface(Typeface.create("sans-serif-light", Typeface.NORMAL)); name.setSingleLine(); name.setGravity(Gravity.CENTER);
+        card.addView(name, new LinearLayout.LayoutParams(-1, -2) {{ topMargin = (int) (16 * d); }});
+        TextView t = new TextView(this);
+        t.setText(ago(when)); t.setTextColor(subColor); t.setTextSize(TypedValue.COMPLEX_UNIT_SP, 13);
+        card.addView(t);
+        View gap = new View(this);
+        card.addView(gap, new LinearLayout.LayoutParams(1, 0, 1f));
+        TextView open = pill("Abrir");
+        open.setOnClickListener(v -> { hideSwitcher(); launch(a, card); });
+        card.addView(open, new LinearLayout.LayoutParams(-1, -2) {{ bottomMargin = (int) (8 * d); }});
+        TextView split = pill("Dividir pantalla");
+        split.setOnClickListener(v -> { hideSwitcher(); splitWith(a, card); });
+        card.addView(split, new LinearLayout.LayoutParams(-1, -2));
+        for (TextView p : new TextView[]{open, split}) { p.setGravity(Gravity.CENTER); p.setVisibility(View.VISIBLE); }
+        card.setOnClickListener(v -> { hideSwitcher(); launch(a, card); });
+        // swipe up to close the app
+        final float[] st = new float[2];
+        card.setOnTouchListener((v, e) -> {
+            switch (e.getAction()) {
+                case MotionEvent.ACTION_DOWN: st[0] = e.getRawX(); st[1] = e.getRawY(); return false;
+                case MotionEvent.ACTION_MOVE: {
+                    float dy = e.getRawY() - st[1], dx = e.getRawX() - st[0];
+                    if (dy < -10 * d && Math.abs(dy) > Math.abs(dx) * 1.2f) { v.getParent().requestDisallowInterceptTouchEvent(true); v.setTranslationY(dy); v.setAlpha(Math.max(0.3f, 1f + dy / (260 * d))); return true; }
+                    return false;
+                }
+                case MotionEvent.ACTION_UP: case MotionEvent.ACTION_CANCEL: {
+                    float dy = e.getRawY() - st[1];
+                    if (v.getTranslationY() < -90 * d && dy < -90 * d) {
+                        v.animate().translationY(-420 * d).alpha(0f).setDuration(220).withEndAction(() -> {
+                            try { ((ActivityManager) getSystemService(ACTIVITY_SERVICE)).killBackgroundProcesses(a.pkg); } catch (Exception ignored) { }
+                            row.removeView(v);
+                            Toast.makeText(this, a.label + " cerrada", Toast.LENGTH_SHORT).show();
+                        }).start();
+                        return true;
+                    }
+                    if (v.getTranslationY() != 0f) { v.animate().translationY(0f).alpha(1f).setDuration(300).setInterpolator(new android.view.animation.OvershootInterpolator(2f)).start(); return true; }
+                    return false;
+                }
+            }
+            return false;
+        });
+        return card;
+    }
+
+    private void hideSwitcher() {
+        if (swLayer == null) return;
+        final FrameLayout l = swLayer;
+        swLayer = null;
+        for (View v : new View[]{pager, dock, headTime, headDate, dots}) if (v != null) v.animate().scaleX(1f).scaleY(1f).alpha(1f).setDuration(320).setInterpolator(new android.view.animation.OvershootInterpolator(1.6f)).start();
+        l.animate().alpha(0f).setDuration(180).withEndAction(() -> { if (l.getParent() != null) ((ViewGroup) l.getParent()).removeView(l); }).start();
+    }
+
+    /** Opens the app, docks it to the top half with the system's split-screen action, and the second app is picked in the half below. */
+    private void splitWith(App a, View from) {
+        if (SplitService.inst == null) { Toast.makeText(this, "Activa «Aurora multitarea» en Accesibilidad", Toast.LENGTH_LONG).show(); launch(a, from); return; }
+        launch(a, from);
+        ui.postDelayed(() -> { if (!SplitService.splitScreen()) Toast.makeText(this, "Esta app no admite pantalla dividida", Toast.LENGTH_SHORT).show(); }, 1100);
+    }
+
     // ---- icons ------------------------------------------------------------
 
     /** Colour tile: vertical gradient per app kind, hairline highlight border, white line glyph. */
@@ -1559,11 +2211,12 @@ public class HomeActivity extends Activity {
         if (cache.containsKey(a.pkg)) return;
         int s = (int) (54 * d);
         if (a.kids != null) { cache.put(a.pkg, folderIcon(a, s)); return; }
-        Bitmap out = Bitmap.createBitmap(s, s, Bitmap.Config.ARGB_8888);
-        Canvas c = new Canvas(out);
         Path sq = squircle(s);
         String kind = Glyphs.kindFor(a.pkg);
         int[] g = Glyphs.gradientFor(kind, a.pkg);
+        if (LiveIcons.isLive(a.pkg)) { cache.put(a.pkg, LiveIcons.make(a.pkg, s, g, sq, d)); return; }
+        Bitmap out = Bitmap.createBitmap(s, s, Bitmap.Config.ARGB_8888);
+        Canvas c = new Canvas(out);
         Paint p = new Paint(Paint.ANTI_ALIAS_FLAG);
         p.setShader(new LinearGradient(0, 0, 0, s, g[0], g[1], Shader.TileMode.CLAMP));
         c.drawPath(sq, p);
@@ -1662,9 +2315,13 @@ public class HomeActivity extends Activity {
             for (int i = 0; i < strip.getChildCount(); i++) {
                 float off = Math.min(1f, Math.abs((l - i * pageW) / (float) pageW));
                 View v = strip.getChildAt(i);
-                v.setAlpha(1f - 0.55f * off);
                 v.setScaleX(1f - 0.06f * off);
                 v.setScaleY(1f - 0.06f * off);
+                if (v instanceof GridLayout) {   // icons fan out: each column trails the page by a different amount
+                    float rel = (l - i * pageW) / (float) pageW;      // -1..1
+                    GridLayout g = (GridLayout) v;
+                    for (int j = 0; j < g.getChildCount(); j++) g.getChildAt(j).setTranslationX(-rel * pageW * 0.16f * ((j % 4) - 1.5f) / 1.5f);
+                }
             }
         }
         void addPage(View v, int w) { pageW = w; strip.addView(v, new LinearLayout.LayoutParams(w, ViewGroup.LayoutParams.MATCH_PARENT)); }
@@ -1672,10 +2329,45 @@ public class HomeActivity extends Activity {
         void setOnScroll(java.util.function.IntConsumer c) { scrollCb = c; }
         View pageView(int i) { return i >= 0 && i < strip.getChildCount() ? strip.getChildAt(i) : null; }
         int page() { return cur; }
-        void goTo(int p) { smoothScrollTo(p * pageW, 0); set(p); }
+        int count() { return strip.getChildCount(); }
+        int pageWidth() { return pageW; }
+        private android.animation.ValueAnimator snap;
+        void goTo(int p) {
+            int from = getScrollX(), to = p * pageW;
+            if (snap != null) snap.cancel();
+            if (from == to) { set(p); return; }
+            snap = android.animation.ValueAnimator.ofInt(from, to);
+            snap.setDuration(460);
+            // lightly under-damped spring: reaches the page, overshoots ~2 % and settles
+            snap.setInterpolator(t -> (float) (1 - Math.exp(-12 * t) * Math.cos(10 * t)));
+            snap.addUpdateListener(a -> scrollTo((Integer) a.getAnimatedValue(), 0));
+            snap.start();
+            set(p);
+        }
         void goToNow(int p) { p = Math.min(p, Math.max(0, strip.getChildCount() - 1)); scrollTo(p * pageW, 0); set(p); }
-        private void set(int p) { if (p != cur || cb != null) { cur = p; if (cb != null) cb.on(p); } }
+        private void set(int p) { if (p != cur) performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK); if (p != cur || cb != null) { cur = p; if (cb != null) cb.on(p); } }
+        private float bandX0;
+        /** Rubber band: past the first or last page the content follows the finger with resistance and springs back. */
+        private void band(MotionEvent e) {
+            switch (e.getAction()) {
+                case MotionEvent.ACTION_DOWN: bandX0 = e.getX(); strip.animate().cancel(); break;
+                case MotionEvent.ACTION_MOVE: {
+                    float dx = e.getX() - bandX0;
+                    int max = Math.max(0, strip.getWidth() - getWidth());
+                    boolean atStart = getScrollX() <= 0 && dx > 0, atEnd = getScrollX() >= max && dx < 0;
+                    if (atStart || atEnd) { float r = Math.min(Math.abs(dx), 700f); strip.setTranslationX(Math.signum(dx) * (float) Math.sqrt(r) * 7.5f * getResources().getDisplayMetrics().density / 1.5f); }
+                    else if (strip.getTranslationX() != 0f) strip.setTranslationX(0f);
+                    break;
+                }
+                case MotionEvent.ACTION_UP: case MotionEvent.ACTION_CANCEL:
+                    if (strip.getTranslationX() != 0f) strip.animate().translationX(0f).setDuration(420).setInterpolator(new android.view.animation.OvershootInterpolator(2.4f)).start();
+                    break;
+            }
+        }
+
         @Override public boolean onTouchEvent(MotionEvent e) {
+            band(e);
+            if (e.getAction() == MotionEvent.ACTION_DOWN && snap != null) snap.cancel();
             boolean r = super.onTouchEvent(e);
             if (e.getAction() == MotionEvent.ACTION_UP || e.getAction() == MotionEvent.ACTION_CANCEL) {
                 int n = Math.max(1, strip.getChildCount());

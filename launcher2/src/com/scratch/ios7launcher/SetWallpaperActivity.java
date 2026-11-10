@@ -2,6 +2,8 @@ package com.scratch.ios7launcher;
 
 import android.app.Activity;
 import android.app.WallpaperManager;
+import android.content.ComponentName;
+import android.content.Intent;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.os.Bundle;
@@ -13,6 +15,13 @@ public class SetWallpaperActivity extends Activity {
     protected void onCreate(Bundle b) {
         super.onCreate(b);
         String path = getIntent().getStringExtra("path");
+        if (getIntent().getBooleanExtra("aurora", false)) {   // `--ez aurora true`: open the live-wallpaper preview of Aurora
+            Intent i = new Intent(WallpaperManager.ACTION_CHANGE_LIVE_WALLPAPER)
+                    .putExtra(WallpaperManager.EXTRA_LIVE_WALLPAPER_COMPONENT, new ComponentName(this, AuroraWallpaper.class));
+            startActivity(i);
+            finish();
+            return;
+        }
         try {
             Bitmap bmp = BitmapFactory.decodeFile(path);
             Log.d("SetWallpaper", "decoded " + path + " -> " + (bmp == null ? "null" : bmp.getWidth() + "x" + bmp.getHeight()));

@@ -117,6 +117,8 @@ final class AppIndex {
         void record(String pkg, String normQuery) {
             SharedPreferences.Editor e = sp.edit();
             e.putInt("n:" + pkg, sp.getInt("n:" + pkg, 0) + 1);
+            String hk = "h:" + bucket() + "|" + pkg;
+            e.putInt(hk, sp.getInt(hk, 0) + 1);
             for (int len = 2; len <= Math.min(normQuery.length(), 12); len++) {
                 String k = "q:" + normQuery.substring(0, len) + "|" + pkg;
                 e.putInt(k, sp.getInt(k, 0) + 1);
@@ -125,6 +127,12 @@ final class AppIndex {
         }
 
         int count(String pkg) { return sp.getInt("n:" + pkg, 0); }
+
+        /** Six 4-hour slots of the day. */
+        static int bucket() { return java.util.Calendar.getInstance().get(java.util.Calendar.HOUR_OF_DAY) / 4; }
+
+        /** How likely you are to want this app now: overall use plus a strong weight for use in this part of the day. */
+        float suggest(String pkg) { return count(pkg) + 4f * sp.getInt("h:" + bucket() + "|" + pkg, 0); }
 
         /** Bonus for an app that matched: how often you use it, and how often you chose it for this very query. */
         int bonus(String pkg, String normQuery) {

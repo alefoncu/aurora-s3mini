@@ -17,7 +17,7 @@ import java.util.Locale;
 final class Smart {
     /** One extra row in the results. {@code glyph} is drawn on a coloured tile; {@code intent} or {@code special} is the action. */
     static final class Item {
-        String glyph, title, sub;
+        String glyph, title, sub, glyphTag;
         int color;
         Intent intent;
         String special;      // "copy:<text>", "torch", "note:<text>"
@@ -41,6 +41,8 @@ final class Smart {
         if ((it = alarm(n)) != null) out.add(it);
         if ((it = timer(n)) != null) out.add(it);
         if ((it = note(q, n)) != null) out.add(it);
+        if ((it = city(q, n)) != null) out.add(it);
+        Brain.answer(q, n, out);
         if (Fuzzy.score(n, "linterna") >= 60 || n.equals("torch") || n.equals("flash")) {
             it = new Item("☀", 0xFFF59E0B, "Linterna", "Encender o apagar"); it.special = "torch"; out.add(it);
         }
@@ -216,6 +218,15 @@ final class Smart {
         Item it = new Item("⏳", 0xFFF59E0B, "Temporizador de " + (sec >= 3600 ? (sec / 3600) + " h" : sec >= 60 ? (sec / 60) + " min" : sec + " s"), "Reloj");
         it.intent = new Intent(AlarmClock.ACTION_SET_TIMER).putExtra(AlarmClock.EXTRA_LENGTH, sec)
                 .setClassName("com.scratch.iosclock", "com.scratch.iosclock.IntentActivity");
+        return it;
+    }
+
+    private static Item city(String q, String n) {
+        if (!(n.startsWith("tiempo ") || n.startsWith("clima ") || n.startsWith("weather "))) return null;
+        String body = q.substring(q.indexOf(' ') + 1).trim();
+        if (body.isEmpty()) return null;
+        Item it = new Item("\u2601", 0xFF38BDF8, "Ver el tiempo en " + body, "Fijar ciudad en Hoy");
+        it.special = "city:" + body;
         return it;
     }
 

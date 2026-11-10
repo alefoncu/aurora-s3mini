@@ -33,6 +33,9 @@ final class Glyphs {
             case "com.scratch.iosmusic": return "music";
             case "org.lineageos.recorder":
             case "com.scratch.iosrecorder": return "mic";
+            case "com.scratch.iosweather": return "weather";
+            case "com.scratch.iosnotes": return "notes";
+            case "com.scratch.iosmeasure": return "measure";
             case "com.android.vending": return "store";
             case "org.lineageos.jelly":
             case "com.android.chrome": return "globe";
@@ -60,6 +63,9 @@ final class Glyphs {
             case "calendar": return new int[]{0xFFFCA5A5, 0xFFDC2626};
             case "music": return new int[]{0xFFF9A8D4, 0xFFBE185D};
             case "mic": return new int[]{0xFFFDA4AF, 0xFFE11D48};
+            case "weather": return new int[]{0xFF7DD3FC, 0xFF2563EB};
+            case "notes": return new int[]{0xFFFDE047, 0xFFF59E0B};
+            case "measure": return new int[]{0xFF5EEAD4, 0xFF0F766E};
             case "store": return new int[]{0xFF5EEAD4, 0xFF0D9488};
             default: return new int[]{0xFF93C5FD, 0xFF1D4ED8};
         }
@@ -194,6 +200,18 @@ final class Glyphs {
                 c.drawLine(21, 35, 21, 14, p);
                 c.drawLine(37, 31, 37, 10, p);
                 c.drawLine(21, 14, 37, 10, p);
+                break;
+            }
+            case "weather": Tiles.weather(c, p, "partly", 1f); break;
+            case "measure": {
+                c.drawCircle(24, 24, 15, p);
+                Path nd = new Path(); nd.moveTo(24, 12); nd.lineTo(28, 24); nd.lineTo(24, 36); nd.lineTo(20, 24); nd.close();
+                c.drawPath(nd, p);
+                break;
+            }
+            case "notes": {
+                c.drawRoundRect(new RectF(11, 8, 37, 40), 4, 4, p);
+                c.drawLine(17, 17, 31, 17, p); c.drawLine(17, 24, 31, 24, p); c.drawLine(17, 31, 25, 31, p);
                 break;
             }
             case "mic": {

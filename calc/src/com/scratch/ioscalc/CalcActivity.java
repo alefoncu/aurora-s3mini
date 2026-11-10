@@ -81,6 +81,14 @@ public class CalcActivity extends Activity {
         }
         setContentView(root);
         show();
+        col.addOnLayoutChangeListener((v, ll, tt, rr, bb, oll, ott, orr, obb) -> {   // half-height windows (split screen): scale keys and display to the room available
+            if (bb - tt == obb - ott) return;
+            for (java.util.Map.Entry<String, TextView> e : btn.entrySet()) {
+                float keyH = (bb - tt - col.getPaddingTop() - col.getPaddingBottom()) / 7.2f - 8 * d;
+                e.getValue().setTextSize(TypedValue.COMPLEX_UNIT_PX, Math.min(e.getValue().getTextSize(), Math.max(14 * d, keyH * 0.46f)));
+            }
+            show();
+        });
     }
 
     @Override public void onConfigurationChanged(Configuration c) { super.onConfigurationChanged(c); recreate(); }
@@ -195,7 +203,8 @@ public class CalcActivity extends Activity {
                     .setInterpolator(new android.view.animation.DecelerateInterpolator(2f)).start();
         }
         int sp = s.length() <= 7 ? 84 : s.length() <= 9 ? 68 : s.length() <= 11 ? 54 : 44;
-        display.setTextSize(TypedValue.COMPLEX_UNIT_SP, sp);
+        if (display.getHeight() > 0) sp = (int) Math.min(sp, display.getHeight() / d * 0.62f / 1.2f * 1.0f);   // split screen: never taller than the display area
+        display.setTextSize(TypedValue.COMPLEX_UNIT_SP, Math.max(24, sp));
         TextView ac = btn.get("AC");
         ac.setText(!fresh && !cur.equals("0") && !error ? "C" : "AC");
         for (String k : new String[]{"÷", "×", "−", "+"})

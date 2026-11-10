@@ -15,7 +15,14 @@ public class NotifyReceiver extends BroadcastReceiver {
                 .setContentTitle(i.getStringExtra("title"))
                 .setContentText(i.getStringExtra("text"))
                 .setWhen(System.currentTimeMillis())
+                .addExtras(extras(i))
                 .build();
         ((NotificationManager) c.getSystemService(Context.NOTIFICATION_SERVICE)).notify(i.getIntExtra("id", 1), n);
+    }
+
+    private static android.os.Bundle extras(Intent i) {
+        android.os.Bundle b = new android.os.Bundle();
+        if (i.getStringExtra("badge_for") != null) b.putString("badge_for", i.getStringExtra("badge_for"));
+        return b;
     }
 }

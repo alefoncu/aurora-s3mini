@@ -2,7 +2,7 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android" package="com.scratch.ioscalc" android:versionCode="1" android:versionName="1.0">
     <uses-sdk android:minSdkVersion="22" android:targetSdkVersion="22"/>
     <application android:icon="@drawable/ic_launcher" android:label="Calculadora">
-        <activity android:name=".CalcActivity" android:label="Calculadora" android:screenOrientation="portrait"
+        <activity android:resizeableActivity="true" android:name=".CalcActivity" android:label="Calculadora" android:screenOrientation="portrait"
                   android:theme="@android:style/Theme.Holo.Wallpaper.NoTitleBar"
                   android:configChanges="orientation|keyboardHidden|screenSize|uiMode" android:exported="true">
             <intent-filter>

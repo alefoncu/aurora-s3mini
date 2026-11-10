@@ -29,7 +29,8 @@ while true; do
     last=$n
   fi
   if [ "$wk" != "$lastw" ]; then
-    if [ "$(settings get system ios_wall_state)" != "$wk" ]; then
+    if [ "$(settings get system ios_live_wall)" = "1" ]; then :   # live Aurora wallpaper: it follows the clock itself
+    elif [ "$(settings get system ios_wall_state)" != "$wk" ]; then
       am start -n com.scratch.ios7launcher/.SetWallpaperActivity --es path /data/local/ios/wall_$wk.jpg >/dev/null 2>&1
       settings put system ios_wall_state $wk
     fi

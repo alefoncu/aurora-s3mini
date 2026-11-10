@@ -4,7 +4,7 @@
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE"/>
     <uses-permission android:name="android.permission.WAKE_LOCK"/>
     <application android:icon="@drawable/ic_launcher" android:label="Música">
-        <activity android:name=".MusicActivity" android:label="Música" android:screenOrientation="portrait"
+        <activity android:resizeableActivity="true" android:name=".MusicActivity" android:label="Música" android:screenOrientation="portrait"
                   android:theme="@android:style/Theme.Holo.Wallpaper.NoTitleBar"
                   android:configChanges="orientation|keyboardHidden|screenSize|uiMode" android:exported="true">
             <intent-filter>

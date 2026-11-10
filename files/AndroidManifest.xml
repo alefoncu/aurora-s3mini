@@ -4,7 +4,7 @@
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE"/>
     <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE"/>
     <application android:icon="@drawable/ic_launcher" android:label="Archivos">
-        <activity android:name=".FilesActivity" android:label="Archivos" android:screenOrientation="portrait"
+        <activity android:resizeableActivity="true" android:name=".FilesActivity" android:label="Archivos" android:screenOrientation="portrait"
                   android:theme="@android:style/Theme.Holo.Wallpaper.NoTitleBar"
                   android:configChanges="orientation|keyboardHidden|screenSize|uiMode" android:exported="true">
             <intent-filter>

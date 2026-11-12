@@ -2,7 +2,7 @@ import Foundation
 
 /// Goals use physical contact measurements from the current run, never key presses.
 enum RideChallengeKind: String, CaseIterable {
-    case free, wheelie, stoppie, jump, timeTrial
+    case free, wheelie, stoppie, jump, timeTrial, race
     var title: String {
         switch self {
         case .free: return "Rodar libre"
@@ -10,6 +10,7 @@ enum RideChallengeKind: String, CaseIterable {
         case .stoppie: return "Invertido · 3 m"
         case .jump: return "Salto y aterrizaje"
         case .timeTrial: return "Contrarreloj · 4 min"
+        case .race: return "Carrera contra rival"
         }
     }
     var detail: String {
@@ -19,6 +20,7 @@ enum RideChallengeKind: String, CaseIterable {
         case .stoppie: return "Recorre 3 metros seguidos sobre la rueda delantera."
         case .jump: return "Supera 0,25 m de altura y aterriza sin caer."
         case .timeTrial: return "Completa los 1.200 metros en 4 minutos o menos."
+        case .race: return "Un rival con la misma física corre a tu lado. Llega antes que él, o aguanta si se cae."
         }
     }
 }
@@ -73,6 +75,16 @@ struct RideGhostRun: Codable {
         return zip(frames, frames.dropFirst()).allSatisfy { $0.time < $1.time }
     }
 
+    /// Time at which the recording first reached world position `x` (nil if it never did).
+    func time(atDistance x: Double) -> Double? {
+        guard x.isFinite, let first = frames.first, x >= first.x else { return nil }
+        guard let upper = frames.firstIndex(where: { $0.x >= x }) else { return nil }
+        if upper == 0 { return frames[0].time }
+        let a = frames[upper - 1], b = frames[upper]
+        let span = b.x - a.x
+        return span > 0 ? a.time + (b.time - a.time) * (x - a.x) / span : b.time
+    }
+
     func frame(at time: Double) -> RideGhostFrame? {
         guard time.isFinite, time >= 0, time <= duration, !frames.isEmpty else { return nil }
         if time == duration { return frames.last }
@@ -96,6 +108,8 @@ final class RideChallengeSession {
     private(set) var previouslyCompleted = false
     private(set) var ghost: RideGhostRun?
     private(set) var savedNewGhost = false
+    /// Set by the game before finish(): true when the player beat the rival.
+    var raceWon = false
     private var active = false
     private var contextKey = ""
     private var runChallenge: RideChallengeKind = .free
@@ -121,6 +135,7 @@ final class RideChallengeSession {
         case .stoppie: return String(format: "Invertido %.1f / 3 m", progress * 3)
         case .jump: return hasJumped ? "Salto: aterriza sin caer" : "Salto: supera 0,25 m"
         case .timeTrial: return String(format: "Contrarreloj %.0f / 240 s · %.0f m", observedTime, observedDistance)
+        case .race: return String(format: "Carrera · %.0f / 1.200 m", observedDistance)
         }
     }
 
@@ -168,6 +183,7 @@ final class RideChallengeSession {
                 progress = max(progress, min(0.9, max(0, jumpPeak / 0.25) * 0.9))
                 if wasAirborne && !airborne && hasJumped { progress = 1; completed = true }
             case .timeTrial: progress = max(0, min(1, distance / 1_200))
+            case .race: progress = max(0, min(1, distance / 1_200))
             }
         } else if !completed { hasJumped = false; jumpPeak = 0 }
         wasAirborne = airborne
@@ -178,6 +194,7 @@ final class RideChallengeSession {
     func finish(routeCompleted: Bool, elapsed: Double) {
         guard active, elapsed.isFinite, elapsed > 0, abs(elapsed - observedTime) < 0.001 else { return }
         active = false
+        if runChallenge == .race { completed = routeCompleted && raceWon; if completed { progress = 1 } }
         if runChallenge == .timeTrial {
             completed = routeCompleted && elapsed.isFinite && elapsed > 0 && elapsed <= 240
             if completed { progress = 1 }
@@ -203,12 +220,17 @@ final class RideChallengeSession {
 
     func abandon() {
         active = false; frames.removeAll(keepingCapacity: true); lastFrame = nil
-        progress = 0; completed = false; previouslyCompleted = false; savedNewGhost = false
+        progress = 0; completed = false; previouslyCompleted = false; savedNewGhost = false; raceWon = false
         hasJumped = false; jumpPeak = 0; wasAirborne = false
         lastSampleTime = 0; recordingValid = true; observedTime = 0; observedDistance = 0
     }
 
     func ghostFrame(at time: Double) -> RideGhostFrame? { ghost?.frame(at: time) }
+    /// Seconds ahead (negative) or behind (positive) of the saved ghost at world position `x`.
+    func timeDelta(elapsed: Double, atDistance x: Double) -> Double? {
+        guard let t = ghost?.time(atDistance: x) else { return nil }
+        return elapsed - t
+    }
 
     private func loadGhost() {
         ghost = nil

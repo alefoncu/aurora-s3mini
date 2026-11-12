@@ -6,11 +6,13 @@ final class GarageSidebarController: NSViewController, NSTableViewDataSource, NS
     private let table = NSTableView()
     private var selectedKind: BikeKind
     private let onSelect: (BikeKind) -> Void
+    private let lockText: (BikeKind) -> String?
     private var synchronizing = false
 
-    init(kind: BikeKind, onSelect: @escaping (BikeKind) -> Void) {
+    init(kind: BikeKind, lockText: @escaping (BikeKind) -> String? = { _ in nil }, onSelect: @escaping (BikeKind) -> Void) {
         selectedKind = kind
         self.onSelect = onSelect
+        self.lockText = lockText
         super.init(nibName: nil, bundle: nil)
     }
     required init?(coder: NSCoder) { nil }
@@ -65,6 +67,14 @@ final class GarageSidebarController: NSViewController, NSTableViewDataSource, NS
         table.selectRowIndexes(IndexSet(integer: BikeKind.allCases.firstIndex(of: selectedKind) ?? 0), byExtendingSelection: false)
         synchronizing = false
     }
+    /// Refresh lock labels after coins are spent or earned.
+    func reload() {
+        guard isViewLoaded else { return }
+        synchronizing = true
+        table.reloadData()
+        table.selectRowIndexes(IndexSet(integer: BikeKind.allCases.firstIndex(of: selectedKind) ?? 0), byExtendingSelection: false)
+        synchronizing = false
+    }
     func sync(kind: BikeKind) {
         selectedKind = kind
         guard isViewLoaded else { return }
@@ -81,7 +91,7 @@ final class GarageSidebarController: NSViewController, NSTableViewDataSource, NS
         let cell = (tableView.makeView(withIdentifier: identifier, owner: self) as? GarageVehicleCell) ?? GarageVehicleCell()
         cell.identifier = identifier
         let kind = BikeKind.allCases[row]
-        cell.configure(title: kind.title, subtitle: kind.subtitle, symbol: kind == .bmx ? "bicycle" : "motorcycle")
+        cell.configure(title: kind.title, subtitle: lockText(kind).map { "🔒 " + $0 } ?? kind.subtitle, symbol: kind == .bmx ? "bicycle" : "motorcycle")
         return cell
     }
     func tableViewSelectionDidChange(_ notification: Notification) {
@@ -154,7 +164,9 @@ final class GarageInspectorController: NSViewController {
     private var ghostCheckbox: NSButton!
     private var wells: [String: NSColorWell] = [:]
     private var options: [String: NSButton] = [:]
-    private var distanceLabel: NSTextField!, wheelieLabel: NSTextField!, stoppieLabel: NSTextField!
+    private var distanceLabel: NSTextField!, wheelieLabel: NSTextField!, stoppieLabel: NSTextField!, scoreLabel: NSTextField!
+    private var walletLabel: NSTextField!, unlockButton: NSButton!, unlockHint: NSTextField!
+    private static let routeTitles = ["Valle · asfalto", "Sierra · tierra", "Dunas · atardecer", "Nieve · hielo y pinos", "Ciudad · lluvia"]
     private var playButton: NSButton!
     private var outfitLabel: NSTextField!
     private var editableControls: [NSControl] = []
@@ -186,9 +198,19 @@ final class GarageInspectorController: NSViewController {
             stack.topAnchor.constraint(equalTo: document.topAnchor, constant: 18),
             stack.bottomAnchor.constraint(equalTo: document.bottomAnchor, constant: -22)
         ])
+        addSection("MONEDAS", to: stack)
+        walletLabel = metricLabel()
+        addFullWidth(labeledRow("Saldo", control: walletLabel), to: stack)
+        unlockButton = NSButton(title: "Desbloquear", target: self, action: #selector(unlockSelection))
+        unlockButton.bezelStyle = .rounded; unlockButton.bezelColor = .controlAccentColor
+        addFullWidth(unlockButton, to: stack)
+        unlockHint = NSTextField(wrappingLabelWithString: "")
+        unlockHint.font = .systemFont(ofSize: 11); unlockHint.textColor = .secondaryLabelColor
+        addFullWidth(unlockHint, to: stack)
+        addDivider(to: stack)
         addSection("RUTA", to: stack)
         routePopup = NSPopUpButton(frame: .zero, pullsDown: false)
-        routePopup.addItems(withTitles: ["Valle · asfalto", "Sierra · tierra", "Dunas · atardecer"])
+        routePopup.addItems(withTitles: Self.routeTitles)
         let progression = NSTextField(wrappingLabelWithString: "1.200 m · cuatro tramos de dificultad creciente. El relieve se vuelve más exigente cada 300 m; los conos opcionales aparecen con mayor frecuencia.")
         progression.font = .systemFont(ofSize: 11); progression.textColor = .secondaryLabelColor
         addFullWidth(progression, to: stack)
@@ -249,17 +271,18 @@ final class GarageInspectorController: NSViewController {
         outfitLabel.font = .systemFont(ofSize: 11)
         outfitLabel.textColor = .secondaryLabelColor
         addFullWidth(outfitLabel, to: stack)
-        for (title, key) in [("Usar casco", "helmet"), ("Llevar acompañante", "passenger"), ("Conos en la carretera", "obstacles")] {
+        for (title, key) in [("Usar casco", "helmet"), ("Llevar acompañante", "passenger"), ("Obstáculos y charcos", "obstacles"), ("Frenos ABS", "abs")] {
             let checkbox = NSButton(checkboxWithTitle: title, target: self, action: #selector(optionChanged(_:)))
             checkbox.font = .systemFont(ofSize: 12); checkbox.identifier = NSUserInterfaceItemIdentifier(key)
             options[key] = checkbox; editableControls.append(checkbox); addFullWidth(checkbox, to: stack)
         }
         addDivider(to: stack)
         addSection("RÉCORD EN ESTA RUTA", to: stack)
-        distanceLabel = metricLabel(); wheelieLabel = metricLabel(); stoppieLabel = metricLabel()
+        distanceLabel = metricLabel(); wheelieLabel = metricLabel(); stoppieLabel = metricLabel(); scoreLabel = metricLabel()
         addFullWidth(labeledRow("Distancia", control: distanceLabel), to: stack)
         addFullWidth(labeledRow("Caballito", control: wheelieLabel), to: stack)
         addFullWidth(labeledRow("Invertido", control: stoppieLabel), to: stack)
+        addFullWidth(labeledRow("Puntos", control: scoreLabel), to: stack)
         let hint = NSTextField(wrappingLabelWithString: "Los ajustes se guardan automáticamente.")
         hint.font = .systemFont(ofSize: 11); hint.textColor = .tertiaryLabelColor
         addFullWidth(hint, to: stack)
@@ -331,7 +354,20 @@ final class GarageInspectorController: NSViewController {
         guard isViewLoaded else { return }
         updating = true
         defer { updating = false }
-        routePopup.selectItem(at: max(0, min(2, game.bike.route)))
+        for (i, title) in Self.routeTitles.enumerated() {
+            let item = RideUnlock.route(i)
+            routePopup.item(at: i)?.title = game.progress.isUnlocked(item) ? title : "\(title) · 🔒 \(item.cost)"
+        }
+        routePopup.selectItem(at: max(0, min(BikePhysics.routeCount - 1, game.bike.route)))
+        let locked = lockedItems()
+        walletLabel.stringValue = "\(game.progress.wallet) monedas"
+        unlockButton.isHidden = locked.isEmpty; unlockHint.isHidden = locked.isEmpty
+        if !locked.isEmpty {
+            let cost = locked.reduce(0) { $0 + $1.cost }
+            unlockButton.title = "Desbloquear \(locked.map(\.title).joined(separator: " y ")) · \(cost)"
+            unlockButton.isEnabled = game.mode == .garage && game.progress.wallet >= cost
+            unlockHint.stringValue = game.progress.wallet >= cost ? "Gasta monedas para usar esta selección." : "Te faltan \(cost - game.progress.wallet) monedas. Se ganan al rodar: 1 cada 80 m y 1 por cada 200 puntos."
+        }
         nightSwitch.state = game.night ? .on : .off
         transmissionPopup.selectItem(at: game.bike.transmission.automatic ? 0 : 1)
         transmissionHint.stringValue = game.bike.kind == .bmx ? "La BMX conserva su desarrollo fijo y rueda libre." : game.bike.kind == .scooter ? "El scooter ajusta su transmisión automáticamente." : "Manual: Q baja marcha y F sube marcha. También puedes usar la Touch Bar."
@@ -348,12 +384,24 @@ final class GarageInspectorController: NSViewController {
         options["helmet"]?.state = game.art.helmetOn ? .on : .off
         options["passenger"]?.state = game.art.passenger ? .on : .off
         options["obstacles"]?.state = game.obstacles ? .on : .off
+        options["abs"]?.state = game.absOn ? .on : .off
+        scoreLabel.stringValue = "\(Int(game.bestScore))"
         distanceLabel.stringValue = "\(Int(game.record)) m"; wheelieLabel.stringValue = "\(Int(game.best)) m"; stoppieLabel.stringValue = String(format:"%.1f m",game.bestStoppie)
         let canEdit = game.mode == .garage
         editableControls.forEach { $0.isEnabled = canEdit }
         transmissionPopup.isEnabled = canEdit && game.bike.kind != .bmx && game.bike.kind != .scooter
         options["passenger"]?.isEnabled = canEdit && game.bike.kind.supportsPassenger
-        playButton.isEnabled = canEdit
+        playButton.isEnabled = canEdit && locked.isEmpty
+    }
+    private func lockedItems() -> [RideUnlock] {
+        [RideUnlock.vehicle(game.bike.kind), RideUnlock.route(game.bike.route)].filter { !game.progress.isUnlocked($0) }
+    }
+    @objc private func unlockSelection() {
+        guard game.mode == .garage else { return }
+        let items = lockedItems(), cost = items.reduce(0) { $0 + $1.cost }
+        guard game.progress.wallet >= cost else { NSSound.beep(); return }
+        items.forEach { game.progress.unlock($0) }
+        onChange()
     }
     @objc private func transmissionChanged(_ sender: NSPopUpButton) {
         guard !updating, game.mode == .garage, game.bike.kind != .bmx, game.bike.kind != .scooter else { return }
@@ -391,7 +439,7 @@ final class GarageInspectorController: NSViewController {
     @objc private func play() { guard game.mode == .garage else { return }; onPlay() }
     @objc private func routeChanged(_ sender: NSPopUpButton) {
         guard !updating, game.mode == .garage else { return }
-        game.bike.route = max(0, min(2, sender.indexOfSelectedItem))
+        game.bike.route = max(0, min(BikePhysics.routeCount - 1, sender.indexOfSelectedItem))
         game.prefs.set(game.bike.route, forKey: "route"); game.cameraY = 0; game.loadRecords(); onChange()
     }
     @objc private func nightChanged(_ sender: NSSwitch) {
@@ -411,7 +459,7 @@ final class GarageInspectorController: NSViewController {
     @objc private func optionChanged(_ sender: NSButton) {
         guard !updating, game.mode == .garage, let key = sender.identifier?.rawValue else { return }
         let value = sender.state == .on
-        switch key { case "helmet": game.art.helmetOn = value; case "passenger": game.art.passenger = value; default: game.obstacles = value }
+        switch key { case "helmet": game.art.helmetOn = value; case "passenger": game.art.passenger = value; case "abs": game.absOn = value; game.loadRecords(); default: game.obstacles = value }
         game.prefs.set(value, forKey: key); onChange()
     }
 }

@@ -46,11 +46,66 @@ import Foundation
             for _ in 0..<600 {step(b,back:b.angle < -0.25,forward:b.angle>0.25);finite(b)}
             check(b.x>ux+1 && !b.crashed,"Throttle must climb out of a steep uphill, x=\(b.x) from \(ux)")
         }
+        // Air tricks: with T held the rider can rotate the bike in the air; without it
+        // a standing jump barely rotates. Landing a completed flip is reported once.
+        do {
+            func jumpTest(trick:Bool)->BikePhysics {
+                let b=BikePhysics();b.kind = .commuter;b.route=0;b.x = -500;b.speed=8
+                for _ in 0..<120 {step(b,gas:false)}
+                var i=0
+                while i<400 {
+                    let air = !b.rearContact && !b.frontContact
+                    var fwd=false,back=false
+                    if trick && air {
+                        let rot=abs(b.airRotation)
+                        if rot<4.3 { fwd=true } else if abs(b.angularVelocity)>3 { back=b.angularVelocity>0 ? false : true; fwd=b.angularVelocity>0 }
+                    }
+                    b.update(frame,throttle:false,brake:false,leanBack:back,leanForward:fwd,jump:i==0,trick:trick && air);i+=1
+                    finite(b)
+                    if b.crashed { break }
+                }
+                return b
+            }
+            let plain=jumpTest(trick:false),trickRun=jumpTest(trick:true)
+            check(!plain.crashed && plain.lastFlips==0,"A standing jump without T must not flip")
+            check(!trickRun.crashed && trickRun.landingSerial>0 && trickRun.lastFlips>=1,"A held-T front flip must land and be counted (flips=\(trickRun.lastFlips), crashed=\(trickRun.crashed))")
+            check(trickRun.lastAirTime>0.3 && trickRun.lastAirHeight>0.2,"Landing must report air time and height")
+        }
+        // Wet patches cut grip; ABS never needs a longer stop than locked brakes.
+        do {
+            check(BikePhysics.puddleFactor(BikePhysics.puddlePositions[0] == 0 ? 1 : Double(BikePhysics.puddlePositions[0]))<0.7,"Puddle centre must cut grip")
+            check(BikePhysics.puddleFactor(-50)==1 && BikePhysics.puddleFactor(.nan)==1,"Dry ground and invalid x must be unaffected")
+            func stop(abs absOn:Bool,hazards:Bool)->Double {
+                let b=BikePhysics();b.kind = .sport;b.route=2;b.absEnabled=absOn;b.hazards=hazards
+                b.x=Double(BikePhysics.puddlePositions[1])-3;b.speed=24
+                for _ in 0..<6 {step(b,gas:false)}
+                let start=b.x;var n=0
+                while b.speed>0.2 && n<4000 {step(b,gas:false,brake:true);n+=1}
+                return b.x-start
+            }
+            check(stop(abs:false,hazards:true)>stop(abs:false,hazards:false),"Puddles must lengthen the braking distance")
+            func flatStop(abs absOn:Bool)->Double {
+                let b=BikePhysics();b.kind = .sport;b.route=3;b.absEnabled=absOn
+                b.x = -500;b.speed=24
+                for _ in 0..<6 {step(b,gas:false)}
+                let start=b.x;var n=0
+                while b.speed>0.2 && n<6000 {step(b,gas:false,brake:true);n+=1}
+                return b.x-start
+            }
+            check(flatStop(abs:true)<flatStop(abs:false)-1,"ABS must shorten braking on snow")
+        }
+        // Obstacle mix is deterministic and gets richer with the sectors.
+        do {
+            let kinds=BikePhysics.obstaclePositions.map { BikePhysics.obstacleKind(at:$0) }
+            check(Set(kinds.prefix(while:{BikePhysics.difficultyStage(at:0)==0 && $0 == .cone})).count==1,"First obstacles are cones")
+            check(kinds.contains(.barrel) && kinds.contains(.log),"Later sectors must include barrels and logs")
+            for p in BikePhysics.obstaclePositions where BikePhysics.difficultyStage(at:Double(p))==0 { check(BikePhysics.obstacleKind(at:p)==BikePhysics.ObstacleKind.cone,"Sector 1 has only cones") }
+        }
         let obstacles=BikePhysics.obstaclePositions
         check(Set(obstacles).count==obstacles.count && obstacles==obstacles.sorted(),"One sorted collision/render obstacle schedule")
         let sectorCounts=(0..<4).map { stage in obstacles.filter { BikePhysics.difficultyStage(at:Double($0))==stage }.count }
         check(zip(sectorCounts,sectorCounts.dropFirst()).allSatisfy { $0 < $1 },"Obstacle density must rise each sector")
-        for route in 0...2 {
+        for route in 0..<BikePhysics.routeCount {
             func terrainEffort(_ start:Double)->Double {
                 var sum=0.0
                 for i in 0..<1000 {let x=start+Double(i)*0.2;sum+=pow(BikePhysics.slope(x,route:route),2)}
@@ -75,13 +130,13 @@ import Foundation
             let y=b.chassisPosition.y
             for _ in 0..<240 {step(b,gas:false)}
             check(abs(b.chassisPosition.y-y)<0.0001,"No decorative suspension oscillation at rest")
-            for route in 0...2 {
+            for route in 0..<BikePhysics.routeCount {
                 b.route=route;b.reset();var minCompression=Double.infinity,maxCompression=0.0
                 for _ in 0..<60000 where !b.finished && !b.crashed {
                     // A readable cautious rider: slow progressively on rougher
                     // sectors and correct pitch, without privileged terrain lookahead.
                     let stage=Double(BikePhysics.difficultyStage(at:b.x))
-                    let target=min(kind.topSpeed*0.85,(route == 0 ? 16.0 : 11.0)-stage*1.2)
+                    let target=min(kind.topSpeed*0.85,(route == 0 ? 16.0 : 12.0)-stage*1.2)
                     step(b,gas:b.speed<target,back:b.angle < -0.25,forward:b.angle>0.25,brake:b.speed>target+0.6); finite(b)
                     if route==1 { minCompression=min(minCompression,b.frontCompression);maxCompression=max(maxCompression,b.frontCompression) }
                 }

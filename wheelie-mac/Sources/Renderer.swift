@@ -60,7 +60,7 @@ final class RideRenderer {
     }
     func background(camera:Double,route:Int,night:Bool,time:Double) {
         box(0,0,1280,720,NSColor(hex:0xAEC3C5))
-        if let bg=route==2 ? desert : landscape {
+        if route==3 { snowBackdrop(camera:camera,time:time) } else if route==4 { cityBackdrop(camera:camera,night:night,time:time) } else if let bg=route==2 ? desert : landscape {
             let w=1880.0, scroll=camera*0.045, tile=Int(floor(scroll/w))
             for n in tile...tile+1 {
                 let x=Double(n)*w-scroll
@@ -80,6 +80,59 @@ final class RideRenderer {
         // Gentle haze keeps the illustrated bike legible against photographic detail.
         gradient(NSRect(x:0,y:270,width:1280,height:290),.clear,NSColor(hex:night ? 0x324A47 : 0xC1B58A,alpha:0.25))
     }
+    private func hash(_ n:Double)->Double { let v=sin(n*12.9898)*43758.5453; return v-floor(v) }
+    func snowBackdrop(camera:Double,time:Double) {
+        gradient(NSRect(x:0,y:0,width:1280,height:560),NSColor(hex:0xBFD3E2),NSColor(hex:0xF0F4F6))
+        for layer in 0..<4 {
+            var points:[(Double,Double)]=[(-20,600)]
+            for x in stride(from:-20.0,through:1300,by:14) {
+                let phase=(x+camera*Double(layer+1)*0.05)/Double(150+layer*40)
+                points.append((x,215+Double(layer)*58-abs(sin(phase))*92*(1-Double(layer)*0.18)+cos(x/57)*9))
+            }
+            points.append((1300,600)); poly(points,NSColor(hex:[0xDDE7EE,0xC6D4E0,0xAEC1D2,0x8FA6BB][layer]))
+        }
+        // Falling snow drifts at a different speed per flake.
+        for i in 0..<90 {
+            let fall=40+Double(i%5)*14,sway=sin(time*0.8+Double(i))*14
+            let x=(Double(i)*137.0+time*(8+Double(i%4)*5)+sway).truncatingRemainder(dividingBy:1300)
+            let y=(Double(i)*83.0+time*fall).truncatingRemainder(dividingBy:640)
+            circle(x,y,1+Double(i%3)*0.7,NSColor.white.withAlphaComponent(0.8))
+        }
+    }
+    func cityBackdrop(camera:Double,night:Bool,time:Double) {
+        gradient(NSRect(x:0,y:0,width:1280,height:560),NSColor(hex:night ? 0x10172A : 0x39425A),NSColor(hex:night ? 0x2B3550 : 0x7B8498))
+        for layer in 0..<3 {
+            let scroll=camera*(0.03+Double(layer)*0.025),width=95.0+Double(layer)*15
+            let first=Int(floor(scroll/width))-1
+            for n in first..<first+18 {
+                let h=hash(Double(n*7+layer*31)),x=Double(n)*width-scroll
+                let height=130+h*210+Double(layer)*18,bw=width*(0.7+h*0.25)
+                let shade=[0x1F2636,0x2A3245,0x39425A][layer]
+                box(x,560-height+Double(layer)*34,bw,height,NSColor(hex:shade))
+                // Lit windows: a fixed pattern per building.
+                var wy=560-height+Double(layer)*34+10
+                while wy<540 {
+                    var wx=x+7
+                    while wx<x+bw-10 {
+                        if hash(Double(n)*3.1+wx*0.07+wy*0.11)>0.55 { box(wx,wy,6,8,NSColor(hex:0xFFD58A,alpha:night ? 0.85 : 0.5)) }
+                        wx+=14
+                    }
+                    wy+=18
+                }
+            }
+        }
+        box(0,0,1280,600,NSColor(hex:0x0B1626,alpha:night ? 0.35 : 0.18))
+    }
+    /// Falling rain over the whole scene, drawn on top of the ride.
+    func weather(route:Int,time:Double) {
+        guard route==4 else { return }
+        for i in 0..<150 {
+            let speed=620+Double(i%7)*60
+            let x=(Double(i)*97.0-time*90).truncatingRemainder(dividingBy:1400)
+            let y=(Double(i)*53.0+time*speed).truncatingRemainder(dividingBy:780)-30
+            line(x<0 ? x+1400 : x,y,(x<0 ? x+1400 : x)-5,y+20,1,NSColor(hex:0xBFD4EA,alpha:0.30))
+        }
+    }
     func ground(_ meters:Double,at cameraX:Double,cameraY:Double,route:Int)->Double {
         458 + cameraY - BikePhysics.ground(meters,route:route)*metresToPixels
     }
@@ -92,7 +145,7 @@ final class RideRenderer {
             guard x > -180 && x < 1460 else { continue }
             let y=ground(world,at:cameraX,cameraY:cameraY,route:route)-42
             if Int(world/23)%3==0 { rock(x,y,Double(abs(Int(world))%22+24),night:night) }
-            else if Int(world/23)%3==1 { if route==2 { rock(x,y,32,night:night) } else { tree(x,y,seed:Int(world),night:night) } }
+            else if Int(world/23)%3==1 { if route==2 { rock(x,y,32,night:night) } else if route==4 { lamp(x,y,night:night) } else if route==3 { pine(x,y,seed:Int(world)) } else { tree(x,y,seed:Int(world),night:night) } }
         }
         let step=5.0
         var road:[NSPoint]=[]
@@ -100,11 +153,11 @@ final class RideRenderer {
         for x in stride(from:1290.0,through:-10,by:-step) { road.append(NSPoint(x:x,y:ground(cameraX+(x-370)/metresToPixels,at:cameraX,cameraY:cameraY,route:route)+113)) }
         // A visible strip of textured soil below the track.
         var earth=road; for i in (earth.count/2)..<earth.count { earth[i].y = 740 }
-        path(earth,NSColor(hex:route==0 ? 0x7A725E : 0x8F694B))
+        path(earth,NSColor(hex:route==0 ? 0x7A725E : route==3 ? 0xB7C3CB : route==4 ? 0x3A3F47 : 0x8F694B))
         NSGraphicsContext.saveGraphicsState()
         let clip=NSBezierPath(); clip.move(to:road[0]); for p in road.dropFirst() { clip.line(to:p) }; clip.close(); clip.addClip()
-        box(0,250,1280,470,NSColor(hex:route==0 ? 0x666D71 : 0xC09862))
-        if let texture=route==0 ? asphaltTexture : dirtTexture {
+        box(0,250,1280,470,NSColor(hex:route==0 ? 0x666D71 : route==3 ? 0xE9EFF3 : route==4 ? 0x2F343C : 0xC09862))
+        if route != 3, let texture=(route==0 || route==4) ? asphaltTexture : dirtTexture {
             let shift=cam.truncatingRemainder(dividingBy:512)
             for i in -1..<4 { image(texture,NSRect(x:Double(i)*512-shift,y:330,width:512,height:300)) }
         }
@@ -115,7 +168,7 @@ final class RideRenderer {
             line(x,a-27,x+8,b-27,3,NSColor(hex:0xE4E5CE))
             line(x,a+108,x+8,b+108,3,NSColor(hex:0xECEADF,alpha:0.85))
         }
-        if route==0 {
+        if route==0 || route==4 {
             for n in -2..<15 { let world=Double(Int(cameraX/5)+n)*5; let x=370+(world-cameraX)*metresToPixels; let y=ground(world,at:cameraX,cameraY:cameraY,route:route)+67; line(x,y,x+66,y-1,3,NSColor(hex:0xE5D9B6,alpha:0.74)) }
         }
         // Individual grass blades at the far verge retain the original game's roadside line.
@@ -124,7 +177,7 @@ final class RideRenderer {
             let w=Double(i)/18, x=370+(w-cameraX)*metresToPixels
             let y=ground(w,at:cameraX,cameraY:cameraY,route:route)-30
             let h=Double(abs((i*17)%11)+4), tilt=Double((i*13)%9)-4
-            line(x,y,x+tilt,y-h,1.8,NSColor(hex:night ? 0x617356 : route==2 ? [0x9B8652,0xAA985F,0xBBA56D,0x8B794C][abs(i)%4] : [0x718441,0x8B9C46,0xA4A956,0x566D3B][abs(i)%4]))
+            if route != 4 { line(x,y,x+tilt,y-h,1.8,NSColor(hex:route==3 ? [0xF4F7F9,0xDDE6EC,0xC9D6DF,0xEEF3F6][abs(i)%4] : night ? 0x617356 : route==2 ? [0x9B8652,0xAA985F,0xBBA56D,0x8B794C][abs(i)%4] : [0x718441,0x8B9C46,0xA4A956,0x566D3B][abs(i)%4])) }
         } }
         for n in -1..<6 {
             let world=Double(Int(cameraX/100)+n)*100
@@ -202,6 +255,55 @@ final class RideRenderer {
         ellipse(x-21,y-3,48,8,NSColor.black.withAlphaComponent(0.16)); box(x-18,y-4,36,5,ink,2)
         poly([(x-12,y-4),(x-3,y-34),(x+4,y-34),(x+13,y-4)],NSColor(hex:0xEF6A27),stroke:ink,width:0.8)
         poly([(x-8,y-15),(x-5,y-25),(x+7,y-25),(x+10,y-15)],NSColor(hex:0xEEE5D2))
+    }
+    func lamp(_ x:Double,_ y:Double,night:Bool) {
+        line(x,y,x,y-120,4,NSColor(hex:0x2A2F38)); line(x,y-120,x+26,y-124,3,NSColor(hex:0x2A2F38))
+        circle(x+26,y-120,6,NSColor(hex:0xFFE3A3,alpha:night ? 1 : 0.7))
+        if night { ellipse(x-10,y-132,70,34,NSColor(hex:0xFFE3A3,alpha:0.12)) }
+    }
+    func pine(_ x:Double,_ y:Double,seed:Int) {
+        let h=110+Double(abs(seed)%5)*14
+        line(x,y,x,y-h*0.22,6,NSColor(hex:0x5B4632))
+        for tier in 0..<4 {
+            let t=Double(tier),w=h*(0.34-t*0.05),top=y-h*0.2-t*h*0.2
+            poly([(x-w,top),(x,top-h*0.3),(x+w,top)],NSColor(hex:0x2F5A45),stroke:NSColor(hex:0x234535),width:0.6)
+            poly([(x-w*0.55,top-h*0.12),(x,top-h*0.3),(x+w*0.55,top-h*0.12),(x,top-h*0.07)],NSColor(hex:0xF2F6F8))
+        }
+    }
+    func barrel(_ world:Double,cameraX:Double,cameraY:Double,route:Int,knocked:Bool=false) {
+        let x=370+(world-cameraX)*metresToPixels,y=ground(world,at:cameraX,cameraY:cameraY,route:route)
+        guard x > -60 && x < 1340 else { return }
+        if knocked {
+            ellipse(x-18,y-2,70,7,NSColor.black.withAlphaComponent(0.15))
+            box(x-6,y-26,56,26,NSColor(hex:0xB4492E),5); box(x+8,y-26,5,26,NSColor(hex:0xE8D9B8)); box(x+32,y-26,5,26,NSColor(hex:0xE8D9B8))
+            return
+        }
+        ellipse(x-24,y-3,52,8,NSColor.black.withAlphaComponent(0.16))
+        box(x-17,y-60,34,60,NSColor(hex:0xB4492E),7); box(x-17,y-46,34,5,NSColor(hex:0xE8D9B8)); box(x-17,y-18,34,5,NSColor(hex:0xE8D9B8))
+        box(x-12,y-58,7,54,NSColor.white.withAlphaComponent(0.16),3)
+    }
+    func log(_ world:Double,cameraX:Double,cameraY:Double,route:Int,knocked:Bool=false) {
+        let x=370+(world-cameraX)*metresToPixels,y=ground(world,at:cameraX,cameraY:cameraY,route:route)
+        guard x > -80 && x < 1360 else { return }
+        let lift=knocked ? 6.0 : 0.0
+        ellipse(x-48,y-3,104,8,NSColor.black.withAlphaComponent(0.16))
+        box(x-48,y-30-lift,96,28,NSColor(hex:0x6B4A2E),12); box(x-44,y-27-lift,88,6,NSColor.white.withAlphaComponent(0.12),3)
+        circle(x+46,y-16-lift,13,NSColor(hex:0xC79A62)); circle(x+46,y-16-lift,7,NSColor(hex:0xA87B47))
+    }
+    /// A wet patch lying on the road, following the ground line.
+    func puddle(center world:Double,halfLength:Double,cameraX:Double,cameraY:Double,route:Int) {
+        let x0=370+(world-halfLength-cameraX)*metresToPixels,x1=370+(world+halfLength-cameraX)*metresToPixels
+        guard x1 > -20 && x0 < 1300 else { return }
+        var top:[NSPoint]=[],bottom:[NSPoint]=[]
+        let steps=12
+        for i in 0...steps {
+            let f=Double(i)/Double(steps),w=world-halfLength+2*halfLength*f
+            let px=370+(w-cameraX)*metresToPixels,gy=ground(w,at:cameraX,cameraY:cameraY,route:route)
+            let bulge=sin(f*Double.pi)*8
+            top.append(NSPoint(x:px,y:gy-bulge*0.2)); bottom.append(NSPoint(x:px,y:gy+3+bulge))
+        }
+        path(top+bottom.reversed(),NSColor(hex:0x5C7FA3,alpha:0.55))
+        if let a=top.dropFirst(2).first,let b=top.dropLast(3).last { line(a.x,a.y+2,b.x,b.y+2,1.5,NSColor.white.withAlphaComponent(0.4)) }
     }
     func wheel(_ x:Double,_ y:Double,_ r:Double,rotation:Double,bmx:Bool,offroad:Bool) {
         circle(x,y,r,NSColor(hex:0x141A20)); circle(x,y,r-2,NSColor(hex:0x333A3E)); circle(x,y,r-5,silver); circle(x,y,r-6.6,NSColor(hex:0x3D464A))

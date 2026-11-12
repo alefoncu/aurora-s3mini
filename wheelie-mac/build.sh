@@ -13,8 +13,8 @@ cat > "$APP/Contents/Info.plist" <<'PLIST'
 <key>CFBundleName</key><string>Wheelie Ride</string>
 <key>CFBundleDisplayName</key><string>Wheelie Ride</string>
 <key>CFBundlePackageType</key><string>APPL</string>
-<key>CFBundleShortVersionString</key><string>5.4</string>
-<key>CFBundleVersion</key><string>11</string>
+<key>CFBundleShortVersionString</key><string>6.0</string>
+<key>CFBundleVersion</key><string>12</string>
 <key>CFBundleIconFile</key><string>AppIcon</string>
 <key>LSMinimumSystemVersion</key><string>13.0</string>
 <key>NSHighResolutionCapable</key><true/>
@@ -23,7 +23,7 @@ cat > "$APP/Contents/Info.plist" <<'PLIST'
 PLIST
 if [[ -f Assets/AppIcon.icns ]]; then cp Assets/AppIcon.icns "$APP/Contents/Resources/"; fi
 cp Assets/valley.png Assets/dunes.png "$APP/Contents/Resources/"
-codesign --force --sign - "$APP"
+codesign --force --sign "${SIGN_IDENTITY:--}" "$APP"
 if [[ "${1:-}" == "--install" ]]; then
   INSTALL="$HOME/Applications/Wheelie Ride.app"
   if pgrep -x WheelieRide >/dev/null; then

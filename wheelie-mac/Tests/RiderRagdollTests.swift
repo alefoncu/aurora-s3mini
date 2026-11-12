@@ -13,7 +13,7 @@ import Foundation
         RiderRagdoll(pose:RiderRig.solve(vehicle:kind.rig,lean:0.3),origin:RideVector(120,BikePhysics.ground(120,route:route)+1.5),pitch:pitch,velocity:velocity,angularVelocity:1.8,route:route)
     }
     static func main() {
-        for kind in BikeKind.allCases { for route in 0...2 {
+        for kind in BikeKind.allCases { for route in 0..<BikePhysics.routeCount {
             let doll=make(kind,route:route),initial=doll.pose
             var highestError=0.0
             for _ in 0..<600 {

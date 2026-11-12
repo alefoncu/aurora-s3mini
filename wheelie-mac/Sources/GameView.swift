@@ -18,6 +18,14 @@ final class RideView: NSView {
     var record = 0.0, best = 0.0, bestStoppie = 0.0, bestTime = 0.0
     var challengeKind:RideChallengeKind = .free
     var ghostEnabled=true
+    var absOn=false
+    var score=RideScore(), bestScore=0.0
+    lazy var progress=RideProgress(preferences:prefs)
+    var rewarded=false, lastReward=0
+    var lastWheelie=0.0, lastStoppie=0.0, lastLandingSerial=0, lastStage=0
+    var passedObstacles=Set<Int>()
+    var splitDeltas:[Double?]=[], splitText="", splitAge=99.0
+    var rival:BikePhysics?
     lazy var challenges=RideChallengeSession(preferences:prefs)
     struct Dust { var x:Double; var y:Double; var vx:Double; var vy:Double; var life:Double; var maxLife:Double }
     var dust: [Dust] = [], dustClock = 0.0
@@ -36,7 +44,7 @@ final class RideView: NSView {
         prefs=preferences
         super.init(frame:frame)
         bike.kind = BikeKind.allCases[max(0,min(BikeKind.allCases.count-1,prefs.integer(forKey:"vehicle")))]
-        bike.route=max(0,min(2,prefs.integer(forKey:"route")))
+        bike.route=max(0,min(BikePhysics.routeCount-1,prefs.integer(forKey:"route")))
         night=prefs.bool(forKey:"night"); obstacles=prefs.bool(forKey:"obstacles")
         sound = prefs.object(forKey:"sound") == nil ? true : prefs.bool(forKey:"sound")
         art.helmetOn = prefs.object(forKey:"helmet") == nil ? true : prefs.bool(forKey:"helmet")
@@ -44,6 +52,7 @@ final class RideView: NSView {
         if let c=loadColor("body") { art.body=c }; if let c=loadColor("jacket") { art.jacket=c }; if let c=loadColor("helmetColor") { art.helmet=c }; if let c=loadColor("skin") { art.skin=c }
         challengeKind=RideChallengeKind(rawValue:prefs.string(forKey:"challenge") ?? "free") ?? .free
         ghostEnabled=prefs.object(forKey:"ghost") == nil ? true : prefs.bool(forKey:"ghost")
+        absOn=prefs.bool(forKey:"abs")
         loadHandlingPreferences()
         audio.enabled=sound; loadRecords(); buildStateOverlay()
         let t=Timer(timeInterval:1/60,repeats:true) { [weak self] _ in self?.tick() }; timer=t; RunLoop.main.add(t,forMode:.common)
@@ -66,7 +75,7 @@ final class RideView: NSView {
         bike.reset()
     }
     var runContext:String {
-        "v6.\(bike.kind.rawValue).\(bike.route).\(obstacles ? "cones" : "clear").\(bike.transmission.automatic ? "auto" : "manual").\(Int((bike.suspensionStiffness*100).rounded())).\(Int((bike.suspensionDamping*100).rounded()))"
+        "v6.\(bike.kind.rawValue).\(bike.route).\(obstacles ? "cones" : "clear").\(bike.transmission.automatic ? "auto" : "manual").\(Int((bike.suspensionStiffness*100).rounded())).\(Int((bike.suspensionDamping*100).rounded()))\(absOn ? ".abs" : "")"
     }
     var recordKey:String { runContext }
     func ghostSnapshot()->RideGhostFrame {
@@ -75,6 +84,22 @@ final class RideView: NSView {
             frontWheelX:bike.frontWheelPosition.x,frontWheelY:bike.frontWheelPosition.y,
             wheelRotation:bike.rearWheelRotation,speed:bike.speed)
     }
+    func resetRunState() {
+        score.reset(); rewarded=false; lastReward=0; lastWheelie=0; lastStoppie=0; lastLandingSerial=bike.landingSerial; lastStage=0
+        passedObstacles.removeAll(); splitDeltas.removeAll(); splitText=""; splitAge=99
+    }
+    func startRival() {
+        rival=nil
+        guard challengeKind == .race else { return }
+        let r=BikePhysics(); r.kind=bike.kind; r.route=bike.route; r.hazards=obstacles; r.reset(); rival=r
+    }
+    /// The rival rides like the cautious test pilot: slows on rougher sectors, corrects pitch, never jumps.
+    func updateRival(_ dt:Double) {
+        guard let r=rival else { return }
+        let stage=Double(BikePhysics.difficultyStage(at:r.x)),paved=r.route==0 || r.route==4
+        let target=min(r.kind.topSpeed*0.85,(paved ? 16.0 : 12.0)-stage*1.2)
+        r.update(dt,throttle:r.speed<target,brake:r.speed>target+0.6,leanBack:r.angle < -0.25,leanForward:r.angle>0.25)
+    }
     func shift(up:Bool) {
         guard mode == .riding,window?.attachedSheet == nil else { return }
         bike.transmission.shift(up:up,kind:bike.kind);updateTouchBar();needsDisplay=true
@@ -82,10 +107,14 @@ final class RideView: NSView {
     func preserveRun() {
         if mode != .garage { saveRun() }
     }
-    func loadRecords() { record=prefs.double(forKey:recordKey+".distance"); best=prefs.double(forKey:recordKey+".wheelie"); bestTime=prefs.double(forKey:recordKey+".time"); bestStoppie=prefs.double(forKey:recordKey+".stoppie") }
+    func loadRecords() { record=prefs.double(forKey:recordKey+".distance"); best=prefs.double(forKey:recordKey+".wheelie"); bestTime=prefs.double(forKey:recordKey+".time"); bestStoppie=prefs.double(forKey:recordKey+".stoppie"); bestScore=prefs.double(forKey:recordKey+".score") }
     func saveRun() {
         if bike.finished || bike.crashed { challenges.finish(routeCompleted:bike.finished,elapsed:elapsed) }
         record=max(record,bike.distance); best=max(best,bike.bestWheelie); bestStoppie=max(bestStoppie,bike.bestStoppie)
+        bestScore=max(bestScore,Double(score.total)); prefs.set(bestScore,forKey:recordKey+".score")
+        if !rewarded && (bike.crashed || bike.finished) {
+            rewarded=true; lastReward=RideProgress.reward(distanceCoins:bike.coins,score:score.total); progress.earn(lastReward)
+        }
         prefs.set(bestStoppie,forKey:recordKey+".stoppie"); prefs.set(record,forKey:recordKey+".distance"); prefs.set(best,forKey:recordKey+".wheelie")
         if bike.finished && (bestTime==0 || elapsed<bestTime) { bestTime=elapsed; prefs.set(bestTime,forKey:recordKey+".time") }
     }
@@ -110,7 +139,14 @@ final class RideView: NSView {
         continueButton.isHidden = mode != .paused
         stateTitle.stringValue = mode == .paused ? "En pausa" : bike.finished ? "Ruta completada" : "Otra vuelta"
         stateDetail.stringValue = mode == .paused ? "Tu ruta sigue aquí." : "\(Int(bike.distance)) m de recorrido\n\(Int(bike.bestWheelie)) m de caballito · \(String(format:"%.1f",bike.bestStoppie)) m de invertido"
-        if mode == .result && challengeKind != .free { stateDetail.stringValue += "\n"+challenges.progressText }
+        if mode == .result {
+            stateDetail.stringValue += "\n\(score.total) puntos (récord \(Int(bestScore))) · +\(lastReward) monedas"
+            if score.lostToCrash>0 { stateDetail.stringValue += "\nPerdiste \(score.lostToCrash) puntos de una cadena al caerte" }
+            let splits=splitDeltas.enumerated().compactMap { i,d in d.map { String(format:"T%d %+.1f s",i+1,$0) } }
+            if !splits.isEmpty { stateDetail.stringValue += "\nTramos vs fantasma: "+splits.joined(separator:" · ") }
+            if challengeKind == .race { stateDetail.stringValue += challenges.completed ? "\n¡Ganaste a tu rival!" : "\nEl rival ha ganado o te has caído" }
+        }
+        if mode == .result && challengeKind != .free && challengeKind != .race { stateDetail.stringValue += "\n"+challenges.progressText }
         retryButton.title = mode == .paused ? "Reiniciar ruta" : "Volver a salir"
         retryButton.keyEquivalent = mode == .result ? "\r" : ""
     }
@@ -125,8 +161,10 @@ final class RideView: NSView {
     }
     func updateTouchBar() { bar.update(mode:touchBarMode,speed:bike.speed,wheelie:bike.wheelieDistance,stoppie:bike.stoppieDistance,gear:bike.transmission.gear,rpm:bike.transmission.rpm,automatic:bike.transmission.automatic) }
     @objc func deactivate() { clearInput(); if mode == .riding { mode = .paused }; audio.update(speed:0,throttle:false,vehicle:0,active:false); syncState() }
-    func start() { guard window?.attachedSheet == nil else { return }; NSColorPanel.shared.orderOut(nil); preserveRun(); challenges.abandon(); bike.reset(); art.metresToPixels=RideScene.metresToPixels; elapsed=0; crashTime=0; cameraY=0; riderLean=0; riderLift=0; riderLiftVelocity=0; pedalPhase=0; challenges.selected=challengeKind; challenges.start(contextKey:runContext,initialFrame:ghostSnapshot()); ragdoll=nil; passengerRagdoll=nil; knockedCones.removeAll(); dust.removeAll(); clearInput(); mode = .riding; previous=ProcessInfo.processInfo.systemUptime; window?.makeFirstResponder(self); syncState() }
-    func garage() { guard window?.attachedSheet == nil else { return }; preserveRun(); challenges.abandon(); clearInput(); mode = .garage; bike.reset(); art.metresToPixels=RideScene.metresToPixels; cameraY=0; ragdoll=nil; passengerRagdoll=nil; knockedCones.removeAll(); dust.removeAll(); audio.update(speed:0,throttle:false,vehicle:0,active:false); syncState() }
+    func start() { guard window?.attachedSheet == nil else { return }
+        guard progress.isUnlocked(.vehicle(bike.kind)),progress.isUnlocked(.route(bike.route)) else { NSSound.beep(); return }
+        NSColorPanel.shared.orderOut(nil); preserveRun(); challenges.abandon(); bike.hazards=obstacles; bike.absEnabled=absOn; bike.reset(); resetRunState(); startRival(); art.metresToPixels=RideScene.metresToPixels; elapsed=0; crashTime=0; cameraY=0; riderLean=0; riderLift=0; riderLiftVelocity=0; pedalPhase=0; challenges.selected=challengeKind; challenges.start(contextKey:runContext,initialFrame:ghostSnapshot()); ragdoll=nil; passengerRagdoll=nil; knockedCones.removeAll(); dust.removeAll(); clearInput(); mode = .riding; previous=ProcessInfo.processInfo.systemUptime; window?.makeFirstResponder(self); syncState() }
+    func garage() { guard window?.attachedSheet == nil else { return }; preserveRun(); challenges.abandon(); clearInput(); mode = .garage; rival=nil; bike.hazards=obstacles; bike.absEnabled=absOn; bike.reset(); resetRunState(); art.metresToPixels=RideScene.metresToPixels; cameraY=0; ragdoll=nil; passengerRagdoll=nil; knockedCones.removeAll(); dust.removeAll(); audio.update(speed:0,throttle:false,vehicle:0,active:false); syncState() }
     func pause() {
         guard window?.attachedSheet == nil, mode == .riding || mode == .paused else { return }
         clearInput(); mode = mode == .riding ? .paused : .riding; previous=ProcessInfo.processInfo.systemUptime
@@ -159,8 +197,10 @@ final class RideView: NSView {
         if mode == .riding || mode == .crashing { animationTime += dt }
         if mode == .riding {
             let previousFront=bike.frontWheelPosition,previousRear=bike.rearWheelPosition,previousSpeed=bike.speed,previousVertical=bike.verticalVelocity
-            bike.update(dt,throttle:held(.throttle),brake:held(.brake),leanBack:held(.leanBack),leanForward:held(.leanForward),jump:held(.jump),frontBrake:held(.frontBrake),rearBrake:held(.rearBrake))
+            bike.update(dt,throttle:held(.throttle),brake:held(.brake),leanBack:held(.leanBack),leanForward:held(.leanForward),jump:held(.jump),frontBrake:held(.frontBrake),rearBrake:held(.rearBrake),trick:held(.stunt))
             elapsed += dt
+            updateRival(dt)
+            updateScoring(dt)
             challenges.update(frame:ghostSnapshot(),distance:bike.distance,wheelie:bike.wheelieDistance,
                 stoppie:bike.stoppieDistance,airborne:!bike.frontContact && !bike.rearContact,
                 height:bike.height,crashed:bike.crashed)
@@ -177,11 +217,12 @@ final class RideView: NSView {
             if obstacles && !bike.finished && !bike.crashed {
                 for world in BikePhysics.obstaclePositions where !knockedCones.contains(world) {
                     if abs(Double(world)-bike.x)>4 { continue }
-                    let ground=BikePhysics.ground(Double(world),route:bike.route)
-                    if sweptWheelHit(previousFront,bike.frontWheelPosition,obstacle:RideVector(Double(world),ground),radius:bike.kind.rig.wheelRadius) {
-                        bike.strikeObstacle(front:true,severity:min(1.2,0.25+bike.speed/18)); knockedCones.insert(world); audio.impact(); emitDust(count:5)
-                    } else if sweptWheelHit(previousRear,bike.rearWheelPosition,obstacle:RideVector(Double(world),ground),radius:bike.kind.rig.wheelRadius) {
-                        bike.strikeObstacle(front:false,severity:min(1.2,0.2+bike.speed/20)); knockedCones.insert(world); audio.impact(); emitDust(count:5)
+                    let ground=BikePhysics.ground(Double(world),route:bike.route),kind=BikePhysics.obstacleKind(at:world)
+                    let weight=kind == .barrel ? 1.2 : kind == .log ? 0.8 : 1.0
+                    if sweptWheelHit(previousFront,bike.frontWheelPosition,obstacle:RideVector(Double(world),ground),radius:bike.kind.rig.wheelRadius,shape:kind) {
+                        bike.strikeObstacle(front:true,severity:min(1.5,(0.25+bike.speed/18)*weight)); knockedCones.insert(world); audio.impact(); emitDust(count:5)
+                    } else if sweptWheelHit(previousRear,bike.rearWheelPosition,obstacle:RideVector(Double(world),ground),radius:bike.kind.rig.wheelRadius,shape:kind) {
+                        bike.strikeObstacle(front:false,severity:min(1.5,(0.2+bike.speed/20)*weight)); knockedCones.insert(world); audio.impact(); emitDust(count:5)
                     }
                 }
             }
@@ -196,8 +237,8 @@ final class RideView: NSView {
                     let companion=RiderRig.solve(vehicle:bike.kind.rig,lean:riderLean*0.3,lift:riderLift,passenger:true)
                     passengerRagdoll=RiderRagdoll(pose:companion,origin:bike.chassisPosition,pitch:bike.pitch,velocity:velocity,angularVelocity:bike.angularVelocity,route:bike.route)
                 }
-                mode = .crashing; crashTime=0; clearInput(); audio.impact(); emitDust(count:16); saveRun(); syncState()
-            } else if bike.finished { mode = .result; clearInput(); saveRun(); syncState() }
+                score.crash(); mode = .crashing; crashTime=0; clearInput(); audio.impact(); emitDust(count:16); saveRun(); syncState()
+            } else if bike.finished { score.finishRun(); challenges.raceWon = rival.map { !$0.finished } ?? false; mode = .result; clearInput(); saveRun(); syncState() }
         } else if mode == .crashing {
             bike.update(dt,throttle:false,brake:false,leanBack:false,leanForward:false)
             ragdoll?.update(dt); passengerRagdoll?.update(dt)
@@ -213,6 +254,34 @@ final class RideView: NSView {
         updateTouchBar()
         if mode == .riding || mode == .crashing { needsDisplay=true }
     }
+    func updateScoring(_ dt:Double) {
+        guard !bike.crashed else { return }
+        let wheelie=bike.wheelieDistance,stoppie=bike.stoppieDistance
+        if wheelie>lastWheelie { score.accrue(.wheelie,points:RideScore.wheelie(metres:wheelie-lastWheelie)) }
+        if stoppie>lastStoppie { score.accrue(.stoppie,points:RideScore.stoppie(metres:stoppie-lastStoppie)) }
+        lastWheelie=wheelie; lastStoppie=stoppie
+        if bike.landingSerial != lastLandingSerial {
+            lastLandingSerial=bike.landingSerial
+            let flips=bike.lastFlips
+            if flips>0 { score.add(.flip,points:RideScore.flips(flips),label:flips == 1 ? "Voltereta" : "\(flips) volteretas") }
+            let jump=RideScore.jump(airTime:bike.lastAirTime,height:bike.lastAirHeight)
+            if jump>0 { score.add(.jump,points:jump,label:String(format:"Salto %.1f s",bike.lastAirTime)) }
+        }
+        if obstacles { for world in BikePhysics.obstaclePositions where !passedObstacles.contains(world) && !knockedCones.contains(world) && Double(world)<bike.x-1 {
+            passedObstacles.insert(world); score.add(.cone,points:RideScore.coneDodge,label:"Obstáculo esquivado")
+        } }
+        let airborne = !bike.frontContact && !bike.rearContact
+        score.tick(dt:dt,busy:wheelie>0.2 || stoppie>0.2 || (airborne && bike.airTime>0.2))
+        let stage=BikePhysics.difficultyStage(at:bike.x)
+        if stage>lastStage {
+            lastStage=stage
+            let delta=challenges.timeDelta(elapsed:elapsed,atDistance:Double(stage*300))
+            splitDeltas.append(delta)
+            splitText=delta.map { String(format:"Tramo %d · %+.1f s vs fantasma",stage,$0) } ?? "Tramo \(stage) completado"
+            splitAge=0
+        }
+        splitAge+=dt
+    }
     func updateCamera(_ dt:Double) {
         // Keep roughly 0.65 s of road ahead at high speed for every vehicle.
         let zoom=min(1,max(0.15,13/max(13,bike.speed)))
@@ -220,8 +289,14 @@ final class RideView: NSView {
         let target=(BikePhysics.ground(bike.x,route:bike.route)+max(0,bike.height-0.35)*0.35)*art.metresToPixels
         cameraY += (target-cameraY)*min(1,dt*5)
     }
-    private func sweptWheelHit(_ a:RideVector,_ b:RideVector,obstacle:RideVector,radius:Double)->Bool {
-        let triangle=[obstacle+RideVector(-0.14,0.02),obstacle+RideVector(0,0.315),obstacle+RideVector(0.14,0.02)]
+    private func sweptWheelHit(_ a:RideVector,_ b:RideVector,obstacle:RideVector,radius:Double,shape:BikePhysics.ObstacleKind = .cone)->Bool {
+        let outline:[RideVector]
+        switch shape {
+        case .cone: outline=[RideVector(-0.14,0.02),RideVector(0,0.315),RideVector(0.14,0.02)]
+        case .barrel: outline=[RideVector(-0.2,0.02),RideVector(-0.2,0.55),RideVector(0.2,0.55),RideVector(0.2,0.02)]
+        case .log: outline=[RideVector(-0.48,0.02),RideVector(-0.4,0.27),RideVector(0.4,0.27),RideVector(0.48,0.02)]
+        }
+        let triangle=outline.map { obstacle+$0 }
         func distance(_ p:RideVector,_ a:RideVector,_ b:RideVector)->Double {
             let d=b-a,l=d.x*d.x+d.y*d.y
             let t=l>0 ? max(0,min(1,((p-a).x*d.x+(p-a).y*d.y)/l)) : 0
@@ -230,7 +305,7 @@ final class RideView: NSView {
         let n=max(1,Int(ceil(hypot(b.x-a.x,b.y-a.y)/max(0.04,radius*0.45))))
         for i in 0...n {
             let p=a+(b-a)*Double(i)/Double(n)
-            for j in 0..<3 where distance(p,triangle[j],triangle[(j+1)%3])<radius { return true }
+            for j in 0..<triangle.count where distance(p,triangle[j],triangle[(j+1)%triangle.count])<radius { return true }
         }
         return false
     }
@@ -275,11 +350,31 @@ final class RideView: NSView {
     }
     func drawRide() {
         let ppm=art.metresToPixels,rig=bike.kind.rig,camY=cameraY+presentationOffset
-        if obstacles { for m in BikePhysics.obstaclePositions { art.cone(Double(m),cameraX:bike.x,cameraY:camY,route:bike.route,knocked:knockedCones.contains(m)) } }
+        if obstacles {
+            for p in BikePhysics.puddlePositions { art.puddle(center:Double(p),halfLength:BikePhysics.puddleHalfLength,cameraX:bike.x,cameraY:camY,route:bike.route) }
+            for m in BikePhysics.obstaclePositions {
+                let knocked=knockedCones.contains(m)
+                switch BikePhysics.obstacleKind(at:m) {
+                case .cone: art.cone(Double(m),cameraX:bike.x,cameraY:camY,route:bike.route,knocked:knocked)
+                case .barrel: art.barrel(Double(m),cameraX:bike.x,cameraY:camY,route:bike.route,knocked:knocked)
+                case .log: art.log(Double(m),cameraX:bike.x,cameraY:camY,route:bike.route,knocked:knocked)
+                }
+            }
+        }
         for p in dust {
             let x=370+(p.x-bike.x)*ppm,y=art.ground(p.x,at:bike.x,cameraY:camY,route:bike.route)-p.y*ppm
             let size=2+(1-p.life/p.maxLife)*10
-            art.ellipse(x-size,y-size,size*2,size,NSColor(hex:bike.route==0 ? 0xCFD0C7 : 0xD6BD91,alpha:(p.life/p.maxLife)*0.17))
+            art.ellipse(x-size,y-size,size*2,size,NSColor(hex:bike.route==0 ? 0xCFD0C7 : bike.route==3 ? 0xFFFFFF : bike.route==4 ? 0xB8C0C8 : 0xD6BD91,alpha:(p.life/p.maxLife)*0.17))
+        }
+        if let r=rival {
+            let c=cos(r.pitch),s=sin(r.pitch),rrig=r.kind.rig
+            func localRival(_ point:RideVector)->RideVector { let d=point-r.chassisPosition; return RideVector(c*d.x+s*d.y,-s*d.x+c*d.y) }
+            let savedBody=art.body,savedJacket=art.jacket
+            art.body=NSColor.systemTeal; art.jacket=NSColor.systemRed
+            NSGraphicsContext.saveGraphicsState(); NSGraphicsContext.current?.cgContext.setAlpha(0.8)
+            art.motorcycle(x:370+(r.chassisPosition.x-bike.x)*ppm,y:458+camY-r.chassisPosition.y*ppm,scale:ppm/rrig.drawingUnitsPerMetre,angle:r.pitch,kind:r.kind,rotation:-r.rearWheelRotation,time:animationTime,showRider:!r.crashed,rearWheelLocal:localRival(r.rearWheelPosition),frontWheelLocal:localRival(r.frontWheelPosition),frontCompression:r.frontCompression,rearCompression:r.rearCompression,frontRotation:-r.frontWheelRotation,pedalPhase:r.pedalPhase)
+            NSGraphicsContext.restoreGraphicsState()
+            art.body=savedBody; art.jacket=savedJacket
         }
         if ghostEnabled,let ghost=challenges.ghostFrame(at:elapsed) {
             let c=cos(ghost.pitch),s=sin(ghost.pitch)
@@ -308,6 +403,7 @@ final class RideView: NSView {
             if let ragdoll { art.drawRider(ragdoll.pose,units:ppm,kind:bike.kind,detached:true) }
             NSGraphicsContext.restoreGraphicsState()
         }
+        art.weather(route:bike.route,time:animationTime)
         art.gradient(NSRect(x:0,y:0,width:1280,height:165),NSColor.black.withAlphaComponent(0.32),.clear)
         art.gradient(NSRect(x:0,y:sceneHeight-130,width:1280,height:130),.clear,NSColor.black.withAlphaComponent(0.50))
         hud(); drawControls()
@@ -332,8 +428,26 @@ final class RideView: NSView {
         }
         if challengeKind != .free { art.text(challenges.progressText,28,117,12,.white,.medium) }
         if ghostEnabled,let ghost=challenges.ghostFrame(at:elapsed) {
-            art.text(String(format:"Fantasma %+.0f m",ghost.x-bike.x),1185,62,11,NSColor.white.withAlphaComponent(0.8),center:true,mono:true)
+            if let delta=challenges.timeDelta(elapsed:elapsed,atDistance:bike.x) {
+                art.text(String(format:"Fantasma %+.1f s",delta),1185,62,11,delta<=0 ? NSColor.systemGreen : NSColor.systemOrange,.semibold,center:true,mono:true)
+            } else { art.text(String(format:"Fantasma %+.0f m",ghost.x-bike.x),1185,62,11,NSColor.white.withAlphaComponent(0.8),center:true,mono:true) }
         }
+        if let r=rival {
+            let gap=bike.x-r.x
+            art.text(r.crashed ? "Rival caído" : r.finished ? "Rival ha llegado" : String(format:"Rival %+.0f m",gap),1185,80,11,r.crashed || gap>=0 ? NSColor.systemGreen : NSColor.systemOrange,.semibold,center:true,mono:true)
+        }
+        art.box(1112,94,152,(score.pending>0 || !score.popups.isEmpty) ? 128 : 52,NSColor.black.withAlphaComponent(0.22),8)
+        art.text("PUNTOS",1188,100,10,NSColor.white.withAlphaComponent(0.7),.semibold,center:true)
+        art.text("\(score.total)",1188,114,23,.white,.semibold,center:true,mono:true)
+        if score.chainActive || score.pending>0 {
+            art.text(String(format:"x%.1f · cadena %d",score.multiplier,score.chainPoints),1188,144,11,.systemYellow,.semibold,center:true,mono:true)
+            art.box(1130,162,116,2,NSColor.white.withAlphaComponent(0.25),1)
+            art.box(1130,162,116*max(0,min(1,score.chainTimer/RideScore.chainWindow)),2,.systemYellow,1)
+        }
+        for (i,popup) in score.popups.enumerated() {
+            art.text("+\(popup.points) \(popup.text)",1188,174+Double(i)*17,11,NSColor.white.withAlphaComponent(max(0.2,1-popup.age/2.2)),.medium,center:true)
+        }
+        if splitAge<4 { art.text(splitText,640,150,13,.white,.semibold,center:true) }
         let stage=BikePhysics.difficultyStage(at:bike.x)
         art.text("TRAMO \(stage+1)/4 · \(BikePhysics.stageTitle(at:bike.x))",28,90,11,.white,.semibold)
         for marker in 1...3 { art.box(29+145*Double(marker)/4,72,1,8,NSColor.white.withAlphaComponent(0.6)) }
@@ -344,7 +458,8 @@ final class RideView: NSView {
             art.text(stage == 3 ? "Anticipa los cambios de pendiente y dosifica el gas" : "Terreno más irregular · controla los aterrizajes",640,101,12,.white,.medium,center:true)
         }
         if obstacles, let next=BikePhysics.obstaclePositions.first(where:{Double($0)>bike.x && !knockedCones.contains($0)}), Double(next)-bike.x<max(10,bike.speed*0.7) {
-            art.text("Cono a \(max(1,Int(Double(next)-bike.x))) m",640,124,12,.white,.medium,center:true)
+            let name=BikePhysics.obstacleKind(at:next) == .cone ? "Cono" : BikePhysics.obstacleKind(at:next) == .barrel ? "Barril" : "Tronco"
+            art.text("\(name) a \(max(1,Int(Double(next)-bike.x))) m",640,124,12,.white,.medium,center:true)
         }
     }
     func drawControls() {

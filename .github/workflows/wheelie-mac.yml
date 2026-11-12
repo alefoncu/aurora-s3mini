@@ -1,0 +1,23 @@
+name: wheelie-mac
+
+on:
+  push:
+    paths: ["wheelie-mac/**", ".github/workflows/wheelie-mac.yml"]
+  pull_request:
+    paths: ["wheelie-mac/**", ".github/workflows/wheelie-mac.yml"]
+
+jobs:
+  test:
+    runs-on: macos-14
+    defaults:
+      run:
+        working-directory: wheelie-mac
+    steps:
+      - uses: actions/checkout@v4
+      - name: Unit and physics tests
+        run: ./test.sh
+      - name: Build the app
+        run: ./build.sh
+      - name: App smoke test (isolated preferences)
+        continue-on-error: true  # needs a GUI session; the tests above are the gate
+        run: timeout 180 "build/Wheelie Ride.app/Contents/MacOS/WheelieRide" --smoke-test

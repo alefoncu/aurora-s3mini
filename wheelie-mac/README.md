@@ -44,7 +44,7 @@ No contiene todo el catálogo de vehículos ni las pistas del juego original. El
 | Corregir hacia delante | → / D |
 | Frenar | ↓ / S |
 | Saltar | Espacio |
-| Truco | Mantener T |
+| Truco / voltereta | Mantener T (en el aire, con ← o →) |
 | Pausar / continuar | P / Escape |
 | Reiniciar | R / ⌘R |
 | Volver al taller | ⌘G |
@@ -97,6 +97,8 @@ Incluye:
 - Caída del muñeco durante cinco segundos sobre los tres terrenos: gravedad, impulso, huesos, contacto y estabilidad entre frecuencias de imagen.
 - Touch Bar: controles deshabilitados en taller/pausa, parejas de pulsación/liberación, telemetría, cancelación de combinaciones y pérdida de foco.
 - Transmisión (marchas, embrague, limitador, BMX y CVT) y retos con fantasma: persistencia por contexto, interpolación, límites de grabación y rechazo de datos corruptos.
+- Puntuación (cadenas, multiplicador, pérdida al caer), monedas y desbloqueos, migración de jugadores existentes.
+- Voltereta en el aire, charcos, ABS, mezcla de obstáculos y todas las rutas con el piloto prudente.
 - Audio offline: muestras finitas y de volumen acotado, canales estéreo, silencio, impacto y BMX. No abre altavoces.
 
 La app también acepta `--smoke-test` para probar su máquina de estados real con una ventana efímera y preferencias aisladas. Incluye una caída completa con desprendimiento del piloto y paso a resultados. Las pruebas de interfaz incluyen selección de moto/ruta, personalización, acompañante, aceleración, caballito, freno, pausa y atajo para volver al taller. La regresión de Touch Bar comprueba la misma barra en ventana, controlador y botones Continuar/Reiniciar al tomar el foco; también comprueba bloqueo modal, recuperación y resultados.
@@ -106,6 +108,8 @@ La app también acepta `--smoke-test` para probar su máquina de estados real co
 - `Sources/VehicleRig.swift`: dimensiones, masas, recorridos y anclajes compartidos.
 - `Sources/BikePhysics.swift`: chasis, ruedas, muelles, amortiguadores y contactos.
 - `Sources/Transmission.swift`: caja de cambios manual/automática, embrague, limitador y CVT del scooter.
+- `Sources/RideScore.swift`: puntos, cadenas y multiplicador.
+- `Sources/RideProgress.swift`: monedas y desbloqueos.
 - `Sources/RideChallenges.swift`: retos (caballito, invertido, salto, contrarreloj) y fantasma de la mejor vuelta.
 - `Sources/RiderRig.swift`: postura y cinemática inversa del piloto.
 - `Sources/RiderRagdoll.swift`: caída del personaje desprendido.
@@ -154,3 +158,17 @@ Invertido sobre la rueda delantera: entra con velocidad moderada y combina freno
 Corrección de la verificación y de la Hyper R 1000. `test.sh` no compilaba (faltaba `Transmission.swift`) y no ejecutaba las pruebas de transmisión ni de retos; ahora ejecuta todas. Con gas a fondo desde parado, la Hyper R daba la vuelta en unos 2 s (aceleración 9,2 m/s²), en contra de lo descrito arriba; se ha ajustado a 7,0 m/s² (la Sport 600 tiene 6,3) y conserva su punta de unos 295 km/h. Las pruebas de recorrido usan un piloto algo más prudente en Sierra y Dunas (11 m/s menos 1,2 por tramo), porque con el anterior la caída en un aterrizaje cerca del metro 1.151 dependía del vehículo. La prueba de recuperación del invertido entra en la BMX con -0,30 rad en lugar de -0,40, el límite que su batalla corta permite recuperar.
 
 Física: el empuje pierde su palanca sobre el cabeceo a partir de ~0,55 rad, de modo que un caballito de potencia se estabiliza en vez de dar la vuelta; la Hyper R levanta la rueda delantera al arrancar (~0,56 rad) pero no vuelca. En cuesta arriba, sin gas ni freno, la moto rueda hacia atrás (hasta 3 m/s) en lugar de quedarse clavada; cualquier freno la sujeta y el gas la saca si su empuje supera la pendiente. Nuevas pruebas: ningún vehículo vuelca con gas a fondo y rodadura hacia atrás con freno y gas.
+
+### Actualización 6.0
+
+- **Rampas más justas:** más anchas, más bajas y más separadas, con una zona de aterrizaje larga. El piloto prudente de las pruebas vuelve a recorrer todas las rutas a 12 m/s.
+- **Trucos en el aire:** mantén T en el aire con ← (voltereta hacia atrás) o → (hacia delante). Con T el amortiguamiento de giro se relaja y se conserva el momento angular; al soltar T vuelve a estabilizarse. El ángulo se mide con la moto en contacto: puedes girar libremente y se cae al aterrizar mal.
+- **Puntos y combos:** caballito (12/m), invertido (30/m), saltos (por tiempo y altura), volteretas (400 cada una) y obstáculos esquivados (30). Cada tipo distinto de truco suma +0,5 al multiplicador. La cadena se guarda tras 2,5 s sin trucos; si te caes con una cadena abierta, pierdes esos puntos. Récord de puntos por vehículo y ruta.
+- **Fantasma por tramos:** el HUD muestra la diferencia en segundos con tu mejor vuelta y, al cruzar cada tramo, cuánto has ganado o perdido. Los resultados listan los cuatro tramos.
+- **Monedas y desbloqueos:** 1 moneda cada 80 m y 1 por cada 200 puntos. Empiezas con 150; Scooter 40, Sport y Scrambler 80, Trial 100, Hyper R 220, Dunas 60, Nieve y Ciudad 100. Los jugadores con récords anteriores conservan todo.
+- **Rutas nuevas:** Nieve (poca adherencia, pinos y nevada) y Ciudad bajo la lluvia (asfalto mojado, rascacielos y farolas). Se dibujan por código, sin nuevas imágenes.
+- **Obstáculos variados:** conos, barriles (más duros) y troncos bajos que se pueden saltar, según el tramo; charcos que cortan la adherencia un 45 %. Se activan con "Obstáculos y charcos".
+- **Carrera contra rival:** nuevo reto con un rival de la misma física y vehículo (turquesa) que rueda como el piloto prudente. Gana quien llegue antes; si el rival cae, ganas al terminar.
+- **Física:** el amortiguamiento de giro cambia de forma continua en vez de saltar entre valores. **Frenos ABS** opcional: sin deslizamiento de frenada y fuerza justo por debajo del límite de adherencia (frena menos distancia en nieve y tierra). Sigue sin haber derrape lateral: el modelo es plano.
+- **Distribución:** `./package.sh` genera `build/WheelieRide-<versión>.dmg`. Sin certificado la firma es ad hoc; con `SIGN_IDENTITY="Developer ID Application: …"` (y `NOTARY_PROFILE` para notarizar) firma el app y el dmg. `.github/workflows/wheelie-mac.yml` ejecuta `test.sh` y compila en cada push.
+- La suspensión ya tenía controles en el inspector del taller (dureza y amortiguación por vehículo).

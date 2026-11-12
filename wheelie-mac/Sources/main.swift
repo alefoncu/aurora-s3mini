@@ -35,7 +35,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSToolbarDelegate, NST
             preferences.register(defaults:["vehicle":1,"route":1,"sound":false,"obstacles":false])
         } else { preferences = .standard }
         game=RideView(frame:NSRect(x:0,y:0,width:780,height:720),preferences:preferences)
-        sidebar=GarageSidebarController(kind:game.bike.kind,onSelect: { [weak self] kind in
+        sidebar=GarageSidebarController(kind:game.bike.kind,lockText: { [weak self] kind in
+            guard let self else { return nil }
+            let item=RideUnlock.vehicle(kind); return self.game.progress.isUnlocked(item) ? nil : "\(item.cost) monedas"
+        },onSelect: { [weak self] kind in
             guard let self, self.game.mode == .garage else { return }
             self.game.bike.kind=kind; self.game.prefs.set(BikeKind.allCases.firstIndex(of:kind) ?? 0,forKey:"vehicle"); self.game.loadHandlingPreferences(); self.game.loadRecords(); self.game.syncState()
         })
@@ -56,6 +59,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSToolbarDelegate, NST
         game.onStateChange = { [weak self] in self?.syncWindow() }
         buildMenu(); syncWindow(); if !restored { window.center() }; window.makeKeyAndOrderFront(nil); window.makeFirstResponder(game); NSApp.activate(ignoringOtherApps:true)
         if CommandLine.arguments.contains("--smoke-test") { smokeTest() }
+        if let i=CommandLine.arguments.firstIndex(of:"--snapshot"),i+1<CommandLine.arguments.count { snapshots(to:CommandLine.arguments[i+1]) }
+    }
+    /// Developer aid: write one PNG per route (with obstacles on) using isolated preferences.
+    func snapshots(to directory:String) {
+        game.audio.enabled=false; game.progress.unlockEverything(); game.obstacles=true; game.bike.kind = .sport
+        try? FileManager.default.createDirectory(atPath:directory,withIntermediateDirectories:true)
+        for route in 0..<BikePhysics.routeCount {
+            game.bike.route=route; game.night=false; game.start()
+            game.bike.x = 560; for _ in 0..<90 { game.previous=ProcessInfo.processInfo.systemUptime-1/60; game.keys=[126]; game.tick() }
+            guard let rep=game.bitmapImageRepForCachingDisplay(in:game.bounds) else { continue }
+            game.cacheDisplay(in:game.bounds,to:rep)
+            try? rep.representation(using:.png,properties:[:])?.write(to:URL(fileURLWithPath:directory+"/route\(route).png"))
+        }
+        NSApp.terminate(nil)
     }
     func bindTouchBar() {
         guard !bindingTouchBar, let game, let window, let split else { return }
@@ -77,7 +94,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSToolbarDelegate, NST
     func windowDidBecomeKey(_ notification:Notification) { bindTouchBar() }
     func syncWindow() {
         bindTouchBar()
-        window?.subtitle=game.mode == .garage ? "Taller" : "\(game.bike.kind.title) · \(["Valle","Sierra","Dunas"][game.bike.route])"
+        window?.subtitle=game.mode == .garage ? "Taller" : "\(game.bike.kind.title) · \(BikePhysics.routeNames[max(0,min(BikePhysics.routeCount-1,game.bike.route))])"
         let garage=game.mode == .garage
         if lastGarage != garage {
             lastGarage=garage
@@ -85,7 +102,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSToolbarDelegate, NST
             sidebarItem.isCollapsed = !garage
             inspectorItem.isCollapsed = !garage
         }
-        if garage { sidebar.sync(kind:game.bike.kind); inspector.refresh() }
+        if garage { sidebar.reload(); sidebar.sync(kind:game.bike.kind); inspector.refresh() }
         window?.toolbar?.validateVisibleItems()
         let paused=game.mode == .paused, canStart=game.mode == .garage || game.mode == .result
         pauseItem?.image=NSImage(systemSymbolName:paused || canStart ? "play.fill" : "pause.fill",accessibilityDescription:canStart ? "Rodar" : paused ? "Continuar" : "Pausar")
@@ -206,6 +223,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSToolbarDelegate, NST
     /// Exercise the actual UI state machine without injecting global keyboard events.
     func smokeTest() {
         game.audio.enabled=false
+        // Locked content cannot be started until its coins are spent.
+        let originalKind=game.bike.kind,originalRoute=game.bike.route
+        game.bike.kind = .hyperbike; game.start()
+        precondition(game.mode == .garage && !game.progress.isUnlocked(.vehicle(.hyperbike)),"A locked vehicle must not start")
+        game.bike.kind=originalKind; game.bike.route=3; game.start()
+        precondition(game.mode == .garage,"A locked route must not start"); game.bike.route=originalRoute
+        precondition(game.progress.wallet == RideProgress.startingCoins && game.progress.unlock(.route(2)) && game.progress.wallet == RideProgress.startingCoins-60,"Buying a route spends coins")
+        game.progress.unlockEverything()
         func checkBar(_ expected:RideTouchBarMode) {
             precondition(game.bar.mode == expected)
             let selected=game.bar.touchBar
@@ -227,6 +252,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSToolbarDelegate, NST
         precondition(game.art.metresToPixels<RideScene.metresToPixels*0.7 && game.art.metresToPixels>=RideScene.metresToPixels*0.15)
         game.garage();precondition(game.art.metresToPixels == RideScene.metresToPixels)
         game.bike.kind=selected;game.loadRecords();game.syncState()
+        // Every route renders with obstacles, puddles and weather without crashing.
+        game.obstacles=true
+        for route in 0..<BikePhysics.routeCount {
+            game.bike.route=route; game.night=route == 4; game.start()
+            for _ in 0..<45 { game.previous=ProcessInfo.processInfo.systemUptime-1/60; game.tick() }
+            let frame=NSImage(size:game.bounds.size); frame.lockFocusFlipped(true); game.draw(game.bounds); frame.unlockFocus()
+        }
+        game.night=false; game.obstacles=false; game.bike.route=originalRoute
+        // Race mode spawns a rival that rides the same physics.
+        game.challengeKind = .race; game.start()
+        precondition(game.rival != nil,"Race challenge needs a rival")
+        for _ in 0..<120 { game.previous=ProcessInfo.processInfo.systemUptime-1/60; game.tick() }
+        precondition((game.rival?.x ?? 0)>1,"The rival must ride")
+        game.challengeKind = .free; game.start(); precondition(game.rival == nil)
         game.start(); checkBar(.riding)
         game.keys.insert(14)
         precondition(game.held(.brake) && game.held(.leanForward) && !game.held(.leanBack),"E must combine front weight transfer with braking")
@@ -236,6 +275,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSToolbarDelegate, NST
         game.touchHeld.removeAll();game.bike.x = -500;game.bike.speed=12;game.keys.insert(14)
         for _ in 0..<120 where game.bike.angle > -0.4 { game.previous=ProcessInfo.processInfo.systemUptime-1/120;game.tick() }
         precondition(game.bike.isStoppie && game.bike.bestStoppie>0.5,"E must produce a physical front-wheel invertido")
+        precondition(game.score.total>0,"A real invertido must score points")
         game.saveRun();let recordedStoppie=game.bike.bestStoppie;game.bestStoppie=0;game.loadRecords()
         precondition(game.bestStoppie>=recordedStoppie,"Invertido record must survive reloading preferences")
         game.garage();game.start()

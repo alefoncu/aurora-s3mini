@@ -96,6 +96,12 @@ import Foundation
         update(s, 1, wheelie: 15)
         s.finish(routeCompleted: true, elapsed: .nan)
         precondition(!s.previouslyCompleted && s.ghost == nil)
+        // Ghost time at a world position and live delta for per-sector comparison.
+        let timed = RideGhostRun(version: 1, contextKey: "t", duration: 10, frames: (0...10).map { frame(Double($0)) })
+        precondition(timed.time(atDistance: 10) == 5 && abs(timed.time(atDistance: 5)! - 2.5) < 1e-9)
+        precondition(timed.time(atDistance: -1) == nil && timed.time(atDistance: 1_000) == nil && timed.time(atDistance: .nan) == nil)
+        let cmp = RideChallengeSession(preferences: UserDefaults(suiteName: "wheelie.ghosttime." + UUID().uuidString)!)
+        precondition(cmp.timeDelta(elapsed: 5, atDistance: 10) == nil, "No ghost, no delta")
         print("ChallengeTests passed: goals and safe landing, abandonment, scoped persistence, faster completed ghosts, timed interpolation, recording cap and corrupt-data rejection.")
     }
 }

@@ -56,6 +56,9 @@ final class BikePhysics {
     private var jumpHeld=false,jumpPending=false,jumpCooldown=0.0
     private var frontWasContact=true,rearWasContact=true
     private var settling=false
+    /// Speed of an unpowered, unbraked bike rolling backwards down a slope (m/s, >= 0).
+    /// The public `speed` stays a non-negative forward speed.
+    private var rollback=0.0
 
     init() { reset() }
     private var rig:VehicleRig { kind.rig }
@@ -77,7 +80,7 @@ final class BikePhysics {
         1.2*sqrt(spring(front)*rig.sprungMass*0.5)*suspensionDamping
     }
     func reset() {
-        speed=0; pitch=0; angularVelocity=0; bodyV=0
+        speed=0; rollback=0; pitch=0; angularVelocity=0; bodyV=0
         riderShift=0; rearWheelRotation=0; frontWheelRotation=0
         throttlePosition=0;brakePressure=0;rearDriveForce=0;frontBrakeForce=0;rearBrakeForce=0
         frontBrakePressure=0;rearBrakePressure=0;frontSlip=0;rearSlip=0;frontWheelRate=0;rearWheelRate=0
@@ -209,12 +212,27 @@ final class BikePhysics {
         // vehicle stays held when the available tyre grip supports it.
         let braking=min(availableBraking,max(0,speed/dt+freeAcceleration))
         let horizontalAcceleration=freeAcceleration-braking
-        if !settling { speed=max(0,min(kind.topSpeed*1.15,speed+horizontalAcceleration*dt));com.x+=speed*dt }
+        if !settling {
+            // Uphill with no drive and too little brake force, the bike rolls
+            // backwards instead of sticking to the slope. Any brake holds it.
+            let slopePull=supported ? 9.81*sin(atan(slope)) : 0
+            let hold=0.13+(frontBrakeForce+rearBrakeForce)/rig.sprungMass
+            if rollback>0 || (speed<0.001 && slopePull-drive>hold) {
+                let a=slopePull-drive-hold-dragCoefficient*rollback*rollback
+                rollback=max(0,min(3,rollback+a*dt));speed=0;com.x-=rollback*dt
+            } else {
+                speed=max(0,min(kind.topSpeed*1.15,speed+horizontalAcceleration*dt));com.x+=speed*dt
+            }
+        }
         let totalMass=rig.sprungMass
         bodyV += ((fr+ff)/totalMass-9.81)*dt
         // Drive/brake force acts below the centre of mass. Rider weight shift
         // changes load distribution and therefore unloads/reloads the front wheel.
-        let transfer=totalMass*(drive*0.95-braking*0.72)*(rig.centerOfMass.y+rig.wheelRadius)
+        // Past ~0.55 rad the driving thrust loses its leverage over the pitch axis
+        // (the centre of mass nears the rear contact), so a power wheelie levels
+        // off instead of looping; the rider still decides how far to take it.
+        let liftT=max(0,min(1,(angle-0.55)/0.4)),liftFade=1-liftT*liftT*(3-2*liftT)
+        let transfer=totalMass*(drive*0.95*liftFade-braking*0.72)*(rig.centerOfMass.y+rig.wheelRadius)
         // A deliberate front-brake + forward weight transfer loads the front
         // tyre and unloads the rear through chassis torque, never wheel offsets.
         let stoppieIntent=forward && (brake || frontBrake) && frontContact && speed>1.0 && angle<0.12

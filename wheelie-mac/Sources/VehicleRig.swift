@@ -49,7 +49,7 @@ enum BikeKind:String,CaseIterable {
         switch self { case .commuter,.scooter,.scrambler:return 0;case .motocross,.trials:return 1;case .sport,.hyperbike:return 2;case .bmx:return 3 }
     }
     var engineAcceleration:Double {
-        switch self { case .commuter:return 4.3;case .motocross:return 5.2;case .sport:return 6.3;case .bmx:return 2.0;case .scooter:return 3.5;case .scrambler:return 4.8;case .trials:return 4.5;case .hyperbike:return 6.3 }
+        switch self { case .commuter:return 4.3;case .motocross:return 5.2;case .sport:return 6.3;case .bmx:return 2.0;case .scooter:return 3.5;case .scrambler:return 4.8;case .trials:return 4.5;case .hyperbike:return 7.0 }
     }
     var outfitDescription:String {
         switch self {

@@ -23,6 +23,29 @@ import Foundation
         check(BikePhysics.difficultyStage(at:0)==0 && BikePhysics.difficultyStage(at:299.99)==0 && BikePhysics.difficultyStage(at:300)==1 && BikePhysics.difficultyStage(at:600)==2 && BikePhysics.difficultyStage(at:900)==3,"Course sector boundaries")
         check(BikePhysics.difficultyStage(at:Double.greatestFiniteMagnitude)==3,"Extreme finite distance must clamp before integer conversion")
         check(BikePhysics.difficultyStage(at:Double.nan)==0 && BikePhysics.difficultyStage(at:-5)==0,"Invalid/negative sector positions")
+        // Full throttle alone, from rest, must never flip any vehicle over.
+        for kind in BikeKind.allCases {
+            let b=BikePhysics();b.kind=kind
+            for _ in 0..<1800 {step(b);finite(b)}
+            check(!b.crashed,"Throttle alone must not loop the bike over: \(kind)")
+        }
+        // Rolling backwards: on the steepest uphill of route 1 an unpowered,
+        // unbraked bike rolls back; any brake holds it and throttle recovers it.
+        do {
+            var ux=0.0,us=0.0
+            for i in 0..<11000 { let x=Double(i)*0.1,s=BikePhysics.slope(x,route:1); if s>us {us=s;ux=x} }
+            let b=BikePhysics();b.kind = .motocross;b.route=1;b.x=ux
+            for _ in 0..<120 {step(b,gas:false);finite(b)}
+            check(b.x<ux-0.5 && b.speed==0 && !b.crashed,"Unbraked bike must roll back on a steep uphill, x=\(b.x) from \(ux)")
+            for _ in 0..<240 {step(b,gas:false,brake:true);finite(b)}
+            let held=b.x
+            for _ in 0..<240 {step(b,gas:false,brake:true)}
+            check(abs(b.x-held)<0.01,"Brake must hold a bike on a slope")
+            // The Enduro (5.2 m/s²) cannot out-pull a 35° slope; the Sport (6.3) can.
+            b.kind = .sport;b.x=ux
+            for _ in 0..<600 {step(b,back:b.angle < -0.25,forward:b.angle>0.25);finite(b)}
+            check(b.x>ux+1 && !b.crashed,"Throttle must climb out of a steep uphill, x=\(b.x) from \(ux)")
+        }
         let obstacles=BikePhysics.obstaclePositions
         check(Set(obstacles).count==obstacles.count && obstacles==obstacles.sorted(),"One sorted collision/render obstacle schedule")
         let sectorCounts=(0..<4).map { stage in obstacles.filter { BikePhysics.difficultyStage(at:Double($0))==stage }.count }

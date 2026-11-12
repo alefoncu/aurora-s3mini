@@ -140,7 +140,30 @@ struct AudioTests {
             let stats=voiceStats(rpm:6_400,voice:voice,load:255)
             precondition(voice == 3 ? stats.0==0 : stats.0>0.005,"Each motor voice must sound; BMX must remain silent")
         }
-        print("AudioTests passed: finite bounded stereo motor, mute, impact decay, BMX idle/rolling, eight voices, RPM firing rate, load and clutch cut. No audio device opened.")
+        // Ambient beds: rain is hissy, wind is a low rumble, the city hums; all bounded, and
+        // none of them can leak when sound is muted or no ride is active.
+        func ambientStats(flags: Int64, level: Int64 = 255, main: UInt64 = UInt64((3 << 20) | (1 << 18) | (1 << 19))) -> (peak: Float, crossings: Int) {   // stationary BMX: no engine, only ambience
+            let state = EngineRenderState()
+            state.store(Int64(bitPattern: main)); state.storeAmbient(flags | (level << 8))
+            state.render(frameCount: 48_000, buffers: buffer.mutableAudioBufferList)
+            state.render(frameCount: 48_000, buffers: buffer.mutableAudioBufferList)
+            var peak: Float = 0, crossings = 0
+            for i in 1..<48_000 {
+                precondition(channels[0][i].isFinite && channels[0][i] == channels[1][i], "Ambient produced a bad sample")
+                peak = max(peak, abs(channels[0][i]))
+                if (channels[0][i] > 0) != (channels[0][i - 1] > 0) { crossings += 1 }
+            }
+            return (peak, crossings)
+        }
+        let rain = ambientStats(flags: 1), wind = ambientStats(flags: 2), city = ambientStats(flags: 4), all = ambientStats(flags: 7)
+        for sound in [rain, wind, city, all] { precondition(sound.peak > 0.002 && sound.peak < 0.25, "Ambient is silent or too loud: \(sound.peak)") }
+        precondition(rain.crossings > wind.crossings * 3, "Rain must be brighter than wind (\(rain.crossings) vs \(wind.crossings))")
+        let calm = ambientStats(flags: 2, level: 0), gale = ambientStats(flags: 2, level: 255)
+        precondition(gale.peak > calm.peak * 1.3, "Wind must grow with speed")
+        precondition(ambientStats(flags: 7, main: UInt64((3 << 20) | (1 << 18))).peak < 0.000001, "Muted ambient leaked")
+        precondition(ambientStats(flags: 7, main: UInt64((3 << 20) | (1 << 19))).peak < 0.000001, "Ambient played without an active ride")
+        precondition(ambientStats(flags: 0).peak < 0.000001, "No ambient flag, no ambient sound")
+        print("AudioTests passed: finite bounded stereo motor, mute, impact decay, BMX idle/rolling, eight voices, RPM firing rate, load and clutch cut, rain/wind/city ambience. No audio device opened.")
     }
 }
 """#

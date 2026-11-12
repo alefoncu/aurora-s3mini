@@ -59,6 +59,15 @@ final class BikePhysics {
     private(set) var landingSerial=0, lastAirTime=0.0, lastAirHeight=0.0, lastFlips=0
     private var airPeak=0.0, trickHeld=false, angularDamping=1.4
     static let airTrickAcceleration=80.0
+    /// Extra take-off impulse when T is held on the jump: gives flips the hang time they need.
+    static let trickJumpBoost=1.6
+    /// Endless mode: no finish line; the last sector repeats until the rider crashes.
+    var endless=false
+    /// Cumulative wear: 0 fresh ... 1 worn. Tyres lose up to 30 % grip; hot dampers lose up to 35 % damping.
+    private(set) var tyreWear=0.0, suspensionHeat=0.0
+    /// Yaw of an in-air 360 (radians) and the spins counted at the last landing.
+    private(set) var spinYaw=0.0, lastSpins=0
+    private var spinHeld=false,flipActive=false
     static let routeNames=["Valle","Sierra","Dunas","Nieve","Ciudad lluvia"]
     static var routeCount:Int { routeNames.count }
     var coins=0
@@ -90,11 +99,12 @@ final class BikePhysics {
     private func damping(_ front:Bool)->Double {
         // Damping is integrated implicitly, so lightweight wheels remain stable
         // even with the high damping rate needed by a motorcycle's sprung mass.
-        1.2*sqrt(spring(front)*rig.sprungMass*0.5)*suspensionDamping
+        1.2*sqrt(spring(front)*rig.sprungMass*0.5)*suspensionDamping*(1-0.35*suspensionHeat)
     }
     func reset() {
         speed=0; rollback=0; pitch=0; angularVelocity=0; bodyV=0
         airTime=0;airRotation=0;airPeak=0;trickHeld=false;angularDamping=1.4
+        tyreWear=0;suspensionHeat=0;spinYaw=0;spinHeld=false;flipActive=false
         riderShift=0; rearWheelRotation=0; frontWheelRotation=0
         throttlePosition=0;brakePressure=0;rearDriveForce=0;frontBrakeForce=0;rearBrakeForce=0
         frontBrakePressure=0;rearBrakePressure=0;frontSlip=0;rearSlip=0;frontWheelRate=0;rearWheelRate=0
@@ -118,9 +128,11 @@ final class BikePhysics {
         distance=0;wheelieDistance=0;bestWheelie=0;coins=0;landingImpact=0
         publish()
     }
-    func update(_ dt:Double,throttle:Bool,brake:Bool,leanBack:Bool,leanForward:Bool,jump:Bool=false,frontBrake:Bool=false,rearBrake:Bool=false,trick:Bool=false) {
+    func update(_ dt:Double,throttle:Bool,brake:Bool,leanBack:Bool,leanForward:Bool,jump:Bool=false,frontBrake:Bool=false,rearBrake:Bool=false,trick:Bool=false,spin:Bool=false,noHands:Bool=false) {
         guard dt.isFinite,dt>0,!finished else { return }
-        trickHeld=trick && !crashed
+        trickHeld=trick && !crashed;spinHeld=spin && !crashed
+        // Hands off the bars: no weight shift and no front-lever braking, only throttle and rear brake remain.
+        let leanBack=noHands ? false : leanBack,leanForward=noHands ? false : leanForward,frontBrake=noHands ? false : frontBrake
         jumpPending=jump && !jumpHeld && !crashed;jumpHeld=jump;landingImpact=0
         var remaining=min(dt,0.25)
         while remaining>0.0000001 && !finished {
@@ -137,7 +149,7 @@ final class BikePhysics {
         jumpCooldown=max(0,jumpCooldown-dt)
         if jumpPending {
             if (rearContact || frontContact) && jumpCooldown<=0 && !settling {
-                let impulse=kind == .bmx ? 3.2 : kind == .motocross ? 3.1 : 2.6
+                let impulse=(kind == .bmx ? 3.2 : kind == .motocross ? 3.1 : 2.6)*(trickHeld ? Self.trickJumpBoost : 1)
                 bodyV+=impulse;rearV+=impulse;frontV+=impulse;jumpCooldown=0.7
                 rearContact=false;frontContact=false
             }
@@ -166,8 +178,9 @@ final class BikePhysics {
         // A slipping tyre has slightly less usable grip than a rolling one.
         // Relaxation prevents instant transitions when a wheel lands or unlocks.
         let rearSurface=hazards ? Self.puddleFactor(rearNom.x) : 1,frontSurface=hazards ? Self.puddleFactor(frontNom.x) : 1
-        let rearGrip=frictionCoefficient*rearSurface*rearNormalLoad*(1-0.18*min(1,abs(rearSlip)))
-        let frontGrip=frictionCoefficient*frontSurface*frontNormalLoad*(1-0.18*min(1,abs(frontSlip)))
+        let wearFactor=1-0.30*tyreWear
+        let rearGrip=frictionCoefficient*wearFactor*rearSurface*rearNormalLoad*(1-0.18*min(1,abs(rearSlip)))
+        let frontGrip=frictionCoefficient*wearFactor*frontSurface*frontNormalLoad*(1-0.18*min(1,abs(frontSlip)))
         let ratio=speed/kind.topSpeed
         let engineAcceleration=kind.engineAcceleration
         if kind == .bmx {
@@ -213,6 +226,11 @@ final class BikePhysics {
         let relaxation=1-exp(-dt/0.07)
         frontSlip += (frontTargetSlip-frontSlip)*relaxation
         rearSlip += (rearTargetSlip-rearSlip)*relaxation
+        if !settling {
+            tyreWear=min(1,tyreWear+(abs(frontSlip)+abs(rearSlip))*0.012*dt)
+            let work=abs(rearV-(bodyV+angularVelocity*lr))+abs(frontV-(bodyV+angularVelocity*lf))
+            suspensionHeat=max(0,min(1,suspensionHeat+(work*0.01-0.03*suspensionHeat)*dt))
+        }
         // Closed-throttle compression drag belongs to the driven rear tyre;
         // bicycles freewheel. Braking shares the same finite tyre force budget.
         let engineDrag=kind == .bmx ? 0.0 : rig.sprungMass*0.42*(1-throttlePosition)*min(1,speed/2)
@@ -261,9 +279,17 @@ final class BikePhysics {
         // strong pitch torque and the usual stabilising damping is relaxed, so
         // angular momentum is conserved. Releasing T brings the damping back.
         let trickAir=trickHeld && !crashed && !rearContact && !frontContact && !settling
-        let dampingTarget=trickAir ? 0.18 : (stoppieIntent ? 1.6 : forward ? 3.5 : back ? 0.9 : 1.4)
+        if trickAir { flipActive=true }
+        // Releasing T during a flip commits to the nearest full turn: the rider levels the bike
+        // for landing. Let go after the half-way point to finish the flip, earlier to abort it.
+        let snapping=flipActive && !trickHeld && !crashed && !rearContact && !frontContact && !settling && abs(airRotation)>0.4
+        let dampingTarget=(trickAir || snapping) ? 0.18 : (stoppieIntent ? 1.6 : forward ? 3.5 : back ? 0.9 : 1.4)
         angularDamping += (dampingTarget-angularDamping)*min(1,dt*10)
-        let airTorque=trickAir ? -riderShift*inertia*Self.airTrickAcceleration : 0
+        var airTorque=trickAir ? -riderShift*inertia*Self.airTrickAcceleration : 0
+        if snapping {
+            let error=(airRotation/(2*Double.pi)).rounded()*2*Double.pi-airRotation
+            airTorque=inertia*(70*error-10*angularVelocity)
+        }
         let torque=fr*lr+ff*lf+transfer+riderTorque+airTorque-angularVelocity*inertia*angularDamping
         angularVelocity += torque/inertia*dt
         pitch += angularVelocity*dt
@@ -302,16 +328,25 @@ final class BikePhysics {
             if !crashed && (rearContact || frontContact) && (angle>1.85 || angle < -1.1) { crashed=true;speed *= 0.35;angularVelocity *= 0.6 }
             if !rearContact && !frontContact {
                 airTime+=dt;airRotation+=angularVelocity*dt
+                if !crashed {
+                    // A held spin turns the bike 360 degrees; releasing commits to the nearest full turn.
+                    let rate=kind == .bmx ? 2*Double.pi/0.55 : 2*Double.pi/0.85
+                    if spinHeld { spinYaw+=rate*dt }
+                    else if spinYaw != 0 { spinYaw+=((spinYaw/(2*Double.pi)).rounded()*2*Double.pi-spinYaw)*min(1,dt*6) }
+                }
                 airPeak=max(airPeak,rearY-Self.ground(rearNow.x,route:route)-rig.wheelRadius)
             } else if airTime>0 {
+                let turns=(spinYaw/(2*Double.pi)).rounded(),misalignment=abs(spinYaw-turns*2*Double.pi)
+                if !crashed && misalignment>1.1 { crashed=true;speed *= 0.35;angularVelocity *= 0.6 }
                 if !crashed && airTime>=0.25 {
+                    lastSpins=Int(abs(turns))
                     lastAirTime=airTime;lastAirHeight=airPeak
                     lastFlips=Int((abs(airRotation)+0.9)/(2*Double.pi))
                     landingSerial+=1
                 }
-                airTime=0;airRotation=0;airPeak=0
+                airTime=0;airRotation=0;airPeak=0;spinYaw=0;flipActive=false
             }
-            if distance>=Self.finish { com.x+=Self.finish-origin.x;distance=Self.finish;finished=true;speed=0 }
+            if !endless && distance>=Self.finish { com.x+=Self.finish-origin.x;distance=Self.finish;finished=true;speed=0 }
         }
         rearWheelPosition=RideVector(rearNow.x,rearY);frontWheelPosition=RideVector(frontNow.x,frontY)
         rearWasContact=rearContact;frontWasContact=frontContact
@@ -409,7 +444,7 @@ final class BikePhysics {
         }
     }
     /// Wet patches (centres, metres) that cut tyre grip while hazards are enabled.
-    static let puddlePositions:[Int] = [140,230,315,455,640,790,905,1055]
+    static let puddlePositions:[Int] = [140,230,315,455,640,790,905,1055] + Array(stride(from:1230,through:12_000,by:140))
     static let puddleHalfLength=4.0
     static func puddleFactor(_ x:Double)->Double {
         guard x.isFinite else { return 1 }
@@ -419,6 +454,8 @@ final class BikePhysics {
         }
         return 1
     }
+    /// Endless mode keeps the densest sector going: an obstacle every 25 m after the finish line.
+    static let endlessObstaclePositions:[Int] = obstaclePositions + Array(stride(from:1200,through:12_000,by:25))
     static let obstaclePositions:[Int] = [85,180,275]
         + Array(stride(from:335,through:575,by:60))
         + Array(stride(from:625,through:865,by:40))

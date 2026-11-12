@@ -46,30 +46,83 @@ import Foundation
             for _ in 0..<600 {step(b,back:b.angle < -0.25,forward:b.angle>0.25);finite(b)}
             check(b.x>ux+1 && !b.crashed,"Throttle must climb out of a steep uphill, x=\(b.x) from \(ux)")
         }
-        // Air tricks: with T held the rider can rotate the bike in the air; without it
-        // a standing jump barely rotates. Landing a completed flip is reported once.
+        // Air tricks: T on take-off adds hang time; holding T in the air rotates the bike, and
+        // releasing it after the half-turn commits the flip and levels the bike for landing.
+        // Every vehicle must land a clean frontflip and backflip from a standing jump.
         do {
-            func jumpTest(trick:Bool)->BikePhysics {
-                let b=BikePhysics();b.kind = .commuter;b.route=0;b.x = -500;b.speed=8
+            func flipJump(_ kind:BikeKind,dir:Double,trick:Bool)->BikePhysics {
+                let b=BikePhysics();b.kind=kind;b.route=0;b.x = -500;b.speed=8
                 for _ in 0..<120 {step(b,gas:false)}
-                var i=0
-                while i<400 {
+                var released=false
+                for i in 0..<500 {
                     let air = !b.rearContact && !b.frontContact
                     var fwd=false,back=false
-                    if trick && air {
-                        let rot=abs(b.airRotation)
-                        if rot<4.3 { fwd=true } else if abs(b.angularVelocity)>3 { back=b.angularVelocity>0 ? false : true; fwd=b.angularVelocity>0 }
-                    }
-                    b.update(frame,throttle:false,brake:false,leanBack:back,leanForward:fwd,jump:i==0,trick:trick && air);i+=1
+                    if trick && air { if abs(b.airRotation)<3.4 && !released { back=dir<0; fwd=dir>0 } else { released=true } }
+                    b.update(frame,throttle:false,brake:false,leanBack:back,leanForward:fwd,jump:i==0,trick:trick && !released)
                     finite(b)
                     if b.crashed { break }
                 }
                 return b
             }
-            let plain=jumpTest(trick:false),trickRun=jumpTest(trick:true)
-            check(!plain.crashed && plain.lastFlips==0,"A standing jump without T must not flip")
-            check(!trickRun.crashed && trickRun.landingSerial>0 && trickRun.lastFlips>=1,"A held-T front flip must land and be counted (flips=\(trickRun.lastFlips), crashed=\(trickRun.crashed))")
-            check(trickRun.lastAirTime>0.3 && trickRun.lastAirHeight>0.2,"Landing must report air time and height")
+            for kind in BikeKind.allCases {
+                let plain=flipJump(kind,dir:1,trick:false)
+                check(!plain.crashed && plain.lastFlips==0,"A standing jump without T must not flip: \(kind)")
+                for dir in [-1.0,1.0] {
+                    let b=flipJump(kind,dir:dir,trick:true)
+                    check(!b.crashed && b.lastFlips==1 && b.landingSerial>0,"\(kind) must land a \(dir<0 ? "back" : "front")flip (flips=\(b.lastFlips), crashed=\(b.crashed))")
+                    check(b.lastAirTime>0.5 && b.lastAirHeight>0.3,"Landing must report air time and height: \(kind)")
+                }
+            }
+        }
+        // Spin 360: hold G in the air; the landing counts the full turns.
+        do {
+            func spinJump(hold:Double)->BikePhysics {
+                let b=BikePhysics();b.kind = .bmx;b.route=0;b.x = -500;b.speed=8
+                for _ in 0..<120 {step(b,gas:false)}
+                var t=0.0
+                for i in 0..<500 {
+                    let air = !b.rearContact && !b.frontContact
+                    if air { t+=frame }
+                    b.update(frame,throttle:false,brake:false,leanBack:false,leanForward:false,jump:i==0,trick:true,spin:air && t<hold)
+                    finite(b);if b.crashed { break }
+                }
+                return b
+            }
+            let full=spinJump(hold:0.55),none=spinJump(hold:0)
+            check(!full.crashed && full.lastSpins==1,"A held spin must land a 360 (spins=\(full.lastSpins), crashed=\(full.crashed))")
+            check(!none.crashed && none.lastSpins==0,"No spin input, no spin")
+        }
+        // No-hands: weight shifts and the front brake are ignored, so a wheelie is not corrected.
+        do {
+            let hands=BikePhysics(),free=BikePhysics()
+            hands.kind = .commuter;free.kind = .commuter
+            for b in [hands,free] { b.x = -500;b.speed=10 }
+            for _ in 0..<120 {
+                hands.update(frame,throttle:false,brake:false,leanBack:true,leanForward:false,noHands:true)
+                free.update(frame,throttle:false,brake:false,leanBack:true,leanForward:false)
+            }
+            check(abs(hands.angle)<0.05 && free.angle>0.05 || hands.angle<free.angle,"Hands off the bars must disable the weight shift")
+        }
+        // Wear: sliding wears tyres and bumps heat the dampers; a reset restores both.
+        do {
+            let b=BikePhysics();b.kind = .sport;b.route=3;b.x = -500;b.speed=22
+            for _ in 0..<400 {step(b,gas:false,brake:true)}
+            check(b.tyreWear>0.01,"Braking slip on snow must wear the tyres (\(b.tyreWear))")
+            let worn=b.tyreWear
+            check(worn<=1,"Wear is bounded")
+            let rough=BikePhysics();rough.kind = .motocross;rough.route=1
+            for _ in 0..<12000 where !rough.finished && !rough.crashed { step(rough,back:rough.angle < -0.25,forward:rough.angle>0.25,brake:rough.speed>8) }
+            check(rough.suspensionHeat>0.01 && rough.suspensionHeat<=1,"A rough route must heat the dampers (\(rough.suspensionHeat))")
+            rough.reset();b.reset()
+            check(rough.suspensionHeat==0 && b.tyreWear==0,"Reset clears wear and heat")
+        }
+        // Endless: no finish line, the same bike keeps riding past 1,200 m.
+        do {
+            let b=BikePhysics();b.kind = .sport;b.endless=true
+            b.x=1190
+            for _ in 0..<1200 {step(b,gas:true,back:b.angle < -0.25,forward:b.angle>0.25);if b.crashed {break}}
+            check(!b.finished && (b.crashed || b.x>1210),"Endless mode must not finish at 1,200 m")
+            check(BikePhysics.endlessObstaclePositions.count>BikePhysics.obstaclePositions.count && BikePhysics.endlessObstaclePositions.last!>5000,"Endless obstacle field")
         }
         // Wet patches cut grip; ABS never needs a longer stop than locked brakes.
         do {

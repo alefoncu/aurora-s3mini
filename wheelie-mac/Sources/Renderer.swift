@@ -136,7 +136,7 @@ final class RideRenderer {
     func ground(_ meters:Double,at cameraX:Double,cameraY:Double,route:Int)->Double {
         458 + cameraY - BikePhysics.ground(meters,route:route)*metresToPixels
     }
-    func scenery(cameraX:Double,cameraY:Double,route:Int,night:Bool) {
+    func scenery(cameraX:Double,cameraY:Double,route:Int,night:Bool,endless:Bool=false) {
         let cam=cameraX*metresToPixels
         // Distant roadside objects pass behind the playable silhouette.
         for i in -2..<12 {
@@ -181,12 +181,12 @@ final class RideRenderer {
         } }
         for n in -1..<6 {
             let world=Double(Int(cameraX/100)+n)*100
-            guard world>0 && world<=1200 else { continue }
+            guard world>0 && (endless || world<=1200) else { continue }
             let x=370+(world-cameraX)*metresToPixels
             if x < -80 || x > 1360 { continue }
             let y=ground(world,at:cameraX,cameraY:cameraY,route:route)-45
             line(x,y,x,y-43,3,ink)
-            if Int(world)%300 == 0 && world<1200 {
+            if Int(world)%300 == 0 && (world<1200 || endless) {
                 box(x-58,y-86,116,45,NSColor(hex:0xE6E4D8),3)
                 text("TRAMO \(BikePhysics.difficultyStage(at:world)+1)",x,y-82,10,ink,.bold,center:true)
                 text(BikePhysics.stageTitle(at:world),x,y-65,12,ink,.semibold,center:true)
@@ -195,7 +195,7 @@ final class RideRenderer {
             }
         }
         let finish=370+(BikePhysics.finish-cameraX)*metresToPixels
-        if finish > -20 && finish < 1350 {
+        if !endless && finish > -20 && finish < 1350 {
             let y=ground(BikePhysics.finish,at:cameraX,cameraY:cameraY,route:route)
             line(finish,y-27,finish,y-170,4,silver)
             for r in 0..<4 { for c in 0..<6 { box(finish+Double(c)*11,y-170+Double(r)*11,11,11,(r+c)%2==0 ? .white : ink) } }
@@ -255,6 +255,17 @@ final class RideRenderer {
         ellipse(x-21,y-3,48,8,NSColor.black.withAlphaComponent(0.16)); box(x-18,y-4,36,5,ink,2)
         poly([(x-12,y-4),(x-3,y-34),(x+4,y-34),(x+13,y-4)],NSColor(hex:0xEF6A27),stroke:ink,width:0.8)
         poly([(x-8,y-15),(x-5,y-25),(x+7,y-25),(x+10,y-15)],NSColor(hex:0xEEE5D2))
+    }
+    /// A forward-pointing light cone and a pool of light on the road, for night rides.
+    func headlight(x:Double,y:Double,angle:Double,wheelbasePixels:Double) {
+        let c=cos(angle),s=sin(angle)
+        let origin=NSPoint(x:x+c*wheelbasePixels*0.97+s*8,y:y-s*wheelbasePixels*0.97+c*(-26))
+        func pt(_ length:Double,_ spread:Double)->NSPoint { NSPoint(x:origin.x+c*length-s*spread,y:origin.y-s*length-c*spread) }
+        let beam=NSBezierPath(); beam.move(to:origin); beam.line(to:pt(420,-34)); beam.line(to:pt(420,70)); beam.close()
+        NSGraphicsContext.saveGraphicsState(); beam.addClip()
+        NSGradient(colors:[NSColor(hex:0xFFF1C2,alpha:0.50),NSColor(hex:0xFFF1C2,alpha:0.0)])?.draw(in:beam,angle:-Double(angle)*180/Double.pi)
+        NSGraphicsContext.restoreGraphicsState()
+        circle(origin.x,origin.y,5,NSColor(hex:0xFFF8DC,alpha:0.95))
     }
     func lamp(_ x:Double,_ y:Double,night:Bool) {
         line(x,y,x,y-120,4,NSColor(hex:0x2A2F38)); line(x,y-120,x+26,y-124,3,NSColor(hex:0x2A2F38))

@@ -42,6 +42,14 @@ final class EngineAudio {
         if enabled && active { startIfNeeded() }
     }
 
+    /// Ambient bed for the current route: rain, wind (grows with speed) and a distant city hum.
+    /// `windLevel` is 0...1. Nothing plays unless sound is enabled and a ride is active.
+    func setAmbient(route: Int, speed: Double) {
+        var flags: Int64 = 0
+        switch route { case 2: flags = 2; case 3: flags = 2; case 4: flags = 1 | 4; default: flags = 0 }
+        let level = Int64(max(0, min(255, ((speed.isFinite ? max(0, speed) : 0) / 40 * 255).rounded())))
+        state.storeAmbient(flags | (level << 8) | (route == 3 ? 1 << 16 : 0))
+    }
     func impact() {
         guard enabled else { return }
         impactSerial = (impactSerial &+ 1) & 0xFFFF
@@ -110,6 +118,9 @@ final class EngineAudio {
 /// nothing, logs nothing, and never calls back into AppKit or AVAudioEngine.
 private final class EngineRenderState {
     private let controls: UnsafeMutablePointer<Int64>
+    private let ambientControls: UnsafeMutablePointer<Int64>
+    private var rainGain = 0.0, windGain = 0.0, cityGain = 0.0
+    private var windLow = 0.0, hiLow = 0.0, cityLow = 0.0, gustPhase = 0.0, cityPhase = 0.0
     private var phase = 0.0
     private var frequency = 38.0
     private var gain = 0.0
@@ -123,6 +134,13 @@ private final class EngineRenderState {
     init() {
         controls = .allocate(capacity: 1)
         controls.initialize(to: 0)
+        ambientControls = .allocate(capacity: 1)
+        ambientControls.initialize(to: 0)
+    }
+
+    func storeAmbient(_ value: Int64) {
+        var old = OSAtomicAdd64Barrier(0, ambientControls)
+        while !OSAtomicCompareAndSwap64Barrier(old, value, ambientControls) { old = OSAtomicAdd64Barrier(0, ambientControls) }
     }
 
     func store(_ value: Int64) {
@@ -171,6 +189,14 @@ private final class EngineRenderState {
         let targetGain = enabled && active && kind != 3 ? (0.026+engineLoad*0.044)*(shifting ? 0.25:1) : 0
         let targetRoad = enabled && active ? min(0.022,speed*0.0007) : 0
         let targetSlip = enabled && active && speed>1 ? slip*0.025 : 0
+        let ambientWord = UInt64(bitPattern: OSAtomicAdd64Barrier(0, ambientControls))
+        let rainOn = ambientWord & 1 != 0, windOn = ambientWord & 2 != 0, cityOn = ambientWord & 4 != 0
+        let windLevel = Double((ambientWord >> 8) & 0xFF) / 255
+        let heavyWind = ambientWord & (1 << 16) != 0
+        let live = enabled && active
+        let targetRain = live && rainOn ? 0.040 : 0
+        let targetWind = live && windOn ? (heavyWind ? 0.05 : 0.025) + windLevel * 0.05 : 0
+        let targetCity = live && cityOn ? 0.016 : 0
         let list = UnsafeMutableAudioBufferListPointer(buffers)
         let tau = Double.pi * 2
         for frame in 0..<Int(frameCount) {
@@ -191,7 +217,15 @@ private final class EngineRenderState {
                 + noiseLow*engineLoad*(voice == 1 || voice == 6 ? 0.30:0.10)
             let impact = impactEnvelope * (noiseLow * 1.8 + sin(phase * 0.53) * 0.35)
             impactEnvelope *= 0.9993
-            let sample = Float(motor*gain+(noise-noiseLow)*roadGain+sin(slipPhase)*slipGain+impact)
+            rainGain += (targetRain-rainGain)*0.0004; windGain += (targetWind-windGain)*0.0004; cityGain += (targetCity-cityGain)*0.0004
+            hiLow += (noise-hiLow)*0.35; windLow += (noise-windLow)*0.0035; cityLow += (noise-cityLow)*0.012
+            gustPhase += 0.12*tau/48_000; if gustPhase >= tau { gustPhase -= tau }
+            cityPhase += 55*tau/48_000; if cityPhase >= tau { cityPhase -= tau }
+            let rain=(noise-hiLow)*rainGain*(0.85+0.15*sin(gustPhase*3))
+            let wind=windLow*5.5*windGain*(0.65+0.35*sin(gustPhase))
+            let city=(sin(cityPhase)*0.55+sin(cityPhase*2.01)*0.25+cityLow*6)*cityGain
+            let ambient=rain+wind+city
+            let sample = Float(motor*gain+(noise-noiseLow)*roadGain+sin(slipPhase)*slipGain+impact+ambient)
             for buffer in list {
                 guard let data = buffer.mData else { continue }
                 let samples = data.assumingMemoryBound(to: Float.self)
@@ -206,5 +240,7 @@ private final class EngineRenderState {
     deinit {
         controls.deinitialize(count: 1)
         controls.deallocate()
+        ambientControls.deinitialize(count: 1)
+        ambientControls.deallocate()
     }
 }

@@ -44,7 +44,10 @@ No contiene todo el catálogo de vehículos ni las pistas del juego original. El
 | Corregir hacia delante | → / D |
 | Frenar | ↓ / S |
 | Saltar | Espacio |
-| Truco / voltereta | Mantener T (en el aire, con ← o →) |
+| Truco / voltereta | Mantener T al saltar y ← o → en el aire; soltar T pasada la media vuelta |
+| Manos fuera del manillar | Mantener H (sin peso ni freno delantero) |
+| Giro de 360° | Mantener G en el aire (suelta para alinear) |
+| Superman | Mantener V en el aire (≥ 0,4 s) |
 | Pausar / continuar | P / Escape |
 | Reiniciar | R / ⌘R |
 | Volver al taller | ⌘G |
@@ -99,6 +102,7 @@ Incluye:
 - Transmisión (marchas, embrague, limitador, BMX y CVT) y retos con fantasma: persistencia por contexto, interpolación, límites de grabación y rechazo de datos corruptos.
 - Puntuación (cadenas, multiplicador, pérdida al caer), monedas y desbloqueos, migración de jugadores existentes.
 - Voltereta en el aire, charcos, ABS, mezcla de obstáculos y todas las rutas con el piloto prudente.
+- Estadísticas, logros, misiones por fecha, tutorial, niveles del rival, desgaste, modo infinito, giro y manos fuera.
 - Audio offline: muestras finitas y de volumen acotado, canales estéreo, silencio, impacto y BMX. No abre altavoces.
 
 La app también acepta `--smoke-test` para probar su máquina de estados real con una ventana efímera y preferencias aisladas. Incluye una caída completa con desprendimiento del piloto y paso a resultados. Las pruebas de interfaz incluyen selección de moto/ruta, personalización, acompañante, aceleración, caballito, freno, pausa y atajo para volver al taller. La regresión de Touch Bar comprueba la misma barra en ventana, controlador y botones Continuar/Reiniciar al tomar el foco; también comprueba bloqueo modal, recuperación y resultados.
@@ -109,6 +113,10 @@ La app también acepta `--smoke-test` para probar su máquina de estados real co
 - `Sources/BikePhysics.swift`: chasis, ruedas, muelles, amortiguadores y contactos.
 - `Sources/Transmission.swift`: caja de cambios manual/automática, embrague, limitador y CVT del scooter.
 - `Sources/RideScore.swift`: puntos, cadenas y multiplicador.
+- `Sources/RideStats.swift`: estadísticas de por vida y logros.
+- `Sources/RideMissions.swift`: misiones diarias y semanal.
+- `Sources/RideTutorial.swift`: tutorial guiado de seis pasos.
+- `Sources/RideRival.swift`: rival con niveles, errores y volteretas.
 - `Sources/RideProgress.swift`: monedas y desbloqueos.
 - `Sources/RideChallenges.swift`: retos (caballito, invertido, salto, contrarreloj) y fantasma de la mejor vuelta.
 - `Sources/RiderRig.swift`: postura y cinemática inversa del piloto.
@@ -172,3 +180,19 @@ Física: el empuje pierde su palanca sobre el cabeceo a partir de ~0,55 rad, de 
 - **Física:** el amortiguamiento de giro cambia de forma continua en vez de saltar entre valores. **Frenos ABS** opcional: sin deslizamiento de frenada y fuerza justo por debajo del límite de adherencia (frena menos distancia en nieve y tierra). Sigue sin haber derrape lateral: el modelo es plano.
 - **Distribución:** `./package.sh` genera `build/WheelieRide-<versión>.dmg`. Sin certificado la firma es ad hoc; con `SIGN_IDENTITY="Developer ID Application: …"` (y `NOTARY_PROFILE` para notarizar) firma el app y el dmg. `.github/workflows/wheelie-mac.yml` ejecuta `test.sh` y compila en cada push.
 - La suspensión ya tenía controles en el inspector del taller (dureza y amortiguación por vehículo).
+
+### Actualización 6.1
+
+Aviso honesto: no he jugado esta versión a mano. El ajuste fino se hizo con pilotos simulados (los mismos de las pruebas) y capturas de pantalla; conviene una tarde de juego para afinar sensaciones y precios.
+
+- **Volteretas afinadas:** con T pulsada al saltar, el impulso sube un 60 %, lo que da tiempo de giro. Mientras mantienes T giras; al soltarla pasada la media vuelta el piloto "se compromete" y nivela la moto para aterrizar (soltar antes aborta la voltereta). Con una prueba que recorre los ocho vehículos, todos aterrizan voltereta hacia atrás y hacia delante desde un salto en parado; antes la hacia atrás casi nunca salía. Sin T, un salto en parado no gira.
+- **Más trucos:** manos fuera del manillar (H: sin peso ni freno delantero, 40 puntos/s a más de 6 m/s; combina con el caballito), giro de 360° (G en el aire: la moto gira sobre su eje vertical, se dibuja como un aplastamiento horizontal; soltar alinea, aterrizar de lado se cae; 350 puntos/giro) y superman (V en el aire, 200 + 80/s). Entran en el combo como tipos distintos. No hay animaciones nuevas del piloto: el superman lo muestra echándose atrás y levantándose del asiento. El giro 360° es una ilusión visual: el modelo sigue siendo plano.
+- **Tutorial guiado** (reto "Tutorial guiado"): acelerar, caballito de 4 m, corregir, frenar, saltar y voltereta, con banner y barra de progreso, sin obstáculos. +40 monedas la primera vez.
+- **Misiones:** tres diarias y una semanal, distintas cada día (se generan de la fecha), con recompensa en monedas. Se listan en el taller. Una misión completada no paga dos veces.
+- **Estadísticas y logros:** totales de por vida y 14 logros (hay botón en el taller). Los logros pagan monedas.
+- **Rival con carácter:** niveles fácil, normal y experto (velocidad, errores humanos ocasionales); puede usar otro vehículo; el experto salta y hace volteretas en rutas lisas (valle, nieve y ciudad). En la simulación terminan la ruta el 93 %, 98 % y 99 % de las veces y los tiempos medios son 129, 113 y 106 s.
+- **Desgaste:** los neumáticos pierden hasta un 30 % de adherencia por derrapes y frenadas al límite; los amortiguadores se calientan en terreno roto y pierden hasta un 35 % de amortiguación. Ambos se muestran en el HUD y se reponen en cada salida.
+- **Modo infinito:** sin meta; el último tramo se repite con obstáculos cada 25 m y se anuncia cada vuelta de 1.200 m. No es un circuito cerrado: el terreno no se repite. Su récord es aparte.
+- **Noche con faro:** en modo noche la moto proyecta un haz de luz.
+- **Sonido ambiental:** lluvia y zumbido de ciudad en la ruta Ciudad, viento en Nieve (más fuerte con la velocidad) y brisa en Dunas. Solo suena con el sonido activado y en partida.
+- **Pruebas de interfaz:** el smoke test recorre el taller con los controles reales (saldo, bloqueos, compras, retos, rival, ABS, obstáculos), la carrera, el tutorial, el modo infinito, las teclas de truco y una ruta completa hasta la meta comprobando monedas, estadísticas, logros y que no se cuente dos veces. `--snapshot <carpeta>` guarda capturas de rutas, noche, tutorial y giro.

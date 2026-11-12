@@ -166,6 +166,8 @@ final class GarageInspectorController: NSViewController {
     private var options: [String: NSButton] = [:]
     private var distanceLabel: NSTextField!, wheelieLabel: NSTextField!, stoppieLabel: NSTextField!, scoreLabel: NSTextField!
     private var walletLabel: NSTextField!, unlockButton: NSButton!, unlockHint: NSTextField!
+    private var missionLabels: [NSTextField] = []
+    private var rivalPopup: NSPopUpButton!, rivalSameCheckbox: NSButton!
     private static let routeTitles = ["Valle · asfalto", "Sierra · tierra", "Dunas · atardecer", "Nieve · hielo y pinos", "Ciudad · lluvia"]
     private var playButton: NSButton!
     private var outfitLabel: NSTextField!
@@ -207,6 +209,15 @@ final class GarageInspectorController: NSViewController {
         unlockHint = NSTextField(wrappingLabelWithString: "")
         unlockHint.font = .systemFont(ofSize: 11); unlockHint.textColor = .secondaryLabelColor
         addFullWidth(unlockHint, to: stack)
+        addDivider(to: stack)
+        addSection("MISIONES", to: stack)
+        for _ in 0..<4 {
+            let label = NSTextField(wrappingLabelWithString: "")
+            label.font = .systemFont(ofSize: 11); label.textColor = .labelColor
+            missionLabels.append(label); addFullWidth(label, to: stack)
+        }
+        let statsButton = NSButton(title: "Estadísticas y logros…", target: self, action: #selector(showStats))
+        statsButton.bezelStyle = .rounded; addFullWidth(statsButton, to: stack)
         addDivider(to: stack)
         addSection("RUTA", to: stack)
         routePopup = NSPopUpButton(frame: .zero, pullsDown: false)
@@ -252,6 +263,12 @@ final class GarageInspectorController: NSViewController {
         challengeDetail = NSTextField(wrappingLabelWithString: "")
         challengeDetail.font = .systemFont(ofSize: 11); challengeDetail.textColor = .secondaryLabelColor
         addFullWidth(challengeDetail, to: stack)
+        rivalPopup = NSPopUpButton(frame: .zero, pullsDown: false)
+        rivalPopup.addItems(withTitles: RivalLevel.allCases.map(\.title))
+        rivalPopup.target = self; rivalPopup.action = #selector(rivalLevelChanged(_:)); rivalPopup.setAccessibilityLabel("Nivel del rival")
+        editableControls.append(rivalPopup); addFullWidth(rivalPopup, to: stack)
+        rivalSameCheckbox = NSButton(checkboxWithTitle: "El rival usa mi mismo vehículo", target: self, action: #selector(rivalSameChanged(_:)))
+        editableControls.append(rivalSameCheckbox); addFullWidth(rivalSameCheckbox, to: stack)
         ghostCheckbox = NSButton(checkboxWithTitle: "Mostrar mi mejor recorrido", target: self, action: #selector(ghostChanged(_:)))
         ghostCheckbox.setAccessibilityHelp("El fantasma aparece después de completar una ruta; compites contra tu mejor tiempo con estos ajustes.")
         editableControls.append(ghostCheckbox); addFullWidth(ghostCheckbox, to: stack)
@@ -378,6 +395,15 @@ final class GarageInspectorController: NSViewController {
         challengePopup.selectItem(at: RideChallengeKind.allCases.firstIndex(of: game.challengeKind) ?? 0)
         challengeDetail.stringValue = game.challengeKind.detail
         ghostCheckbox.state = game.ghostEnabled ? .on : .off
+        rivalPopup.selectItem(at: game.rivalLevel.rawValue)
+        rivalSameCheckbox.state = game.rivalSameVehicle ? .on : .off
+        game.missions.refresh()
+        for (i, mission) in game.missions.daily.enumerated() {
+            let done = game.missions.isDone(daily: i)
+            missionLabels[i].stringValue = "\(done ? "✓" : "○") \(mission.title) · \(min(Int(game.missions.progress(daily: i)), mission.target))/\(mission.target) · +\(mission.reward)"
+        }
+        let week = game.missions.weekly
+        missionLabels[3].stringValue = "\(game.missions.weeklyDone ? "✓" : "★") Semanal: \(week.title) · \(min(Int(game.missions.weeklyProgress), week.target))/\(week.target) · +\(week.reward)"
         wells["body"]?.color = game.art.body; wells["jacket"]?.color = game.art.jacket
         wells["helmetColor"]?.color = game.art.helmet; wells["skin"]?.color = game.art.skin
         outfitLabel.stringValue = game.bike.kind.outfitDescription
@@ -389,10 +415,27 @@ final class GarageInspectorController: NSViewController {
         distanceLabel.stringValue = "\(Int(game.record)) m"; wheelieLabel.stringValue = "\(Int(game.best)) m"; stoppieLabel.stringValue = String(format:"%.1f m",game.bestStoppie)
         let canEdit = game.mode == .garage
         editableControls.forEach { $0.isEnabled = canEdit }
+        rivalPopup.isEnabled = canEdit && game.challengeKind == .race
+        rivalSameCheckbox.isEnabled = canEdit && game.challengeKind == .race
         transmissionPopup.isEnabled = canEdit && game.bike.kind != .bmx && game.bike.kind != .scooter
         options["passenger"]?.isEnabled = canEdit && game.bike.kind.supportsPassenger
         playButton.isEnabled = canEdit && locked.isEmpty
     }
+    // Hooks that drive the real controls (popups, checkboxes, buttons) for the automated UI flow test.
+    func uiSelectRoute(_ index: Int) { routePopup.selectItem(at: index); routeChanged(routePopup) }
+    func uiSelectChallenge(_ kind: RideChallengeKind) { challengePopup.selectItem(at: RideChallengeKind.allCases.firstIndex(of: kind) ?? 0); challengeChanged(challengePopup) }
+    func uiSelectRival(_ level: RivalLevel) { rivalPopup.selectItem(at: level.rawValue); rivalLevelChanged(rivalPopup) }
+    func uiToggle(_ key: String) { guard let b = options[key] else { return }; b.state = b.state == .on ? .off : .on; optionChanged(b) }
+    func uiToggleRivalVehicle() { rivalSameCheckbox.state = rivalSameCheckbox.state == .on ? .off : .on; rivalSameChanged(rivalSameCheckbox) }
+    func uiUnlock() { unlockSelection() }
+    func uiPlay() { play() }
+    var uiPlayEnabled: Bool { playButton.isEnabled }
+    var uiUnlockVisible: Bool { !unlockButton.isHidden }
+    var uiUnlockEnabled: Bool { unlockButton.isEnabled }
+    var uiUnlockTitle: String { unlockButton.title }
+    var uiWalletText: String { walletLabel.stringValue }
+    var uiMissionTexts: [String] { missionLabels.map(\.stringValue) }
+    var uiRivalEnabled: Bool { rivalPopup.isEnabled && rivalSameCheckbox.isEnabled }
     private func lockedItems() -> [RideUnlock] {
         [RideUnlock.vehicle(game.bike.kind), RideUnlock.route(game.bike.route)].filter { !game.progress.isUnlocked($0) }
     }
@@ -435,6 +478,27 @@ final class GarageInspectorController: NSViewController {
         guard !updating, game.mode == .garage else { return }
         game.ghostEnabled = sender.state == .on
         game.prefs.set(game.ghostEnabled, forKey: "ghost"); onChange()
+    }
+    @objc private func rivalLevelChanged(_ sender: NSPopUpButton) {
+        guard !updating, game.mode == .garage, let level = RivalLevel(rawValue: sender.indexOfSelectedItem) else { return }
+        game.rivalLevel = level; game.prefs.set(level.rawValue, forKey: "rivalLevel"); onChange()
+    }
+    @objc private func rivalSameChanged(_ sender: NSButton) {
+        guard !updating, game.mode == .garage else { return }
+        game.rivalSameVehicle = sender.state == .on; game.prefs.set(game.rivalSameVehicle, forKey: "rivalSame"); onChange()
+    }
+    /// Lifetime statistics and the achievement list, shown as a sheet.
+    var statsText: String {
+        let earned = game.stats.earned
+        let lines = RideAchievement.all.map { "\(earned.contains($0.id) ? "✓" : "○") \($0.title) — \($0.detail)" }
+        return (game.stats.summary + ["", "LOGROS (\(earned.count)/\(RideAchievement.all.count))"] + lines).joined(separator: "\n")
+    }
+    @objc private func showStats() {
+        guard let window = view.window, window.attachedSheet == nil else { return }
+        let alert = NSAlert()
+        alert.messageText = "Estadísticas y logros"; alert.informativeText = statsText
+        alert.addButton(withTitle: "Cerrar")
+        alert.beginSheetModal(for: window) { _ in }
     }
     @objc private func play() { guard game.mode == .garage else { return }; onPlay() }
     @objc private func routeChanged(_ sender: NSPopUpButton) {

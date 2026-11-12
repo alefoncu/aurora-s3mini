@@ -72,6 +72,26 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSToolbarDelegate, NST
             game.cacheDisplay(in:game.bounds,to:rep)
             try? rep.representation(using:.png,properties:[:])?.write(to:URL(fileURLWithPath:directory+"/route\(route).png"))
         }
+        func shot(_ name:String) {
+            guard let rep=game.bitmapImageRepForCachingDisplay(in:game.bounds) else { return }
+            game.cacheDisplay(in:game.bounds,to:rep)
+            try? rep.representation(using:.png,properties:[:])?.write(to:URL(fileURLWithPath:directory+"/"+name+".png"))
+        }
+        // Night with headlight, the guided tutorial banner and a 360 in the air.
+        game.bike.route=1; game.night=true; game.challengeKind = .free; game.start()
+        game.bike.x=300; for _ in 0..<60 { game.previous=ProcessInfo.processInfo.systemUptime-1/60; game.keys=[126]; game.tick() }
+        shot("night")
+        game.night=false; game.bike.route=0; game.challengeKind = .tutorial; game.start()
+        for _ in 0..<40 { game.previous=ProcessInfo.processInfo.systemUptime-1/60; game.keys=[126]; game.tick() }
+        shot("tutorial")
+        game.challengeKind = .free; game.start(); game.keys=[126]
+        for i in 0..<400 {
+            game.previous=ProcessInfo.processInfo.systemUptime-1/60
+            game.keys = i<40 ? [126] : [126,49,5]
+            game.tick()
+            if !game.bike.frontContact && !game.bike.rearContact && game.bike.spinYaw>1.2 { break }
+        }
+        shot("spin")
         NSApp.terminate(nil)
     }
     func bindTouchBar() {
@@ -223,13 +243,40 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSToolbarDelegate, NST
     /// Exercise the actual UI state machine without injecting global keyboard events.
     func smokeTest() {
         game.audio.enabled=false
-        // Locked content cannot be started until its coins are spent.
+        // ---- Garage UI flow: wallet, locks, purchases, challenge, rival and option controls ----
         let originalKind=game.bike.kind,originalRoute=game.bike.route
-        game.bike.kind = .hyperbike; game.start()
-        precondition(game.mode == .garage && !game.progress.isUnlocked(.vehicle(.hyperbike)),"A locked vehicle must not start")
-        game.bike.kind=originalKind; game.bike.route=3; game.start()
-        precondition(game.mode == .garage,"A locked route must not start"); game.bike.route=originalRoute
-        precondition(game.progress.wallet == RideProgress.startingCoins && game.progress.unlock(.route(2)) && game.progress.wallet == RideProgress.startingCoins-60,"Buying a route spends coins")
+        func gui() { game.syncState(); inspector.refresh() }
+        gui()
+        precondition(inspector.uiWalletText.hasPrefix("\(RideProgress.startingCoins)"),"Wallet shows the starting coins")
+        precondition(inspector.uiMissionTexts.count == 4 && inspector.uiMissionTexts.allSatisfy { !$0.isEmpty },"Missions are listed in the garage")
+        game.bike.kind = .hyperbike; game.start(); gui()
+        precondition(game.mode == .garage && !inspector.uiPlayEnabled && inspector.uiUnlockVisible && !inspector.uiUnlockEnabled,"A locked, unaffordable vehicle cannot start or be bought")
+        precondition(inspector.uiUnlockTitle.contains("Hyper R 1000") && inspector.uiUnlockTitle.contains("220"),"The unlock button names the vehicle and its price")
+        game.bike.kind = .scooter; gui()
+        precondition(inspector.uiUnlockVisible && inspector.uiUnlockEnabled && !inspector.uiPlayEnabled,"An affordable vehicle offers purchase")
+        inspector.uiUnlock(); gui()
+        precondition(game.progress.isUnlocked(.vehicle(.scooter)) && game.progress.wallet == RideProgress.startingCoins-40 && inspector.uiPlayEnabled && !inspector.uiUnlockVisible,"Buying through the inspector spends coins and enables Play")
+        inspector.uiSelectRoute(3); gui()
+        precondition(game.bike.route == 3 && !inspector.uiPlayEnabled && inspector.uiUnlockTitle.contains("Nieve"),"A locked route blocks Play")
+        game.start(); precondition(game.mode == .garage,"A locked route must not start")
+        inspector.uiUnlock(); gui()
+        precondition(game.progress.wallet == RideProgress.startingCoins-140 && inspector.uiPlayEnabled,"Buying the route spends its price")
+        inspector.uiSelectRoute(4); gui()
+        precondition(!inspector.uiUnlockEnabled,"Not enough coins left for the city route")
+        precondition(!game.progress.unlock(.route(4)) && game.progress.wallet == RideProgress.startingCoins-140,"A failed purchase changes nothing")
+        for kind in RideChallengeKind.allCases {
+            inspector.uiSelectChallenge(kind); gui()
+            precondition(game.challengeKind == kind && inspector.uiRivalEnabled == (kind == .race),"Challenge \(kind.rawValue) and rival controls enable only for the race")
+        }
+        inspector.uiSelectChallenge(.race); inspector.uiSelectRival(.expert); inspector.uiToggleRivalVehicle()
+        precondition(game.rivalLevel == .expert && !game.rivalSameVehicle,"Rival options reach the game")
+        inspector.uiSelectChallenge(.free)
+        let contextBefore=game.runContext
+        inspector.uiToggle("abs"); precondition(game.absOn && game.runContext != contextBefore && game.runContext.contains(".abs"),"ABS changes the record context")
+        inspector.uiToggle("abs"); precondition(!game.absOn && game.runContext == contextBefore,"ABS toggles back")
+        inspector.uiToggle("obstacles"); precondition(game.obstacles,"Obstacles checkbox")
+        inspector.uiToggle("obstacles")
+        inspector.uiSelectRoute(originalRoute); game.bike.kind=originalKind; gui()
         game.progress.unlockEverything()
         func checkBar(_ expected:RideTouchBarMode) {
             precondition(game.bar.mode == expected)
@@ -266,6 +313,38 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSToolbarDelegate, NST
         for _ in 0..<120 { game.previous=ProcessInfo.processInfo.systemUptime-1/60; game.tick() }
         precondition((game.rival?.x ?? 0)>1,"The rival must ride")
         game.challengeKind = .free; game.start(); precondition(game.rival == nil)
+        // Expert rival on another vehicle.
+        game.rivalLevel = .expert; game.rivalSameVehicle=false; game.challengeKind = .race; game.start()
+        precondition(game.rivalRun?.level == .expert && game.rivalRun?.bike.kind != game.bike.kind,"The rival may ride another vehicle")
+        // Tutorial: no obstacles, and holding the throttle completes the first step.
+        game.obstacles=true; game.challengeKind = .tutorial; game.start()
+        precondition(!game.obstaclesOn && game.tutorial.step == .accelerate,"Tutorial starts clean")
+        game.keys=[126]
+        for _ in 0..<240 { game.previous=ProcessInfo.processInfo.systemUptime-1/60; game.tick() }
+        precondition(game.tutorial.step != .accelerate || game.bike.crashed,"Throttle completes the first tutorial step")
+        game.obstacles=false
+        // Endless: no finish line.
+        game.bike.route=0; game.challengeKind = .endless; game.start()
+        precondition(game.bike.endless && game.runContext.contains(".endless"),"Endless mode flag and record context")
+        game.bike.x = 1190; game.bike.speed=14; game.keys=[126]
+        for _ in 0..<300 where game.mode == .riding { game.previous=ProcessInfo.processInfo.systemUptime-1/60; game.tick() }
+        precondition(!game.bike.finished,"Endless never finishes")
+        // Extra tricks: hands off, spin and superman keys are accepted while riding.
+        game.challengeKind = .free; game.start(); game.keys=[126,4,5,9]
+        for _ in 0..<30 { game.previous=ProcessInfo.processInfo.systemUptime-1/60; game.tick() }
+        precondition(game.noHandsHeld && game.spinHeld && game.supermanHeld,"Trick keys")
+        // A full run to the finish line: coins, score, stats, missions and achievements all update once.
+        game.garage(); game.bike.route=0; game.challengeKind = .free; game.start()
+        let walletBefore=game.progress.wallet,runsBefore=game.stats.totals.runs
+        game.bike.x = 1196; game.bike.speed=15; game.keys=[126]
+        for _ in 0..<240 where game.mode == .riding { game.previous=ProcessInfo.processInfo.systemUptime-1/60; game.tick() }
+        precondition(game.mode == .result && game.bike.finished,"The run must reach the finish line")
+        precondition(game.progress.wallet>walletBefore && game.lastReward == game.progress.wallet-walletBefore,"Coins are paid exactly once")
+        precondition(game.stats.totals.runs == runsBefore+1 && game.stats.totals.finishes>=1 && game.stats.earned.contains("first-finish"),"Stats and achievements record the run")
+        precondition(game.stateDetail.stringValue.contains("puntos") && game.stateDetail.stringValue.contains("monedas") && game.stateDetail.stringValue.contains("Primera meta"),"The result screen reports score, coins and achievements")
+        game.saveRun(); precondition(game.stats.totals.runs == runsBefore+1,"Saving again must not double count")
+        precondition(inspector.statsText.contains("Primera meta") && inspector.statsText.contains("LOGROS"),"Stats sheet text")
+        game.garage()
         game.start(); checkBar(.riding)
         game.keys.insert(14)
         precondition(game.held(.brake) && game.held(.leanForward) && !game.held(.leanBack),"E must combine front weight transfer with braking")
@@ -317,7 +396,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSToolbarDelegate, NST
         precondition(game.mode == .result && game.ragdoll != nil, "Crash dynamics must reach the result state")
         checkBar(.result); game.garage(); checkBar(.garage)
         if let domain=smokePreferences { UserDefaults.standard.removePersistentDomain(forName:domain) }
-        game.bar.releaseAll(); print("App smoke: garage/start, acceleration, pause/resume, focus loss, settings sheet guards, Touch Bar contexts, native pause-button focus and detached crash dynamics passed.")
+        game.bar.releaseAll(); print("App smoke: garage UI flow (wallet, locks, purchases, challenges, rival, ABS), race, tutorial, endless, tricks, full run rewards, acceleration, pause/resume, focus loss, settings sheet guards, Touch Bar contexts, native pause-button focus and detached crash dynamics passed.")
         NSApp.terminate(nil)
     }
 }

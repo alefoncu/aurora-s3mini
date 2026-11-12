@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android" package="com.scratch.wheelie" android:versionCode="2" android:versionName="1.1">
+    <uses-sdk android:minSdkVersion="22" android:targetSdkVersion="25" />
+    <application android:label="Wheelie Ride" android:icon="@drawable/ic_launcher" android:allowBackup="true" android:theme="@android:style/Theme.Material.NoActionBar.Fullscreen">
+        <activity android:name=".GameActivity" android:resizeableActivity="false" android:screenOrientation="sensorLandscape" android:configChanges="orientation|screenSize|keyboardHidden" android:exported="true">
+            <intent-filter><action android:name="android.intent.action.MAIN"/><category android:name="android.intent.category.LAUNCHER"/><category android:name="android.intent.category.APP_GAME"/></intent-filter>
+        </activity>
+    </application>
+</manifest>

@@ -154,6 +154,37 @@ import Foundation
             check(kinds.contains(.barrel) && kinds.contains(.log),"Later sectors must include barrels and logs")
             for p in BikePhysics.obstaclePositions where BikePhysics.difficultyStage(at:Double(p))==0 { check(BikePhysics.obstacleKind(at:p)==BikePhysics.ObstacleKind.cone,"Sector 1 has only cones") }
         }
+        // Closed circuit: seamless terrain, steady difficulty, a finish after the last lap.
+        do {
+            BikePhysics.circuit=true
+            defer { BikePhysics.circuit=false }
+            let length=BikePhysics.circuitLength
+            for route in 0..<BikePhysics.routeCount {
+                for i in 0...2400 {
+                    let x=Double(i)*0.5,y=BikePhysics.ground(x,route:route),sl=BikePhysics.slope(x,route:route)
+                    check(y.isFinite && abs(sl)<0.75,"Circuit slopes stay readable: route \(route) x=\(x) slope=\(sl)")
+                    check(abs(BikePhysics.ground(x+length,route:route)-y)<1e-9,"Terrain repeats every lap: route \(route) x=\(x)")
+                }
+                check(abs(BikePhysics.ground(length-0.001,route:route)-BikePhysics.ground(length+0.001,route:route))<0.001,"Ground is continuous across the seam: route \(route)")
+                check(abs(BikePhysics.slope(length-0.01,route:route)-BikePhysics.slope(length+0.01,route:route))<0.01,"Slope is continuous across the seam: route \(route)")
+                check(abs(BikePhysics.ground(0,route:route)-BikePhysics.ground(1200,route:route))<1e-9,"Start and finish share a height")
+            }
+            check(BikePhysics.difficultyStage(at:1)==2 && BikePhysics.difficultyStage(at:3000)==2,"Steady circuit difficulty")
+            let list=BikePhysics.circuitObstaclePositions(laps:3)
+            check(list.count==78 && list == list.sorted() && Set(list).count==list.count && list.first!>=140 && list.last!<3600,"Circuit obstacles: \(list.count)")
+            for kind in BikeKind.allCases { for route in 0..<BikePhysics.routeCount {
+                let b=BikePhysics();b.kind=kind;b.route=route;b.laps=2;b.reset()
+                check(b.finishDistance==2400,"Finish distance is laps x length")
+                var laps=0.0
+                for _ in 0..<80_000 where !b.finished && !b.crashed {
+                    let target=min(kind.topSpeed*0.85,((route == 0 || route == 4) ? 16.0 : 12.0)-2*1.2)
+                    step(b,gas:b.speed<target,back:b.angle < -0.25,forward:b.angle>0.25,brake:b.speed>target+0.6);finite(b)
+                    laps=max(laps,b.x)
+                }
+                check(b.finished && !b.crashed && abs(b.distance-2400)<0.0001,"Two circuit laps must finish: \(kind) route \(route) x=\(b.x)")
+            } }
+        }
+        check(BikePhysics().finishDistance==BikePhysics.finish && !BikePhysics.circuit,"The circuit switch is off by default")
         let obstacles=BikePhysics.obstaclePositions
         check(Set(obstacles).count==obstacles.count && obstacles==obstacles.sorted(),"One sorted collision/render obstacle schedule")
         let sectorCounts=(0..<4).map { stage in obstacles.filter { BikePhysics.difficultyStage(at:Double($0))==stage }.count }

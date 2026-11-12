@@ -21,13 +21,16 @@ final class RideRival {
     private var lapse = 0.0, lapseKind = 0
     private var flipRelease = false, flipPlanned = false, rampSeen = false, wantsFlip = false
     static var flipChance = 0.3
+    static var releaseRotation = 3.4
+    var flipRoutes=[0,3,4]
+    private var flipCooldown=0.0
     private(set) var crashedByMistake = false
 
-    init(level: RivalLevel, kind: BikeKind, route: Int, hazards: Bool, seed: UInt64) {
+    init(level: RivalLevel, kind: BikeKind, route: Int, hazards: Bool, seed: UInt64, laps: Int = 3) {
         self.level = level
         rng = seed &* 6364136223846793005 &+ 1
         mistakeIn = 0
-        bike.kind = kind; bike.route = route; bike.hazards = hazards; bike.reset()
+        bike.kind = kind; bike.route = route; bike.hazards = hazards; bike.laps = laps; bike.reset()
         mistakeIn = nextInterval()
     }
     var finished: Bool { bike.finished }
@@ -43,7 +46,7 @@ final class RideRival {
         var throttle = bike.speed < target
         var brake = bike.speed > target + 0.6
         var back = bike.angle < -0.25, forward = bike.angle > 0.25
-        mistakeIn -= dt
+        mistakeIn -= dt; flipCooldown = max(0, flipCooldown - dt)
         if lapse > 0 {
             lapse -= dt
             switch lapseKind { case 0: throttle = false; case 1: back = true; forward = false; default: forward = true; back = false }
@@ -54,14 +57,16 @@ final class RideRival {
         var jump = false, trick = false
         let air = !bike.rearContact && !bike.frontContact
         // Rough dirt and dune ramps land too unpredictably: the rival only flips on smooth routes.
-        if level.doesTricks && lapse <= 0 && [0, 3, 4].contains(bike.route) {
+        if level.doesTricks && lapse <= 0 && flipRoutes.contains(bike.route) {
             // Jump off a rising ramp and flip: hold T until the half-turn, then release to land.
-            let onRamp = !air && bike.speed > 7 && BikePhysics.slope(bike.x, route: bike.route) > 0.15 && bike.x > 250
+            // A genuine ramp rises at least half a metre within five metres; bumps on rough dirt do not count.
+            let rise = BikePhysics.ground(bike.x + 5, route: bike.route) - BikePhysics.ground(bike.x, route: bike.route)
+            let onRamp = !air && flipCooldown <= 0 && bike.speed > 7 && BikePhysics.slope(bike.x, route: bike.route) > 0.15 && rise > 0.3 && bike.x > 250
             if onRamp && !rampSeen { rampSeen = true; wantsFlip = random() < Self.flipChance }
             if !onRamp && !air { rampSeen = false }
-            if onRamp && wantsFlip { wantsFlip = false; jump = true; trick = true; flipRelease = false; flipPlanned = true }
+            if onRamp && wantsFlip { wantsFlip = false; flipCooldown = 6; jump = true; trick = true; flipRelease = false; flipPlanned = true }
             if air && flipPlanned && !flipRelease {
-                if abs(bike.airRotation) < 3.4 { trick = true; forward = true; back = false; brake = false } else { flipRelease = true }
+                if abs(bike.airRotation) < Self.releaseRotation { trick = true; forward = true; back = false; brake = false } else { flipRelease = true }
             }
         }
         if air && !trick { brake = false }

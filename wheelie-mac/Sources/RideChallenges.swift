@@ -2,7 +2,7 @@ import Foundation
 
 /// Goals use physical contact measurements from the current run, never key presses.
 enum RideChallengeKind: String, CaseIterable {
-    case free, wheelie, stoppie, jump, timeTrial, race, tutorial, endless
+    case free, wheelie, stoppie, jump, timeTrial, race, tutorial, endless, circuit
     var title: String {
         switch self {
         case .free: return "Rodar libre"
@@ -13,6 +13,7 @@ enum RideChallengeKind: String, CaseIterable {
         case .race: return "Carrera contra rival"
         case .tutorial: return "Tutorial guiado"
         case .endless: return "Modo infinito"
+        case .circuit: return "Circuito cerrado · 3 vueltas"
         }
     }
     var detail: String {
@@ -23,6 +24,7 @@ enum RideChallengeKind: String, CaseIterable {
         case .jump: return "Supera 0,25 m de altura y aterriza sin caer."
         case .timeTrial: return "Completa los 1.200 metros en 4 minutos o menos."
         case .race: return "Un rival con la misma física corre a tu lado. Llega antes que él, o aguanta si se cae."
+        case .circuit: return "Un circuito cerrado de 1.200 m con el terreno repetido: tres vueltas seguidas, con tiempo por vuelta y fantasma."
         case .tutorial: return "Seis pasos: acelerar, caballito, corregir, frenar, saltar y voltereta. Gana monedas la primera vez."
         case .endless: return "Sin meta: el último tramo se repite con obstáculos cada vez más seguidos. Vuelve cada 1.200 m. Termina al caerte."
         }
@@ -142,6 +144,7 @@ final class RideChallengeSession {
         case .race: return String(format: "Carrera · %.0f / 1.200 m", observedDistance)
         case .tutorial: return "Tutorial guiado"
         case .endless: return String(format: "Infinito · %.0f m", observedDistance)
+        case .circuit: return String(format: "Circuito · vuelta %d/3", min(3, Int(observedDistance / 1_200) + 1))
         }
     }
 
@@ -190,6 +193,7 @@ final class RideChallengeSession {
                 if wasAirborne && !airborne && hasJumped { progress = 1; completed = true }
             case .timeTrial: progress = max(0, min(1, distance / 1_200))
             case .race: progress = max(0, min(1, distance / 1_200))
+            case .circuit: progress = max(0, min(1, distance / 3_600))
             case .tutorial, .endless: break
             }
         } else if !completed { hasJumped = false; jumpPeak = 0 }

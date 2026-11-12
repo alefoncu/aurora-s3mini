@@ -136,7 +136,8 @@ final class RideRenderer {
     func ground(_ meters:Double,at cameraX:Double,cameraY:Double,route:Int)->Double {
         458 + cameraY - BikePhysics.ground(meters,route:route)*metresToPixels
     }
-    func scenery(cameraX:Double,cameraY:Double,route:Int,night:Bool,endless:Bool=false) {
+    /// `limit` is how far the course extends: 1,200 m, laps x 1,200 m on a circuit, or infinite.
+    func scenery(cameraX:Double,cameraY:Double,route:Int,night:Bool,limit:Double=1200) {
         let cam=cameraX*metresToPixels
         // Distant roadside objects pass behind the playable silhouette.
         for i in -2..<12 {
@@ -181,12 +182,16 @@ final class RideRenderer {
         } }
         for n in -1..<6 {
             let world=Double(Int(cameraX/100)+n)*100
-            guard world>0 && (endless || world<=1200) else { continue }
+            guard world>0 && world<=limit else { continue }
             let x=370+(world-cameraX)*metresToPixels
             if x < -80 || x > 1360 { continue }
             let y=ground(world,at:cameraX,cameraY:cameraY,route:route)-45
             line(x,y,x,y-43,3,ink)
-            if Int(world)%300 == 0 && (world<1200 || endless) {
+            if BikePhysics.circuit && Int(world)%1200 == 0 {
+                box(x-58,y-86,116,45,NSColor(hex:0xE6E4D8),3)
+                text("VUELTA \(Int(world/1200)+1)",x,y-82,10,ink,.bold,center:true)
+                text("Circuito",x,y-65,12,ink,.semibold,center:true)
+            } else if !BikePhysics.circuit && Int(world)%300 == 0 && world<limit {
                 box(x-58,y-86,116,45,NSColor(hex:0xE6E4D8),3)
                 text("TRAMO \(BikePhysics.difficultyStage(at:world)+1)",x,y-82,10,ink,.bold,center:true)
                 text(BikePhysics.stageTitle(at:world),x,y-65,12,ink,.semibold,center:true)
@@ -194,9 +199,13 @@ final class RideRenderer {
                 box(x-22,y-69,45,27,NSColor(hex:0xE6E4D8),3);text("\(Int(world))",x,y-66,14,ink,.semibold,center:true,mono:true)
             }
         }
-        let finish=370+(BikePhysics.finish-cameraX)*metresToPixels
-        if !endless && finish > -20 && finish < 1350 {
-            let y=ground(BikePhysics.finish,at:cameraX,cameraY:cameraY,route:route)
+        // The finish line, and on a circuit a checkered line at the end of every lap.
+        var lines:[Double]=limit.isFinite ? [limit] : []
+        if BikePhysics.circuit { lines=stride(from:BikePhysics.circuitLength,through:limit,by:BikePhysics.circuitLength).map { $0 } }
+        for end in lines {
+            let finish=370+(end-cameraX)*metresToPixels
+            guard finish > -20 && finish < 1350 else { continue }
+            let y=ground(end,at:cameraX,cameraY:cameraY,route:route)
             line(finish,y-27,finish,y-170,4,silver)
             for r in 0..<4 { for c in 0..<6 { box(finish+Double(c)*11,y-170+Double(r)*11,11,11,(r+c)%2==0 ? .white : ink) } }
         }
@@ -332,7 +341,7 @@ final class RideRenderer {
         func p(_ v:RideVector)->NSPoint { NSPoint(x:v.x*u,y:-v.y*u) }
         return Geometry(front:r.wheelbase*u,radius:r.wheelRadius*u,seat:p(r.seat),grip:p(r.grip),peg:p(r.footPeg))
     }
-    func motorcycle(x:Double,y:Double,scale:Double,angle:Double,kind:BikeKind,rotation:Double,time:Double,lean:Double=0,stunt:Bool=false,crash:Double=0,showRider:Bool=true,rearWheelLocal:RideVector?=nil,frontWheelLocal:RideVector?=nil,frontCompression:Double=0,rearCompression:Double=0,frontRotation:Double?=nil,pedalPhase:Double=0,riderLift:Double=0) {
+    func motorcycle(x:Double,y:Double,scale:Double,angle:Double,kind:BikeKind,rotation:Double,time:Double,lean:Double=0,stunt:Bool=false,handsOff:Double=0,superman:Double=0,crash:Double=0,showRider:Bool=true,rearWheelLocal:RideVector?=nil,frontWheelLocal:RideVector?=nil,frontCompression:Double=0,rearCompression:Double=0,frontRotation:Double?=nil,pedalPhase:Double=0,riderLift:Double=0) {
         let rig=kind.rig,u=rig.drawingUnitsPerMetre
         func p(_ v:RideVector)->NSPoint { NSPoint(x:v.x*u,y:-v.y*u) }
         NSGraphicsContext.saveGraphicsState(); let transform=NSAffineTransform(); transform.translateX(by:x,yBy:y); transform.scale(by:scale); transform.rotate(byRadians:-angle); transform.concat()
@@ -342,7 +351,7 @@ final class RideRenderer {
                 let pose=RiderRig.solve(vehicle:rig,lean:lean*0.3,lift:riderLift,pedalPhase:pedalPhase,passenger:true)
                 drawRider(pose,units:u,kind:kind,passenger:true)
             }
-            let pose=RiderRig.solve(vehicle:rig,lean:lean,lift:riderLift,pedalPhase:pedalPhase,cycling:kind == .bmx,stunt:stunt)
+            let pose=RiderRig.solve(vehicle:rig,lean:lean,lift:riderLift,pedalPhase:pedalPhase,cycling:kind == .bmx,stunt:stunt,handsOff:handsOff,superman:superman)
             drawRider(pose,units:u,kind:kind,passenger:false)
         }
         NSGraphicsContext.restoreGraphicsState()

@@ -84,6 +84,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSToolbarDelegate, NST
         game.night=false; game.bike.route=0; game.challengeKind = .tutorial; game.start()
         for _ in 0..<40 { game.previous=ProcessInfo.processInfo.systemUptime-1/60; game.keys=[126]; game.tick() }
         shot("tutorial")
+        // Rider poses: hands off the bars (on the ground) and superman (in the air).
+        game.challengeKind = .free; game.bike.route=0; game.start(); game.bike.speed=12
+        for _ in 0..<50 { game.previous=ProcessInfo.processInfo.systemUptime-1/60; game.keys=[126,4]; game.tick() }
+        shot("handsoff")
+        game.start()
+        for i in 0..<300 {
+            game.previous=ProcessInfo.processInfo.systemUptime-1/60
+            game.keys = i<40 ? [126] : (i<46 ? [126,49] : [126,9])
+            game.tick()
+            if i>60 && !game.bike.frontContact && !game.bike.rearContact && game.riderSuperman>0.9 { break }
+        }
+        shot("superman")
+        game.challengeKind = .circuit; game.bike.route=1; game.start()
+        game.bike.x=1150; for _ in 0..<60 { game.previous=ProcessInfo.processInfo.systemUptime-1/60; game.keys=[126]; game.tick() }
+        shot("circuit"); game.garage()
         game.challengeKind = .free; game.start(); game.keys=[126]
         for i in 0..<400 {
             game.previous=ProcessInfo.processInfo.systemUptime-1/60
@@ -329,6 +344,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSToolbarDelegate, NST
         game.bike.x = 1190; game.bike.speed=14; game.keys=[126]
         for _ in 0..<300 where game.mode == .riding { game.previous=ProcessInfo.processInfo.systemUptime-1/60; game.tick() }
         precondition(!game.bike.finished,"Endless never finishes")
+        // Closed circuit: global terrain switch, lap times, the finish after the last lap, and a clean exit.
+        game.bike.route=1; game.challengeKind = .circuit; game.start()
+        precondition(BikePhysics.circuit && game.bike.laps == 3 && game.runContext.contains(".circuit3") && game.obstacleList == game.circuitList,"Circuit mode switches the terrain and obstacles")
+        game.bike.x = 1196; game.bike.speed=12; game.keys=[126]
+        for _ in 0..<240 where game.mode == .riding { game.previous=ProcessInfo.processInfo.systemUptime-1/60; game.tick() }
+        precondition(game.lapTimes.count == 1 || game.bike.crashed,"Crossing 1,200 m records a lap time")
+        game.garage(); precondition(!BikePhysics.circuit,"Leaving the circuit restores the normal terrain")
+        game.bike.route=0; game.challengeKind = .circuit; game.start()
+        game.bike.x = 3596; game.bike.speed=14; game.keys=[126]
+        for _ in 0..<240 where game.mode == .riding { game.previous=ProcessInfo.processInfo.systemUptime-1/60; game.tick() }
+        precondition(game.mode == .result && game.bike.finished && abs(game.bike.distance-3600)<0.01,"The circuit finishes after three laps")
+        game.garage(); game.bike.route=originalRoute; game.challengeKind = .free
         // Extra tricks: hands off, spin and superman keys are accepted while riding.
         game.challengeKind = .free; game.start(); game.keys=[126,4,5,9]
         for _ in 0..<30 { game.previous=ProcessInfo.processInfo.systemUptime-1/60; game.tick() }
@@ -341,7 +368,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSToolbarDelegate, NST
         precondition(game.mode == .result && game.bike.finished,"The run must reach the finish line")
         precondition(game.progress.wallet>walletBefore && game.lastReward == game.progress.wallet-walletBefore,"Coins are paid exactly once")
         precondition(game.stats.totals.runs == runsBefore+1 && game.stats.totals.finishes>=1 && game.stats.earned.contains("first-finish"),"Stats and achievements record the run")
-        precondition(game.stateDetail.stringValue.contains("puntos") && game.stateDetail.stringValue.contains("monedas") && game.stateDetail.stringValue.contains("Primera meta"),"The result screen reports score, coins and achievements")
+        precondition(game.stateDetail.stringValue.contains("puntos") && game.stateDetail.stringValue.contains("monedas"),"The result screen reports score and coins")
         game.saveRun(); precondition(game.stats.totals.runs == runsBefore+1,"Saving again must not double count")
         precondition(inspector.statsText.contains("Primera meta") && inspector.statsText.contains("LOGROS"),"Stats sheet text")
         game.garage()

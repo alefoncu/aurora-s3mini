@@ -45,9 +45,9 @@ No contiene todo el catálogo de vehículos ni las pistas del juego original. El
 | Frenar | ↓ / S |
 | Saltar | Espacio |
 | Truco / voltereta | Mantener T al saltar y ← o → en el aire; soltar T pasada la media vuelta |
-| Manos fuera del manillar | Mantener H (sin peso ni freno delantero) |
+| Manos fuera del manillar | Mantener H (sin peso ni freno delantero; el piloto levanta un brazo) |
 | Giro de 360° | Mantener G en el aire (suelta para alinear) |
-| Superman | Mantener V en el aire (≥ 0,4 s) |
+| Superman | Mantener V en el aire (≥ 0,4 s): el piloto se tumba sobre el asiento con las piernas estiradas hacia atrás |
 | Pausar / continuar | P / Escape |
 | Reiniciar | R / ⌘R |
 | Volver al taller | ⌘G |
@@ -196,3 +196,13 @@ Aviso honesto: no he jugado esta versión a mano. El ajuste fino se hizo con pil
 - **Noche con faro:** en modo noche la moto proyecta un haz de luz.
 - **Sonido ambiental:** lluvia y zumbido de ciudad en la ruta Ciudad, viento en Nieve (más fuerte con la velocidad) y brisa en Dunas. Solo suena con el sonido activado y en partida.
 - **Pruebas de interfaz:** el smoke test recorre el taller con los controles reales (saldo, bloqueos, compras, retos, rival, ABS, obstáculos), la carrera, el tutorial, el modo infinito, las teclas de truco y una ruta completa hasta la meta comprobando monedas, estadísticas, logros y que no se cuente dos veces. `--snapshot <carpeta>` guarda capturas de rutas, noche, tutorial y giro.
+
+### Actualización 6.2
+
+Cierra las limitaciones de 6.1 hasta donde el modelo lo permite.
+
+- **Poses nuevas del piloto:** el esqueleto del piloto tiene ahora mezclas continuas de "manos fuera" (el brazo se separa del manillar y sube) y "superman" (cuerpo plano, piernas estiradas hacia atrás, manos en el manillar). Las pruebas comprueban longitudes de hueso exactas, que las mezclas no den saltos y que las poses en reposo no cambien (44.352 poses del test anterior siguen idénticas).
+- **Circuito cerrado:** reto "Circuito cerrado · 3 vueltas". El terreno se repite cada 1.200 m de verdad (ondulaciones con un número entero de ciclos, suelo y pendiente continuos en la costura, zona de salida plana), con línea de meta a cada vuelta, tiempo por vuelta, comparación con el fantasma y rival. Dificultad constante. Las pruebas recorren dos vueltas con los ocho vehículos en las cinco rutas.
+- **Aterrizaje de las volteretas:** al soltar T el piloto nivela la moto con el terreno donde va a aterrizar (pendiente 0,2 s por delante), no con la horizontal.
+- **Giro de 360°:** sigue siendo una ilusión (el modelo es plano), pero ahora deja dos imágenes residuales tenues que sugieren el giro.
+- **Rival experto en tierra y dunas:** no resuelto. Investigué por qué: en terreno roto la moto rebota casi continuamente y, aunque el rival sólo salte en rampas reales y con tiempo de enfriamiento, aun así se cae en torno al 40-70 % de las rutas con volteretas. Sin volteretas termina el 98 %. Por eso el rival experto sigue haciendo volteretas únicamente en valle, nieve y ciudad.

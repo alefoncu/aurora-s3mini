@@ -61,6 +61,12 @@ final class BikePhysics {
     static let airTrickAcceleration=80.0
     /// Extra take-off impulse when T is held on the jump: gives flips the hang time they need.
     static let trickJumpBoost=1.6
+    /// Closed circuit: the terrain repeats every `circuitLength` metres, so laps are seamless.
+    /// A global switch because renderer, game and physics all read the same terrain function.
+    static var circuit=false
+    static let circuitLength=1200.0
+    var laps=3
+    var finishDistance:Double { Self.circuit ? Double(laps)*Self.circuitLength : Self.finish }
     /// Endless mode: no finish line; the last sector repeats until the rider crashes.
     var endless=false
     /// Cumulative wear: 0 fresh ... 1 worn. Tyres lose up to 30 % grip; hot dampers lose up to 35 % damping.
@@ -287,7 +293,10 @@ final class BikePhysics {
         angularDamping += (dampingTarget-angularDamping)*min(1,dt*10)
         var airTorque=trickAir ? -riderShift*inertia*Self.airTrickAcceleration : 0
         if snapping {
-            let error=(airRotation/(2*Double.pi)).rounded()*2*Double.pi-airRotation
+            // Level the bike with the ground where it will land (slope a fifth of a second ahead),
+            // choosing the nearest equivalent attitude: a full extra turn or none.
+            let landing=atan(Self.slope(origin.x+max(0,speed)*0.2,route:route))
+            let d=landing-pitch,error=atan2(sin(d),cos(d))
             airTorque=inertia*(70*error-10*angularVelocity)
         }
         let torque=fr*lr+ff*lf+transfer+riderTorque+airTorque-angularVelocity*inertia*angularDamping
@@ -346,7 +355,7 @@ final class BikePhysics {
                 }
                 airTime=0;airRotation=0;airPeak=0;spinYaw=0;flipActive=false
             }
-            if !endless && distance>=Self.finish { com.x+=Self.finish-origin.x;distance=Self.finish;finished=true;speed=0 }
+            if !endless && distance>=finishDistance { com.x+=finishDistance-origin.x;distance=finishDistance;finished=true;speed=0 }
         }
         rearWheelPosition=RideVector(rearNow.x,rearY);frontWheelPosition=RideVector(frontNow.x,frontY)
         rearWasContact=rearContact;frontWasContact=frontContact
@@ -427,6 +436,7 @@ final class BikePhysics {
     /// Fixed course sectors; challenge belongs to world distance, never session time.
     static func difficultyStage(at distance:Double)->Int {
         guard distance.isFinite else { return 0 }
+        if circuit { return 2 }   // a circuit keeps one steady, demanding difficulty
         return max(0,min(3,Int(max(0,min(Self.finish,distance))/300)))
     }
     static func stageTitle(at distance:Double)->String {
@@ -461,8 +471,38 @@ final class BikePhysics {
         + Array(stride(from:625,through:865,by:40))
         + Array(stride(from:925,through:1175,by:25))
 
+    /// One lap of seamless terrain: every undulation has a whole number of cycles per lap,
+    /// ramps sit between 120 m and 1,160 m (flat start/finish zone), so ground and slope match at the seam.
+    static func circuitGround(_ x:Double,route:Int)->Double {
+        let length=circuitLength,u=x-length*floor(x/length),w=2*Double.pi/length
+        func cyc(_ n:Double)->Double { sin(w*n*u) }
+        let difficulty=0.6,roughness=1+difficulty*1.8
+        let base:Double
+        switch route {
+        case 1: base=(1.3*cyc(8)+0.38*cyc(24))*(1+0.35*difficulty)+(0.035*cyc(344)+0.022*cyc(592))*roughness
+        case 2: base=(0.7*cyc(6)+0.8*pow(cyc(11),4))*(1+0.45*difficulty)+0.028*cyc(458)*roughness
+        case 3: base=(0.55*cyc(6)+0.30*cyc(14))*(1+0.3*difficulty)+0.02*cyc(325)*roughness
+        case 4: base=0.14*cyc(5)+0.016*cyc(287)*roughness
+        default:base=0.20*cyc(4)+0.018*cyc(268)*roughness
+        }
+        // The undulations calm down towards the start/finish line so every vehicle can set off there.
+        let seamDistance=min(u,length-u)/120,calm=max(0,min(1,seamDistance)),envelope=0.12+0.88*calm*calm*(3-2*calm)
+        let k=((u-140)/40).rounded(),centre=140+40*k
+        var ramp=0.0
+        if k>=0 && k<=25 {
+            let offset=abs(u-centre),halfWidth=9.5
+            if offset<halfWidth { ramp=(1+cos(offset/halfWidth*Double.pi))*0.5 }
+        }
+        let paved=route == 0 || route == 4
+        return base*envelope+ramp*(paved ? 0.55 : route == 3 ? 0.5 : 0.6)
+    }
+    /// Obstacles for a closed circuit: one every 40 m between the flat start zone and the last metres of each lap.
+    static func circuitObstaclePositions(laps:Int)->[Int] {
+        (0..<max(1,laps)).flatMap { lap in stride(from:140,through:1140,by:40).map { lap*1200+$0 } }
+    }
     static func ground(_ x:Double,route:Int=0)->Double {
         guard x.isFinite else { return 0 }
+        if circuit { return circuitGround(x,route:route) }
         let t=max(0,min(1,(x-10)/25)),fade=t*t*(3-2*t)
         // Smooth envelopes avoid a height or slope discontinuity at sector signs.
         let progress=max(0,min(1,(x-120)/1000))

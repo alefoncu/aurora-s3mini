@@ -38,11 +38,38 @@ import Foundation
             } } }
             validate(RiderRig.solve(vehicle:rig,lean:.nan,lift:.infinity,pedalPhase:.nan))
         }
+        // Trick poses: exact bones throughout, continuous blends, and recognisable end poses.
+        for kind in BikeKind.allCases {
+            let rig=kind.rig
+            let plain=RiderRig.solve(vehicle:rig,lean:0.3,lift:0.2,cycling:kind == .bmx)
+            let zero=RiderRig.solve(vehicle:rig,lean:0.3,lift:0.2,cycling:kind == .bmx,handsOff:0,superman:0)
+            close(distance(plain.hand,zero.hand),0,"Zero blend equals the normal pose"); close(distance(plain.hip,zero.hip),0,"Zero blend hip")
+            var previous=RiderRig.solve(vehicle:rig,lean:0.3,lift:0.2,cycling:kind == .bmx)
+            for kindOfTrick in 0..<2 { for i in 0...200 {
+                let b=Double(i)/200
+                let p=RiderRig.solve(vehicle:rig,lean:0.3,lift:0.2,cycling:kind == .bmx,handsOff:kindOfTrick == 0 ? b : 0,superman:kindOfTrick == 1 ? b : 0)
+                validate(p)
+                if i == 0 { previous=p }
+                for (a,c,name) in [(previous.shoulder,p.shoulder,"shoulder"),(previous.elbow,p.elbow,"elbow"),(previous.knee,p.knee,"knee"),(previous.foot,p.foot,"foot"),(previous.hand,p.hand,"hand")] {
+                    precondition(distance(a,c)<0.03,"\(name) jumps while blending a trick on \(kind): \(distance(a,c))")
+                }
+                previous=p
+            } }
+            let off=RiderRig.solve(vehicle:rig,lean:0,handsOff:1)
+            precondition(distance(off.hand,rig.grip)>0.3 && off.hand.y>off.shoulder.y-0.1,"Hands off must leave the bars and rise: \(kind)")
+            let fly=RiderRig.solve(vehicle:rig,lean:0,superman:1)
+            close(distance(fly.hand,rig.grip),0,"Superman keeps the hands on the grips")
+            precondition(fly.foot.x<fly.hip.x-0.55 && distance(fly.foot,rig.footPeg)>0.3,"Superman stretches the legs behind: \(kind)")
+            precondition(abs(fly.shoulder.y-fly.hip.y)<0.3,"Superman keeps the torso nearly flat: \(kind) \(fly.shoulder.y-fly.hip.y)")
+            let pillion=RiderRig.solve(vehicle:rig,lean:0,passenger:true,handsOff:1,superman:1)
+            close(distance(pillion.hand,RiderRig.solve(vehicle:rig,lean:0,passenger:true).hand),0,"Passengers ignore trick poses")
+            validate(RiderRig.solve(vehicle:rig,lean:0,handsOff:.nan,superman:.infinity))
+        }
         let street=RiderRig.solve(vehicle:BikeKind.commuter.rig,lean:0)
         let enduro=RiderRig.solve(vehicle:BikeKind.motocross.rig,lean:0)
         let sport=RiderRig.solve(vehicle:BikeKind.sport.rig,lean:0)
         precondition(distance(street.hip,enduro.hip)>0.1)
         precondition(distance(sport.shoulder,enduro.shoulder)>0.1)
-        print("RiderRigTests passed: \(tested) poses, exact contacts/fixed bones, continuous lean, pedals, passenger, stunt, invalid inputs.")
+        print("RiderRigTests passed: \(tested) poses, exact contacts/fixed bones, continuous lean, pedals, passenger, stunt, hands-off and superman blends, invalid inputs.")
     }
 }

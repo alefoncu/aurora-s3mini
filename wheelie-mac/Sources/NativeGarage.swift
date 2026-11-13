@@ -154,10 +154,13 @@ final class GarageInspectorController: NSViewController {
     /// Selects a vehicle (the sidebar list does the same on wide windows).
     var onVehicle: ((BikeKind) -> Void)?
     private var vehiclePopup: NSPopUpButton!, lengthPopup: NSPopUpButton!, routeHint: NSTextField!
+    /// Controls that only make sense for some vehicles or challenges: hidden (not just greyed out) when they do not apply.
+    private var transmissionViews:[NSView]=[],suspensionViews:[NSView]=[],rivalViews:[NSView]=[],ghostViews:[NSView]=[],lengthViews:[NSView]=[],liveryViews:[NSView]=[]
     static let lengthTitles = ["Clásica · 1.200 m", "Larga · 3.000 m", "Maratón · 6.000 m"]
     /// The inspector is a list of collapsible sections: a header button and a body stack each.
     private struct SectionGroup { let title: String; let header: NSButton; let body: NSStackView }
     private var groups: [SectionGroup] = []
+    private var documentView: NSView?
     private var currentBody: NSStackView?
     private weak var mainStack: NSStackView?
     /// Top to bottom. Only the first three start open; what is open is remembered between launches.
@@ -203,6 +206,7 @@ final class GarageInspectorController: NSViewController {
         let scroll = NSScrollView(); scroll.drawsBackground = false; scroll.hasVerticalScroller = true; scroll.autohidesScrollers = true
         let document = FlippedGarageDocumentView()
         scroll.documentView = document
+        documentView = document
         let stack = NSStackView(); stack.orientation = .vertical; stack.alignment = .leading; stack.spacing = 12
         document.addSubview(stack); stack.translatesAutoresizingMaskIntoConstraints = false
         document.translatesAutoresizingMaskIntoConstraints = false
@@ -249,7 +253,7 @@ final class GarageInspectorController: NSViewController {
         lengthPopup = NSPopUpButton(frame: .zero, pullsDown: false)
         lengthPopup.addItems(withTitles: Self.lengthTitles)
         lengthPopup.target = self; lengthPopup.action = #selector(lengthChanged(_:)); lengthPopup.setAccessibilityLabel("Longitud de la ruta")
-        editableControls.append(lengthPopup); addFullWidth(labeledRow("Longitud", control: lengthPopup), to: stack)
+        editableControls.append(lengthPopup); let lengthRow=labeledRow("Longitud", control: lengthPopup); addFullWidth(lengthRow, to: stack); lengthViews=[lengthRow]
         nightSwitch = NSSwitch(); nightSwitch.target = self; nightSwitch.action = #selector(nightChanged(_:)); nightSwitch.setAccessibilityLabel("Noche")
         editableControls.append(nightSwitch); addFullWidth(labeledRow("Noche", control: nightSwitch), to: stack)
         addDivider(to: stack)
@@ -258,7 +262,7 @@ final class GarageInspectorController: NSViewController {
         transmissionPopup.addItems(withTitles: ["Cambio automático", "Cambio manual"])
         transmissionPopup.target = self; transmissionPopup.action = #selector(transmissionChanged(_:))
         transmissionPopup.setAccessibilityLabel("Cambio de marchas")
-        editableControls.append(transmissionPopup); addFullWidth(transmissionPopup, to: stack)
+        editableControls.append(transmissionPopup); addFullWidth(transmissionPopup, to: stack); transmissionViews=[transmissionPopup]
         transmissionHint = NSTextField(wrappingLabelWithString: "")
         transmissionHint.font = .systemFont(ofSize: 11); transmissionHint.textColor = .secondaryLabelColor
         addFullWidth(transmissionHint, to: stack)
@@ -275,14 +279,16 @@ final class GarageInspectorController: NSViewController {
         for (title, slider, value) in [("Dureza", stiffnessSlider!, stiffnessValue!), ("Amortiguación", dampingSlider!, dampingValue!)] {
             slider.isContinuous = true; slider.setAccessibilityLabel(title + " de suspensión")
             editableControls.append(slider)
-            addFullWidth(labeledRow(title, control: value), to: stack)
+            let row=labeledRow(title, control: value)
+            addFullWidth(row, to: stack)
             addFullWidth(slider, to: stack)
+            suspensionViews += [row, slider]
         }
         let restore = NSButton(title: "Restaurar suspensión", target: self, action: #selector(restoreSuspension))
-        restore.bezelStyle = .rounded; editableControls.append(restore); addFullWidth(restore, to: stack)
-        let suspensionHint = NSTextField(wrappingLabelWithString: "Ajustes propios de cada vehículo. Una suspensión blanda absorbe mejor los baches; una dura reduce el hundimiento. La amortiguación controla el rebote.")
+        restore.bezelStyle = .rounded; editableControls.append(restore); addFullWidth(restore, to: stack); suspensionViews.append(restore)
+        let suspensionHint = NSTextField(wrappingLabelWithString: "Blanda absorbe baches; dura reduce el hundimiento.")
         suspensionHint.font = .systemFont(ofSize: 11); suspensionHint.textColor = .secondaryLabelColor
-        addFullWidth(suspensionHint, to: stack)
+        addFullWidth(suspensionHint, to: stack); suspensionViews.append(suspensionHint)
         addDivider(to: stack)
         addSection("RETO", to: stack)
         challengePopup = NSPopUpButton(frame: .zero, pullsDown: false)
@@ -296,12 +302,12 @@ final class GarageInspectorController: NSViewController {
         rivalPopup = NSPopUpButton(frame: .zero, pullsDown: false)
         rivalPopup.addItems(withTitles: RivalLevel.allCases.map(\.title))
         rivalPopup.target = self; rivalPopup.action = #selector(rivalLevelChanged(_:)); rivalPopup.setAccessibilityLabel("Nivel del rival")
-        editableControls.append(rivalPopup); addFullWidth(rivalPopup, to: stack)
+        editableControls.append(rivalPopup); addFullWidth(rivalPopup, to: stack); rivalViews=[rivalPopup]
         rivalSameCheckbox = NSButton(checkboxWithTitle: "El rival usa mi mismo vehículo", target: self, action: #selector(rivalSameChanged(_:)))
-        editableControls.append(rivalSameCheckbox); addFullWidth(rivalSameCheckbox, to: stack)
+        editableControls.append(rivalSameCheckbox); addFullWidth(rivalSameCheckbox, to: stack); rivalViews.append(rivalSameCheckbox)
         ghostCheckbox = NSButton(checkboxWithTitle: "Mostrar mi mejor recorrido", target: self, action: #selector(ghostChanged(_:)))
         ghostCheckbox.setAccessibilityHelp("El fantasma aparece después de completar una ruta; compites contra tu mejor tiempo con estos ajustes.")
-        editableControls.append(ghostCheckbox); addFullWidth(ghostCheckbox, to: stack)
+        editableControls.append(ghostCheckbox); addFullWidth(ghostCheckbox, to: stack); ghostViews=[ghostCheckbox]
         addDivider(to: stack)
         addSection("APARIENCIA", to: stack)
         for (title, key) in [("Moto", "body"), ("Chaqueta", "jacket"), ("Casco", "helmetColor"), ("Piel", "skin")] {
@@ -317,11 +323,17 @@ final class GarageInspectorController: NSViewController {
         helmetPopup = NSPopUpButton(frame: .zero, pullsDown: false); helmetPopup.addItems(withTitles: HelmetStyle.allCases.map(\.title))
         jacketPopup = NSPopUpButton(frame: .zero, pullsDown: false); jacketPopup.addItems(withTitles: JacketStyle.allCases.map(\.title))
         liveryPopup = NSPopUpButton(frame: .zero, pullsDown: false); liveryPopup.addItems(withTitles: Livery.allCases.map(\.title))
-        for (title, popup, action) in [("Casco", helmetPopup!, #selector(helmetChanged(_:))), ("Chaqueta", jacketPopup!, #selector(jacketChanged(_:))), ("Moto", liveryPopup!, #selector(liveryChanged(_:)))] {
-            popup.target = self; popup.action = action; popup.setAccessibilityLabel("Estilo de \(title.lowercased())")
-            editableControls.append(popup); addFullWidth(labeledRow(title, control: popup), to: stack)
+        for (title, popup, action) in [("Estilo del casco", helmetPopup!, #selector(helmetChanged(_:))), ("Estilo de la chaqueta", jacketPopup!, #selector(jacketChanged(_:))), ("Decoración de la moto", liveryPopup!, #selector(liveryChanged(_:)))] {
+            popup.target = self; popup.action = action; popup.setAccessibilityLabel(title)
+            editableControls.append(popup)
+            // The caption sits above the control: the longest titles ("Bandas reflectantes") no longer squash it.
+            let caption = NSTextField(labelWithString: title); caption.font = .systemFont(ofSize: 11); caption.textColor = .secondaryLabelColor
+            let column = NSStackView(views: [caption, popup]); column.orientation = .vertical; column.alignment = .leading; column.spacing = 3
+            popup.translatesAutoresizingMaskIntoConstraints = false; popup.widthAnchor.constraint(equalTo: column.widthAnchor).isActive = true
+            addFullWidth(column, to: stack)
+            if popup === liveryPopup { liveryViews = [column] }
         }
-        let styleHint = NSTextField(wrappingLabelWithString: "Los colores base son gratis. Los estilos extra se compran con monedas y se ven en la vista previa; para rodar tienes que tener el estilo elegido.")
+        let styleHint = NSTextField(wrappingLabelWithString: "Los estilos se compran con monedas y se ven en la vista previa.")
         styleHint.font = .systemFont(ofSize: 11); styleHint.textColor = .secondaryLabelColor
         addFullWidth(styleHint, to: stack)
         addDivider(to: stack)
@@ -471,7 +483,7 @@ final class GarageInspectorController: NSViewController {
         }
         nightSwitch.state = game.night ? .on : .off
         transmissionPopup.selectItem(at: game.bike.transmission.automatic ? 0 : 1)
-        transmissionHint.stringValue = game.bike.kind == .bmx ? "La BMX conserva su desarrollo fijo y rueda libre." : game.bike.kind == .scooter ? "El scooter ajusta su transmisión automáticamente." : game.bike.kind == .electric ? "La eléctrica tiene una sola marcha: el par es instantáneo." : "Manual: Q baja marcha y F sube marcha. También puedes usar la Touch Bar."
+        transmissionHint.stringValue = game.bike.kind == .bmx ? "La BMX conserva su desarrollo fijo y rueda libre; su cuadro es rígido, sin suspensión que ajustar." : game.bike.kind == .scooter ? "El scooter ajusta su transmisión automáticamente." : game.bike.kind == .electric ? "La eléctrica tiene una sola marcha: el par es instantáneo." : "Manual: Q baja marcha y F sube marcha. También puedes usar la Touch Bar."
         stiffnessSlider.doubleValue = game.bike.suspensionStiffness
         dampingSlider.doubleValue = game.bike.suspensionDamping
         stiffnessValue.stringValue = "\(Int((game.bike.suspensionStiffness * 100).rounded())) %"
@@ -481,10 +493,10 @@ final class GarageInspectorController: NSViewController {
         lengthPopup.selectItem(at: game.lengthIndex)
         let longRoutes = game.challengeKind == .free || game.challengeKind == .race
         lengthPopup.isEnabled = longRoutes && game.mode == .garage
-        routeHint.stringValue = game.challengeKind == .endless ? "Terreno generado sin fin: cambia de zona cada 240 m y se endurece con la distancia. Cada partida es distinta."
-            : game.challengeKind == .circuit ? "Circuito cerrado de 1.200 m: el terreno se repite cada vuelta."
-            : game.activeRouteLength > 1200 ? "\(Int(game.activeRouteLength)) m · terreno generado con zonas variadas (colinas, saltos, terreno roto, cuestas) y cuatro tramos de dificultad creciente."
-            : "1.200 m · cuatro tramos de dificultad creciente. El relieve se vuelve más exigente cada 300 m; los conos opcionales aparecen con mayor frecuencia."
+        routeHint.stringValue = game.challengeKind == .endless ? "Terreno sin fin que cambia de zona y se endurece con la distancia."
+            : game.challengeKind == .circuit ? "Circuito cerrado de 1.200 m."
+            : game.activeRouteLength > 1200 ? "\(Int(game.activeRouteLength)) m · terreno variado con bifurcaciones."
+            : "1.200 m · cuatro tramos de dificultad creciente."
         ghostCheckbox.state = game.ghostEnabled ? .on : .off
         rivalPopup.selectItem(at: game.rivalLevel.rawValue)
         difficultyPopup.selectItem(at: game.difficulty.rawValue); difficultyHint.stringValue = game.difficulty.detail
@@ -513,6 +525,37 @@ final class GarageInspectorController: NSViewController {
         transmissionPopup.isEnabled = canEdit && game.bike.kind != .bmx && game.bike.kind != .scooter && game.bike.kind != .electric
         options["passenger"]?.isEnabled = canEdit && game.bike.kind.supportsPassenger
         playButton.isEnabled = canEdit && locked.isEmpty
+        applyContext()
+    }
+    /// Hides the controls that do not apply to the selected vehicle or challenge, instead of leaving them greyed out.
+    private func applyContext() {
+        let kind = game.bike.kind, challenge = game.challengeKind
+        let hasGearbox = kind != .bmx && kind != .scooter && kind != .electric
+        transmissionViews.forEach { $0.isHidden = !hasGearbox }
+        suspensionViews.forEach { $0.isHidden = kind == .bmx }                       // a rigid frame has nothing to tune
+        rivalViews.forEach { $0.isHidden = !(challenge == .race || challenge == .circuit) }
+        ghostViews.forEach { $0.isHidden = challenge == .endless || challenge == .tutorial }
+        lengthViews.forEach { $0.isHidden = !(challenge == .free || challenge == .race) }
+        liveryViews.forEach { $0.isHidden = kind == .bmx }                           // decorations are not drawn on a BMX
+        options["passenger"]?.isHidden = !kind.supportsPassenger
+        options["abs"]?.isHidden = kind == .bmx
+    }
+    /// Developer aid: the whole inspector (every section open, nothing saved) as one tall image.
+    func uiFullImage(width: CGFloat = 330) -> NSImage? {
+        guard let document = documentView else { return nil }
+        let saved = groups.map { !$0.body.isHidden }
+        groups.forEach { setSection($0, open: true) }
+        document.frame = NSRect(x: 0, y: 0, width: width, height: 10)
+        document.layoutSubtreeIfNeeded()
+        let height = document.fittingSize.height
+        document.frame = NSRect(x: 0, y: 0, width: width, height: height); document.layoutSubtreeIfNeeded()
+        var image: NSImage?
+        if let rep = document.bitmapImageRepForCachingDisplay(in: document.bounds) {
+            document.cacheDisplay(in: document.bounds, to: rep)
+            image = NSImage(size: document.bounds.size); image?.addRepresentation(rep)
+        }
+        for (group, open) in zip(groups, saved) { setSection(group, open: open) }
+        return image
     }
     // Hooks that drive the real controls (popups, checkboxes, buttons) for the automated UI flow test.
     func uiSelectRoute(_ index: Int) { routePopup.selectItem(at: index); routeChanged(routePopup) }

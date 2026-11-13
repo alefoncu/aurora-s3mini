@@ -248,6 +248,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSToolbarDelegate, NST
                 try? NSBitmapImageRep(cgImage:image).representation(using:.png,properties:[:])?.write(to:URL(fileURLWithPath:directory+"/garage-\(w)x\(h).png"))
             }
         }
+        // The whole inspector for a motorcycle and for the BMX (what applies to each).
+        for kind in [BikeKind.sport,.bmx] {
+            game.bike.kind=kind; game.challengeKind = .free; syncWindow(); pump(0.3)
+            if let image=inspector.uiFullImage(),let tiff=image.tiffRepresentation,let rep=NSBitmapImageRep(data:tiff) { try? rep.representation(using:.png,properties:[:])?.write(to:URL(fileURLWithPath:directory+"/inspector-\(kind.rawValue).png")) }
+        }
         NSApp.terminate(nil)
     }
     /// Developer aid: write one PNG per route (with obstacles on) using isolated preferences.

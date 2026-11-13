@@ -1,4 +1,4 @@
-# Wheelie Ride 6.16 · macOS
+# Wheelie Ride 6.17 · macOS
 
 Juego independiente inspirado en la base de Wheelie Challenge: conducción lateral, caballitos, equilibrio, saltos, vehículos y piloto personalizables. Swift/AppKit nativo, sin navegador, red ni descargas en tiempo de ejecución.
 
@@ -22,7 +22,7 @@ Desde la versión 4 hay una geometría en metros compartida por la física, el v
 
 Es un modelo de conducción arcade lateral: las ruedas tienen recorrido vertical y el chasis tiene cabeceo; no modela la dirección lateral, deformación completa del neumático ni una moto tridimensional. Los controles de peso incluyen amortiguación para que los caballitos puedan corregirse.
 
-## Esta versión (6.16)
+## Esta versión (6.17)
 
 - **Diez vehículos:** Street 125, Enduro 250, Sport 600, BMX, Scooter 80, Scrambler 400, Trial 200, Hyper R 1000, Cruiser 750 y Volt E-8, con geometría, velocidad, aceleración y respuesta distintas.
 - **Bifurcaciones:** en el modo infinito y en las rutas largas la carretera se parte cada ~1.100 m; eliges con la tecla **C** entre el camino normal y el alto.
@@ -348,6 +348,15 @@ La caída del piloto, rehecha a partir de un diagnóstico en primer plano (`--ra
 - **Giro y suelo:** el giro de la moto se hereda casi entero (hasta ±7 rad/s) y permite volteretas; el cuerpo rebota (restitución 0,3 en impactos fuertes), desliza con menos fricción mientras va rápido (0,52) y agarra al casi pararse (0,9), de modo que rueda, se encoge y se asienta.
 - **Rodillas y codos:** no se doblan hacia atrás. El límite se aplica **solo al dibujar** (`displayPose`): la simulación va libre. Forzar la articulación dentro de la física inyectaba energía y lanzaba al piloto hasta 30 m hacia atrás (se midió en 480 casos); sin ello, todos los vehículos y rutas avanzan al menos 3,75 m.
 - Pendiente de revisar jugando: que el aspecto de cada caída (volteo, deslizamiento, golpe contra obstáculos) te parezca natural en las situaciones reales de juego.
+
+### Actualización 6.17
+
+Ajustes del taller: solo lo que aplica.
+
+- **Maquetación:** en «Estilo» los tres selectores salían sin etiqueta (el más ancho aplastaba el texto de su fila). Ahora la etiqueta va encima del selector: «Estilo del casco», «Estilo de la chaqueta» y «Decoración de la moto» (antes «Casco», «Chaqueta» y «Moto», que se confundían con los colores de Apariencia).
+- **Se ocultan los ajustes que no aplican** (antes quedaban en gris): el cambio manual/automático en la BMX, el scooter y la eléctrica; la suspensión (dureza, amortiguación, restaurar y su texto) en la BMX, que tiene cuadro rígido; el acompañante en las motos que no lo admiten; el ABS y la decoración de la moto en la BMX (no se dibuja); el nivel del rival y «el rival usa mi mismo vehículo» salvo en carrera y circuito; el fantasma en el modo infinito y el tutorial; y la longitud de ruta salvo en rodar libre y carrera.
+- **Textos de ayuda más cortos:** de ruta, suspensión y estilo (de tres o cuatro líneas a una).
+- **Herramienta:** `--responsive` guarda además el panel entero de ajustes (todo desplegado, sin tocar lo guardado) para una moto y para la BMX.
 
 ## Estado final y límites conocidos
 

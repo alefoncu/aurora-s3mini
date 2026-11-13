@@ -6,7 +6,7 @@ import Foundation
 
     static func main() {
         stats(); missions(); tutorial(); rivals()
-        print("ProgressTests passed: lifetime stats and achievements, daily/weekly missions, guided tutorial, rival levels, mistakes and ramp flips.")
+        print("ProgressTests passed: lifetime stats and achievements, daily/weekly missions, guided tutorial, rival levels, mistakes and ramp flips on every route.")
     }
 
     static func stats() {
@@ -26,6 +26,14 @@ import Foundation
         check(again.totals == s.totals && again.earned == s.earned, "Stats persist")
         check(again.summary.count == 6, "Summary lines")
         check(Set(RideAchievement.all.map(\.id)).count == RideAchievement.all.count, "Unique achievement ids")
+        // Previews: what a run would unlock, without changing anything, and consistent with record().
+        let p2 = suite(); let live = RideStats(preferences: p2)
+        var running = RunReport(); running.flips = 1; running.distance = 400
+        let before = live.totals
+        check(live.preview(running).map(\.id) == ["first-flip"] && live.totals == before && live.earned.isEmpty, "Preview changes nothing")
+        check(live.preview(RunReport()).isEmpty, "An empty run unlocks nothing")
+        check(live.record(running).map(\.id) == ["first-flip"], "record() agrees with preview()")
+        check(live.preview(running).isEmpty, "Already earned achievements are not previewed again")
     }
 
     static func missions() {
@@ -58,6 +66,15 @@ import Foundation
         var small = RunReport(); small.score = 10; small.bestCombo = 10
         single.record(small); single.record(small)
         for (i, mission) in single.daily.enumerated() where mission.metric == .score { check(single.progress(daily: i) == 10, "Score missions use the best run") }
+        // Mission previews match what record() later completes and never mutate progress.
+        let p3 = suite(); let pm = RideMissions(preferences: p3, calendar: cal, now: { date })
+        let beforeState = pm.state
+        var huge = RunReport(); huge.distance = 100_000; huge.wheelieMetres = 5_000; huge.stoppieMetres = 5_000; huge.flips = 100; huge.spins = 100
+        huge.jumps = 500; huge.dodges = 500; huge.finished = true; huge.noHandsSeconds = 500; huge.score = 100_000; huge.bestCombo = 100_000
+        let previewed = pm.preview(huge)
+        check(previewed.count == 4 && pm.state.dayProgress == beforeState.dayProgress && !pm.weeklyDone, "Mission preview changes nothing")
+        check(pm.record(huge) == previewed, "record() completes what preview() announced")
+        check(pm.preview(huge).isEmpty, "Completed missions are not previewed again")
         // Every mission has a readable Spanish title with its target.
         for metric in MissionMetric.allCases { check(Mission(metric: metric, target: 7, reward: 1).title.contains("7"), "Title for \(metric)") }
     }
@@ -105,6 +122,20 @@ import Foundation
         check(avg[.easy]! > avg[.normal]! && avg[.normal]! > avg[.expert]!, "Higher levels are faster: \(avg)")
         for level in RivalLevel.allCases { check(Double(finished[level] ?? 0) >= Double(total) * 0.8, "\(level.title) must usually finish (\(finished[level] ?? 0)/\(total))") }
         check(flips > 0, "The expert rival flips off ramps")
+        // On rough dirt and dunes the expert flips too, and still finishes: it aborts flips it cannot complete.
+        var dirtFlips = 0, dirtRuns = 0, dirtFinished = 0
+        for kind in [BikeKind.sport, .commuter, .motocross, .scooter] { for route in 1...2 { for seed in 1...3 {
+            let r = RideRival(level: .expert, kind: kind, route: route, hazards: false, seed: UInt64(seed * 17 + route))
+            var t = 0.0, serial = 0
+            while !r.finished && !r.crashed && t < 400 {
+                r.update(1 / 120); t += 1 / 120
+                if r.bike.landingSerial != serial { serial = r.bike.landingSerial; dirtFlips += r.bike.lastFlips }
+            }
+            dirtRuns += 1; if r.finished { dirtFinished += 1 }
+        } } }
+        check(dirtFlips > 5 && Double(dirtFinished) >= Double(dirtRuns) * 0.9, "Expert on dirt: \(dirtFlips) flips, \(dirtFinished)/\(dirtRuns) finished")
+        let air = RideRival(level: .expert, kind: .sport, route: 0, hazards: false, seed: 1)
+        check(air.remainingAirTime() < 0.05, "A grounded bike has no air time left")
         // Same seed, same ride; different seeds differ.
         func ride(_ seed: UInt64) -> Double {
             let r = RideRival(level: .easy, kind: .commuter, route: 1, hazards: false, seed: seed)

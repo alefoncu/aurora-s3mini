@@ -17,6 +17,29 @@ final class RideRenderer {
     var landscape: NSImage?, desert: NSImage?
     var asphaltTexture: NSImage?, dirtTexture: NSImage?
     private var treeTextures:[Int:NSImage]=[:]
+    /// Pre-rendered backdrops: scaled photographs, city strips and skies are drawn once and then blitted.
+    private var backdropCache:[String:NSImage]=[:]
+    private var backdropCG:[String:CGImage]=[:], textureCG:[String:CGImage]=[:]
+    private func cachedImage(_ key:String,size:NSSize,_ draw:()->Void)->NSImage {
+        if let hit=backdropCache[key] { return hit }
+        let img=NSImage(size:size); img.lockFocusFlipped(true); draw(); img.unlockFocus()
+        backdropCache[key]=img
+        backdropCG[key]=img.cgImage(forProposedRect:nil,context:nil,hints:nil)
+        return img
+    }
+    /// Draw a cached backdrop through Core Graphics directly: no colour or resampling work, a plain copy.
+    private func blit(_ key:String,_ rect:NSRect,flipX:Bool=false) {
+        guard let cg=backdropCG[key] else { return }
+        blit(cg,rect,flipX:flipX)
+    }
+    private func blit(_ cg:CGImage,_ rect:NSRect,flipX:Bool=false,quality:CGInterpolationQuality = .none) {
+        guard let ctx=NSGraphicsContext.current?.cgContext else { return }
+        ctx.saveGState(); ctx.interpolationQuality = quality
+        // The view is flipped (y down): flip the image back upright, and mirror it when asked.
+        ctx.translateBy(x:flipX ? rect.maxX : rect.minX,y:rect.maxY); ctx.scaleBy(x:flipX ? -1 : 1,y:-1)
+        ctx.draw(cg,in:CGRect(x:0,y:0,width:rect.width,height:rect.height))
+        ctx.restoreGState()
+    }
     init() {
         if let url = Bundle.main.url(forResource: "valley", withExtension: "png") { landscape = NSImage(contentsOf: url) }
         if let url = Bundle.main.url(forResource: "dunes", withExtension: "png") { desert = NSImage(contentsOf: url) }
@@ -44,7 +67,24 @@ final class RideRenderer {
         let width=(s as NSString).size(withAttributes:attrs).width
         (s as NSString).draw(at:NSPoint(x:center ? x-width/2 : x,y:y),withAttributes:attrs)
     }
-    func gradient(_ rect:NSRect,_ top:NSColor,_ bottom:NSColor) { NSGradient(starting:top,ending:bottom)?.draw(in:rect,angle:90) }
+    /// Vertical gradients are rendered once into a thin strip and stretched across the rect: drawing
+    /// an NSGradient evaluates a colour function per pixel, which dominated the frame cost.
+    private var gradientStrips:[String:CGImage]=[:]
+    private func colorKey(_ c:NSColor)->String {
+        guard let v=c.usingColorSpace(.sRGB) else { return "?" }
+        return String(format:"%.3f,%.3f,%.3f,%.3f",v.redComponent,v.greenComponent,v.blueComponent,v.alphaComponent)
+    }
+    func gradient(_ rect:NSRect,_ top:NSColor,_ bottom:NSColor) {
+        guard rect.width>0,rect.height>=1 else { return }
+        let height=max(1,Int(rect.height.rounded())),key="\(height)|"+colorKey(top)+"|"+colorKey(bottom)
+        if gradientStrips[key]==nil {
+            let strip=NSImage(size:NSSize(width:8,height:Double(height))); strip.lockFocusFlipped(true)
+            NSGradient(starting:top,ending:bottom)?.draw(in:NSRect(x:0,y:0,width:8,height:Double(height)),angle:90)
+            strip.unlockFocus()
+            gradientStrips[key]=strip.cgImage(forProposedRect:nil,context:nil,hints:nil)
+        }
+        if let cg=gradientStrips[key] { blit(cg,NSRect(x:rect.minX,y:rect.minY,width:rect.width,height:Double(height))) }
+    }
     func image(_ img:NSImage,_ rect:NSRect,alpha:Double=1) { img.draw(in:rect,from:.zero,operation:.sourceOver,fraction:alpha,respectFlipped:true,hints:[.interpolation:NSImageInterpolation.high]) }
     private func texture(dirt:Bool)->NSImage {
         let img=NSImage(size:NSSize(width:512,height:256)); img.lockFocusFlipped(true)
@@ -59,13 +99,15 @@ final class RideRenderer {
         img.unlockFocus(); return img
     }
     func background(camera:Double,route:Int,night:Bool,time:Double) {
-        box(0,0,1280,720,NSColor(hex:0xAEC3C5))
-        if route==3 { snowBackdrop(camera:camera,time:time) } else if route==4 { cityBackdrop(camera:camera,night:night,time:time) } else if let bg=route==2 ? desert : landscape {
+        if route==3 { snowBackdrop(camera:camera,time:time) } else if route==4 { cityBackdrop(camera:camera,night:night,time:time) } else if let source=route==2 ? desert : landscape {
             let w=1880.0, scroll=camera*0.045, tile=Int(floor(scroll/w))
+            // The photograph is resampled once to its on-screen size; each frame is then a straight blit.
+            let key=route==2 ? "desert" : "valley"
+            _=cachedImage(key,size:NSSize(width:w+0.5,height:590)) { image(source,NSRect(x:0,y:0,width:w+0.5,height:590)) }
             for n in tile...tile+1 {
                 let x=Double(n)*w-scroll
-                if n%2==0 { image(bg,NSRect(x:x,y:-30,width:w+0.5,height:590)) }
-                else { NSGraphicsContext.saveGraphicsState(); let flip=NSAffineTransform(); flip.translateX(by:x+w,yBy:0); flip.scaleX(by:-1,yBy:1); flip.concat(); image(bg,NSRect(x:0,y:-30,width:w+0.5,height:590)); NSGraphicsContext.restoreGraphicsState() }
+                if n%2==0 { blit(key,NSRect(x:x,y:-30,width:w+0.5,height:590)) }
+                else { blit(key,NSRect(x:x,y:-30,width:w+0.5,height:590),flipX:true) }   // alternate tiles mirror so the seams match
             }
         } else {
             gradient(NSRect(x:0,y:0,width:1280,height:560),NSColor(hex:0xADD0E4),NSColor(hex:0xD6DBB8))
@@ -82,7 +124,8 @@ final class RideRenderer {
     }
     private func hash(_ n:Double)->Double { let v=sin(n*12.9898)*43758.5453; return v-floor(v) }
     func snowBackdrop(camera:Double,time:Double) {
-        gradient(NSRect(x:0,y:0,width:1280,height:560),NSColor(hex:0xBFD3E2),NSColor(hex:0xF0F4F6))
+        _=cachedImage("snow-sky",size:NSSize(width:1280,height:560)) { gradient(NSRect(x:0,y:0,width:1280,height:560),NSColor(hex:0xBFD3E2),NSColor(hex:0xF0F4F6)) }
+        blit("snow-sky",NSRect(x:0,y:0,width:1280,height:560))
         for layer in 0..<4 {
             var points:[(Double,Double)]=[(-20,600)]
             for x in stride(from:-20.0,through:1300,by:14) {
@@ -91,47 +134,62 @@ final class RideRenderer {
             }
             points.append((1300,600)); poly(points,NSColor(hex:[0xDDE7EE,0xC6D4E0,0xAEC1D2,0x8FA6BB][layer]))
         }
-        // Falling snow drifts at a different speed per flake.
+        // Falling snow: every flake in one path, filled once.
+        let flakes=NSBezierPath()
         for i in 0..<90 {
-            let fall=40+Double(i%5)*14,sway=sin(time*0.8+Double(i))*14
+            let fall=40+Double(i%5)*14,sway=sin(time*0.8+Double(i))*14,r=1+Double(i%3)*0.7
             let x=(Double(i)*137.0+time*(8+Double(i%4)*5)+sway).truncatingRemainder(dividingBy:1300)
             let y=(Double(i)*83.0+time*fall).truncatingRemainder(dividingBy:640)
-            circle(x,y,1+Double(i%3)*0.7,NSColor.white.withAlphaComponent(0.8))
+            flakes.append(NSBezierPath(ovalIn:NSRect(x:x-r,y:y-r,width:2*r,height:2*r)))
         }
+        NSColor.white.withAlphaComponent(0.8).setFill(); flakes.fill()
     }
+    private static let cityStripBuildings=24
     func cityBackdrop(camera:Double,night:Bool,time:Double) {
-        gradient(NSRect(x:0,y:0,width:1280,height:560),NSColor(hex:night ? 0x10172A : 0x39425A),NSColor(hex:night ? 0x2B3550 : 0x7B8498))
-        for layer in 0..<3 {
-            let scroll=camera*(0.03+Double(layer)*0.025),width=95.0+Double(layer)*15
-            let first=Int(floor(scroll/width))-1
-            for n in first..<first+18 {
-                let h=hash(Double(n*7+layer*31)),x=Double(n)*width-scroll
-                let height=130+h*210+Double(layer)*18,bw=width*(0.7+h*0.25)
-                let shade=[0x1F2636,0x2A3245,0x39425A][layer]
-                box(x,560-height+Double(layer)*34,bw,height,NSColor(hex:shade))
-                // Lit windows: a fixed pattern per building.
-                var wy=560-height+Double(layer)*34+10
-                while wy<540 {
-                    var wx=x+7
-                    while wx<x+bw-10 {
-                        if hash(Double(n)*3.1+wx*0.07+wy*0.11)>0.55 { box(wx,wy,6,8,NSColor(hex:0xFFD58A,alpha:night ? 0.85 : 0.5)) }
-                        wx+=14
+        _=cachedImage("city-sky-\(night)",size:NSSize(width:1280,height:560)) {
+            gradient(NSRect(x:0,y:0,width:1280,height:560),NSColor(hex:night ? 0x10172A : 0x39425A),NSColor(hex:night ? 0x2B3550 : 0x7B8498))
+        }
+        RideProfile.section("  cielo") { blit("city-sky-\(night)",NSRect(x:0,y:0,width:1280,height:560)) }
+        for layer in 0..<3 { RideProfile.section("  edificios") {
+            let width=95.0+Double(layer)*15,count=Self.cityStripBuildings,stripWidth=Double(count)*width
+            // One repeating strip of buildings per parallax layer, drawn once (windows are lit per building).
+            let stripKey="city-strip-\(layer)-\(night)"
+            _=cachedImage(stripKey,size:NSSize(width:stripWidth,height:620)) {
+                for n in 0..<count {
+                    let h=hash(Double(n*7+layer*31)),x=Double(n)*width
+                    let height=130+h*210+Double(layer)*18,bw=width*(0.7+h*0.25),top=560-height+Double(layer)*34
+                    box(x,top,bw,620-top,NSColor(hex:[0x1F2636,0x2A3245,0x39425A][layer]))
+                    var wy=top+10
+                    while wy<540 {
+                        var wx=x+7
+                        while wx<x+bw-10 {
+                            if hash(Double(n)*3.1+wx*0.07+wy*0.11)>0.55 { box(wx,wy,6,8,NSColor(hex:0xFFD58A,alpha:night ? 0.85 : 0.5)) }
+                            wx+=14
+                        }
+                        wy+=18
                     }
-                    wy+=18
                 }
             }
-        }
-        box(0,0,1280,600,NSColor(hex:0x0B1626,alpha:night ? 0.35 : 0.18))
+            let scroll=camera*(0.03+Double(layer)*0.025)
+            var x0 = -scroll.truncatingRemainder(dividingBy:stripWidth)
+            if x0>0 { x0-=stripWidth }
+            var x=x0
+            while x<1280 { blit(stripKey,NSRect(x:x,y:0,width:stripWidth,height:620)); x+=stripWidth }
+        } }
+        RideProfile.section("  velo") { box(0,0,1280,600,NSColor(hex:0x0B1626,alpha:night ? 0.35 : 0.18)) }
     }
     /// Falling rain over the whole scene, drawn on top of the ride.
     func weather(route:Int,time:Double) {
         guard route==4 else { return }
+        let drops=NSBezierPath()
         for i in 0..<150 {
             let speed=620+Double(i%7)*60
-            let x=(Double(i)*97.0-time*90).truncatingRemainder(dividingBy:1400)
+            var x=(Double(i)*97.0-time*90).truncatingRemainder(dividingBy:1400)
+            if x<0 { x+=1400 }
             let y=(Double(i)*53.0+time*speed).truncatingRemainder(dividingBy:780)-30
-            line(x<0 ? x+1400 : x,y,(x<0 ? x+1400 : x)-5,y+20,1,NSColor(hex:0xBFD4EA,alpha:0.30))
+            drops.move(to:NSPoint(x:x,y:y)); drops.line(to:NSPoint(x:x-5,y:y+20))
         }
+        drops.lineWidth=1; NSColor(hex:0xBFD4EA,alpha:0.30).setStroke(); drops.stroke()
     }
     func ground(_ meters:Double,at cameraX:Double,cameraY:Double,route:Int)->Double {
         458 + cameraY - BikePhysics.ground(meters,route:route)*metresToPixels
@@ -140,14 +198,15 @@ final class RideRenderer {
     func scenery(cameraX:Double,cameraY:Double,route:Int,night:Bool,limit:Double=1200) {
         let cam=cameraX*metresToPixels
         // Distant roadside objects pass behind the playable silhouette.
-        for i in -2..<12 {
+        RideProfile.section("  props") { for i in -2..<12 {
             let world=Double(Int(cameraX/23)+i)*23
             let x=370+(world-cameraX)*metresToPixels
             guard x > -180 && x < 1460 else { continue }
             let y=ground(world,at:cameraX,cameraY:cameraY,route:route)-42
             if Int(world/23)%3==0 { rock(x,y,Double(abs(Int(world))%22+24),night:night) }
             else if Int(world/23)%3==1 { if route==2 { rock(x,y,32,night:night) } else if route==4 { lamp(x,y,night:night) } else if route==3 { pine(x,y,seed:Int(world)) } else { tree(x,y,seed:Int(world),night:night) } }
-        }
+        } }
+        RideProfile.section("  carretera") {
         let step=5.0
         var road:[NSPoint]=[]
         for x in stride(from:-10.0,through:1290,by:step) { road.append(NSPoint(x:x,y:ground(cameraX+(x-370)/metresToPixels,at:cameraX,cameraY:cameraY,route:route)-26)) }
@@ -156,14 +215,20 @@ final class RideRenderer {
         var earth=road; for i in (earth.count/2)..<earth.count { earth[i].y = 740 }
         path(earth,NSColor(hex:route==0 ? 0x7A725E : route==3 ? 0xB7C3CB : route==4 ? 0x3A3F47 : 0x8F694B))
         NSGraphicsContext.saveGraphicsState()
-        let clip=NSBezierPath(); clip.move(to:road[0]); for p in road.dropFirst() { clip.line(to:p) }; clip.close(); clip.addClip()
+        let clip=NSBezierPath(); clip.move(to:road[0]); for p in road.dropFirst() { clip.line(to:p) }; clip.close()
+        // The white edge lines drawn afterwards hide the clip's border, so an aliased clip is invisible and cheaper.
+        NSGraphicsContext.current?.shouldAntialias=false; clip.addClip(); NSGraphicsContext.current?.shouldAntialias=true
         box(0,250,1280,470,NSColor(hex:route==0 ? 0x666D71 : route==3 ? 0xE9EFF3 : route==4 ? 0x2F343C : 0xC09862))
         if route != 3, let texture=(route==0 || route==4) ? asphaltTexture : dirtTexture {
             let shift=cam.truncatingRemainder(dividingBy:512)
-            for i in -1..<4 { image(texture,NSRect(x:Double(i)*512-shift,y:330,width:512,height:300)) }
+            let key=(route==0 || route==4) ? "asphalt" : "dirt"
+            if textureCG[key]==nil { textureCG[key]=texture.cgImage(forProposedRect:nil,context:nil,hints:nil) }
+            if let cg=textureCG[key] { for i in -1..<4 { blit(cg,NSRect(x:Double(i)*512-shift,y:330,width:512,height:300),quality:.low) } }
         }
         gradient(NSRect(x:0,y:330,width:1280,height:300),NSColor.white.withAlphaComponent(0.08),NSColor.black.withAlphaComponent(0.09))
         NSGraphicsContext.restoreGraphicsState()
+        }
+        RideProfile.section("  bordes") {
         for x in stride(from:-10.0,through:1290,by:8) {
             let a=ground(cameraX+(x-370)/metresToPixels,at:cameraX,cameraY:cameraY,route:route), b=ground(cameraX+(x+8-370)/metresToPixels,at:cameraX,cameraY:cameraY,route:route)
             line(x,a-27,x+8,b-27,3,NSColor(hex:0xE4E5CE))
@@ -172,6 +237,8 @@ final class RideRenderer {
         if route==0 || route==4 {
             for n in -2..<15 { let world=Double(Int(cameraX/5)+n)*5; let x=370+(world-cameraX)*metresToPixels; let y=ground(world,at:cameraX,cameraY:cameraY,route:route)+67; line(x,y,x+66,y-1,3,NSColor(hex:0xE5D9B6,alpha:0.74)) }
         }
+        }
+        RideProfile.section("  hierba") {
         // Individual grass blades at the far verge retain the original game's roadside line.
         let start=Int((cameraX-380/metresToPixels)*18), end=Int((cameraX+920/metresToPixels)*18)
         if start<end { for i in start..<end {
@@ -180,6 +247,8 @@ final class RideRenderer {
             let h=Double(abs((i*17)%11)+4), tilt=Double((i*13)%9)-4
             if route != 4 { line(x,y,x+tilt,y-h,1.8,NSColor(hex:route==3 ? [0xF4F7F9,0xDDE6EC,0xC9D6DF,0xEEF3F6][abs(i)%4] : night ? 0x617356 : route==2 ? [0x9B8652,0xAA985F,0xBBA56D,0x8B794C][abs(i)%4] : [0x718441,0x8B9C46,0xA4A956,0x566D3B][abs(i)%4])) }
         } }
+        }
+        RideProfile.section("  carteles") {
         for n in -1..<6 {
             let world=Double(Int(cameraX/100)+n)*100
             guard world>0 && world<=limit else { continue }
@@ -208,6 +277,7 @@ final class RideRenderer {
             let y=ground(end,at:cameraX,cameraY:cameraY,route:route)
             line(finish,y-27,finish,y-170,4,silver)
             for r in 0..<4 { for c in 0..<6 { box(finish+Double(c)*11,y-170+Double(r)*11,11,11,(r+c)%2==0 ? .white : ink) } }
+        }
         }
     }
     func rock(_ x:Double,_ y:Double,_ s:Double,night:Bool) {

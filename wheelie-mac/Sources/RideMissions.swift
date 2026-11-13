@@ -116,6 +116,17 @@ final class RideMissions {
         save()
         return completed
     }
+    /// Missions the run would complete if it ended now. Changes nothing.
+    func preview(_ report: RunReport) -> [Mission] {
+        func projected(_ current: Double, _ m: Mission) -> Double {
+            let v = max(0, m.metric.value(of: report)); guard v.isFinite else { return current }
+            return m.metric.accumulates ? current + v : max(current, v)
+        }
+        var result: [Mission] = []
+        for (i, m) in daily.enumerated() where !state.dayDone[i] && projected(state.dayProgress[i], m) >= Double(m.target) { result.append(m) }
+        if !state.weekDone && projected(state.weekProgress, weekly) >= Double(weekly.target) { result.append(weekly) }
+        return result
+    }
     func isDone(daily i: Int) -> Bool { state.dayDone.indices.contains(i) && state.dayDone[i] }
     var weeklyDone: Bool { state.weekDone }
 }

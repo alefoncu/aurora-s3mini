@@ -124,6 +124,45 @@ import Foundation
             check(!b.finished && (b.crashed || b.x>1210),"Endless mode must not finish at 1,200 m")
             check(BikePhysics.endlessObstaclePositions.count>BikePhysics.obstaclePositions.count && BikePhysics.endlessObstaclePositions.last!>5000,"Endless obstacle field")
         }
+        // Difficulty modes: assisted levels flips for landing and forgives tilt, realistic never levels
+        // a flip for you; tyre wear scales 0.5x / 1x / 2x; coin multipliers rise with difficulty.
+        do {
+            var landed:[BikePhysics.Assist:Int]=[:],survived:[BikePhysics.Assist:Int]=[:],crashTime:[BikePhysics.Assist:Double]=[:],wear:[BikePhysics.Assist:Double]=[:]
+            for assist in BikePhysics.Assist.allCases {
+                for kind in BikeKind.allCases {
+                    let flip=BikePhysics();flip.assist=assist;flip.kind=kind;flip.route=0;flip.x = -500;flip.speed=8
+                    for _ in 0..<120 {step(flip,gas:false)}
+                    var released=false
+                    for i in 0..<500 {
+                        let air = !flip.rearContact && !flip.frontContact
+                        var back=false
+                        if air { if abs(flip.airRotation)<3.4 && !released { back=true } else { released=true } }
+                        flip.update(frame,throttle:false,brake:false,leanBack:back,leanForward:false,jump:i==0,trick:!released)
+                        if flip.crashed { break }
+                    }
+                    if !flip.crashed && flip.lastFlips==1 { landed[assist,default:0]+=1 }
+                    let hop=BikePhysics();hop.assist=assist;hop.kind=kind;hop.route=0;hop.x = -500;hop.speed=8
+                    for _ in 0..<120 {step(hop,gas:false)}
+                    for i in 0..<500 {
+                        let air = !hop.rearContact && !hop.frontContact
+                        hop.update(frame,throttle:false,brake:false,leanBack:air,leanForward:false,jump:i==0)
+                        if hop.crashed { break }
+                    }
+                    if !hop.crashed { survived[assist,default:0]+=1 }
+                    let wheelie=BikePhysics();wheelie.assist=assist;wheelie.kind=kind;var t=0.0
+                    for _ in 0..<2400 where !wheelie.crashed { step(wheelie,back:true);t+=frame }
+                    crashTime[assist,default:0]+=t/8
+                }
+                let b=BikePhysics();b.assist=assist;b.kind = .sport;b.route=3;b.x = -500;b.speed=22
+                for _ in 0..<400 {step(b,gas:false,brake:true)}
+                wear[assist]=b.tyreWear
+            }
+            check((landed[.realistic] ?? 0)<=1 && (landed[.normal] ?? 0)>=7 && (landed[.assisted] ?? 0)==8,"Flip landings by mode: \(landed)")
+            check((survived[.assisted] ?? 0)==8 && (survived[.assisted] ?? 0)>=(survived[.normal] ?? 0),"Assisted survives a leaning hop everywhere: \(survived)")
+            check(crashTime[.assisted]!>crashTime[.normal]! && crashTime[.normal]!>crashTime[.realistic]!,"Tilt tolerance grows with assistance: \(crashTime)")
+            check(wear[.assisted]!<wear[.normal]! && wear[.normal]!<wear[.realistic]!,"Tyre wear grows with difficulty: \(wear)")
+            check(BikePhysics.Assist.allCases.map(\.coinMultiplier)==[0.75,1,1.25] && BikePhysics.Assist.allCases.allSatisfy { !$0.detail.isEmpty },"Mode descriptions and multipliers")
+        }
         // Wet patches cut grip; ABS never needs a longer stop than locked brakes.
         do {
             check(BikePhysics.puddleFactor(BikePhysics.puddlePositions[0] == 0 ? 1 : Double(BikePhysics.puddlePositions[0]))<0.7,"Puddle centre must cut grip")

@@ -60,6 +60,61 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSToolbarDelegate, NST
         buildMenu(); syncWindow(); if !restored { window.center() }; window.makeKeyAndOrderFront(nil); window.makeFirstResponder(game); NSApp.activate(ignoringOtherApps:true)
         if CommandLine.arguments.contains("--smoke-test") { smokeTest() }
         if let i=CommandLine.arguments.firstIndex(of:"--snapshot"),i+1<CommandLine.arguments.count { snapshots(to:CommandLine.arguments[i+1]) }
+        if CommandLine.arguments.contains("--bench") { runBenchmark() }
+    }
+    /// Frame cost of the heaviest scenes: one simulation tick plus one full draw into an offscreen bitmap.
+    struct BenchResult { let name:String; let average:Double; let p95:Double; let worst:Double; var sections:[(String,Double)] = [] }
+    var benchScale=0.0
+    func measure(_ name:String,frames:Int,setup:()->Void)->BenchResult {
+        game.audio.enabled=false; game.progress.unlockEverything()
+        setup()
+        var samples:[Double]=[]
+        // Render into a bitmap of the requested pixel density (default: the screen's native one).
+        let rep:NSBitmapImageRep
+        if benchScale>0, let custom=NSBitmapImageRep(bitmapDataPlanes:nil,pixelsWide:Int(game.bounds.width*benchScale),pixelsHigh:Int(game.bounds.height*benchScale),bitsPerSample:8,samplesPerPixel:4,hasAlpha:true,isPlanar:false,colorSpaceName:.deviceRGB,bytesPerRow:0,bitsPerPixel:0) {
+            custom.size=game.bounds.size; rep=custom
+        } else if let native=game.bitmapImageRepForCachingDisplay(in:game.bounds) { rep=native }
+        else { return BenchResult(name:name,average:0,p95:0,worst:0) }
+        for i in 0..<frames {
+            let start=ProcessInfo.processInfo.systemUptime
+            game.previous=start-1/60; game.keys=[126]; game.tick()
+            game.cacheDisplay(in:game.bounds,to:rep)
+            if i>=5 { samples.append((ProcessInfo.processInfo.systemUptime-start)*1000) }   // skip warm-up (textures, caches)
+        }
+        samples.sort()
+        var result=BenchResult(name:name,average:samples.reduce(0,+)/Double(max(1,samples.count)),p95:samples[min(samples.count-1,Int(Double(samples.count)*0.95))],worst:samples.last ?? 0)
+        result.sections=RideProfile.totals.sorted(by:{ $0.value>$1.value }).map { ($0.key,$0.value*1000/Double(frames)) }
+        RideProfile.reset()
+        return result
+    }
+    func benchmarkScenes(frames:Int)->[BenchResult] {
+        var results:[BenchResult]=[]
+        func scene(_ name:String,route:Int,night:Bool,obstacles:Bool,kind:BikeKind,challenge:RideChallengeKind,start:Double) {
+            results.append(measure(name,frames:frames) {
+                game.garage(); game.bike.kind=kind; game.bike.route=route; game.night=night; game.obstacles=obstacles; game.challengeKind=challenge
+                game.start(); game.bike.x=start; game.bike.speed=9
+            })
+        }
+        scene("Valle de día",route:0,night:false,obstacles:false,kind:.sport,challenge:.free,start:300)
+        scene("Sierra con obstáculos",route:1,night:false,obstacles:true,kind:.motocross,challenge:.free,start:700)
+        scene("Nieve con nevada",route:3,night:false,obstacles:true,kind:.sport,challenge:.free,start:500)
+        scene("Ciudad, lluvia y noche",route:4,night:true,obstacles:true,kind:.sport,challenge:.free,start:500)
+        game.rivalLevel = .expert
+        scene("Ciudad, lluvia, noche y rival",route:4,night:true,obstacles:true,kind:.sport,challenge:.race,start:500)
+        scene("Circuito en la Sierra",route:1,night:true,obstacles:true,kind:.sport,challenge:.circuit,start:900)
+        game.garage(); game.night=false; game.obstacles=false; game.challengeKind = .free
+        return results
+    }
+    func runBenchmark() {
+        if let i=CommandLine.arguments.firstIndex(of:"--scale"),i+1<CommandLine.arguments.count { benchScale=Double(CommandLine.arguments[i+1]) ?? 0 }
+        RideProfile.enabled=true
+        print("Escena                              media    p95   peor   (ms por fotograma: simulación + dibujo)")
+        for r in benchmarkScenes(frames:90) {
+            print(String(format:"%-34@ %6.2f %6.2f %6.2f",r.name as NSString,r.average,r.p95,r.worst))
+            print("    "+r.sections.map { String(format:"%@ %.1f",$0.0 as NSString,$0.1) }.joined(separator:" · "))
+        }
+        RideProfile.enabled=false
+        NSApp.terminate(nil)
     }
     /// Developer aid: write one PNG per route (with obstacles on) using isolated preferences.
     func snapshots(to directory:String) {
@@ -289,6 +344,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSToolbarDelegate, NST
         let contextBefore=game.runContext
         inspector.uiToggle("abs"); precondition(game.absOn && game.runContext != contextBefore && game.runContext.contains(".abs"),"ABS changes the record context")
         inspector.uiToggle("abs"); precondition(!game.absOn && game.runContext == contextBefore,"ABS toggles back")
+        inspector.uiSelectDifficulty(.realistic)
+        precondition(game.difficulty == .realistic && game.runContext.contains(".realista") && game.bike.assist == .realistic,"Difficulty reaches the game and the record context")
+        inspector.uiSelectDifficulty(.assisted); precondition(game.runContext.contains(".asistido"),"Assisted has its own records")
+        inspector.uiSelectDifficulty(.normal); precondition(game.runContext == contextBefore,"Normal keeps the original record context")
         inspector.uiToggle("obstacles"); precondition(game.obstacles,"Obstacles checkbox")
         inspector.uiToggle("obstacles")
         inspector.uiSelectRoute(originalRoute); game.bike.kind=originalKind; gui()
@@ -356,6 +415,28 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSToolbarDelegate, NST
         for _ in 0..<240 where game.mode == .riding { game.previous=ProcessInfo.processInfo.systemUptime-1/60; game.tick() }
         precondition(game.mode == .result && game.bike.finished && abs(game.bike.distance-3600)<0.01,"The circuit finishes after three laps")
         game.garage(); game.bike.route=originalRoute; game.challengeKind = .free
+        // Performance guard: even the heaviest scene (rain, night, obstacles, rival) must stay far from a
+        // visible stutter. The bound is deliberately generous so a slow CI machine does not flake.
+        // Ratios, not absolute times, so a slow CI machine does not flake: the heaviest scene may cost
+        // at most 4x the plain valley, and nothing may take half a second per frame.
+        let scenes=benchmarkScenes(frames:40)
+        let baseline=scenes.first?.average ?? 1
+        for r in scenes {
+            precondition(r.average<500,"Frame cost absurd in \(r.name): \(r.average) ms average")
+            precondition(r.average<baseline*4,"\(r.name) costs \(r.average) ms against \(baseline) ms for the plain valley")
+        }
+        game.garage(); game.challengeKind = .free; game.bike.route=originalRoute
+        // In-run reward toasts: a flip would unlock "Primera voltereta" and the game announces it once.
+        if !game.stats.earned.contains("first-flip") {
+            game.challengeKind = .free; game.bike.route=0; game.start(); game.report.flips=1
+            for _ in 0..<80 { game.previous=ProcessInfo.processInfo.systemUptime-1/60; game.keys=[126]; game.tick() }
+            precondition(game.toasts.contains { $0.text.contains("Primera voltereta") },"An achievement within reach is announced during the run")
+            let count=game.toasts.count
+            for _ in 0..<80 { game.previous=ProcessInfo.processInfo.systemUptime-1/60; game.keys=[126]; game.tick() }
+            precondition(game.toasts.filter { $0.text.contains("Primera voltereta") }.count <= 1 && game.toasts.count <= max(count,1)+1,"A toast is not repeated")
+            precondition(!game.stats.earned.contains("first-flip"),"Toasts do not pay out: rewards are given when the run ends")
+            game.garage()
+        }
         // Extra tricks: hands off, spin and superman keys are accepted while riding.
         game.challengeKind = .free; game.start(); game.keys=[126,4,5,9]
         for _ in 0..<30 { game.previous=ProcessInfo.processInfo.systemUptime-1/60; game.tick() }

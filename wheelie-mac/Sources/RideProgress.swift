@@ -56,5 +56,7 @@ final class RideProgress {
         save()
     }
     /// Coins for a finished run: distance coins plus one per 200 points.
-    static func reward(distanceCoins: Int, score: Int) -> Int { max(0, distanceCoins) + max(0, score) / 200 }
+    static func reward(distanceCoins: Int, score: Int, multiplier: Double = 1) -> Int {
+        Int((Double(max(0, distanceCoins) + max(0, score) / 200) * max(0, multiplier)).rounded())
+    }
 }

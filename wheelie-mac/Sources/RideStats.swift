@@ -55,7 +55,13 @@ final class RideStats {
     }
     /// Add one run and return the achievements it unlocked (each is returned only once, ever).
     @discardableResult func record(_ r: RunReport) -> [RideAchievement] {
+        totals = Self.applying(r, to: totals)
+        return unlockNew()
+    }
+    /// The totals after adding a run. Pure, so the game can preview achievements mid-run.
+    static func applying(_ r: RunReport, to base: RideTotals) -> RideTotals {
         func clean(_ v: Double) -> Double { v.isFinite ? max(0, v) : 0 }
+        var totals = base
         totals.runs += 1
         if r.crashed { totals.crashes += 1 }
         if r.finished { totals.finishes += 1 }
@@ -66,7 +72,12 @@ final class RideStats {
         totals.stoppieMetres += clean(r.stoppieMetres); totals.airTime += clean(r.airTime); totals.noHandsSeconds += clean(r.noHandsSeconds)
         totals.bestCombo = max(totals.bestCombo, r.bestCombo); totals.bestScore = max(totals.bestScore, r.score)
         if r.endless { totals.bestEndless = max(totals.bestEndless, clean(r.distance)) }
-        return unlockNew()
+        return totals
+    }
+    /// Achievements the run would unlock if it ended now. Changes nothing.
+    func preview(_ r: RunReport) -> [RideAchievement] {
+        let projected = Self.applying(r, to: totals)
+        return RideAchievement.all.filter { !earned.contains($0.id) && $0.isEarned(projected) }
     }
     func markTutorialDone() -> [RideAchievement] { totals.tutorialDone = true; return unlockNew() }
     func addCoinsEarned(_ coins: Int) { totals.coinsEarned += max(0, coins); save() }

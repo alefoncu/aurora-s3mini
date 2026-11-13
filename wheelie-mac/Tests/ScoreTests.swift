@@ -42,6 +42,7 @@ import Foundation
         check(p.wallet == RideProgress.startingCoins, "Starting coins")
         check(p.isUnlocked(.vehicle(.commuter)) && p.isUnlocked(.route(1)) && !p.isUnlocked(.vehicle(.hyperbike)) && !p.isUnlocked(.route(3)), "Initial unlocks")
         check(!p.unlock(.vehicle(.hyperbike)) && p.wallet == 150, "Cannot buy without coins")
+        check(RideProgress.reward(distanceCoins: 20, score: 1_000) == 25 && RideProgress.reward(distanceCoins: 20, score: 1_000, multiplier: 0.75) == 19 && RideProgress.reward(distanceCoins: 20, score: 1_000, multiplier: 1.25) == 31 && RideProgress.reward(distanceCoins: 20, score: 1_000, multiplier: -1) == 0, "Difficulty coin multipliers")
         check(p.unlock(.vehicle(.sport)) && p.wallet == 70 && p.isUnlocked(.vehicle(.sport)), "Buying spends coins")
         check(p.unlock(.vehicle(.sport)) && p.wallet == 70, "Buying twice is free")
         p.earn(RideProgress.reward(distanceCoins: 10, score: 1_000)); p.earn(-50); p.earn(0)

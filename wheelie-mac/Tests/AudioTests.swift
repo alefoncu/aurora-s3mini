@@ -47,6 +47,10 @@ struct AudioTests {
 
     private static let assertions = #"""
 
+/// One control word from typed bit values, so the compiler never has to solve a long mixed-literal expression.
+func packedBits(_ bits: UInt64...) -> UInt64 { bits.reduce(0, |) }
+func controlWord(_ bits: UInt64...) -> Int64 { Int64(bitPattern: bits.reduce(0, |)) }
+
 @main struct AudioRenderCheck {
     static func main() {
         let render = EngineRenderState()
@@ -57,7 +61,7 @@ struct AudioTests {
 
         // Engine at 15 m/s under load: it must produce bounded, finite sound,
         // and write both output channels rather than leaving an uninitialised one.
-        render.store(Int64(15 * 256 | (1 << 16) | (1 << 18) | (1 << 19)))
+        render.store(controlWord(15 * 256, 1 << 16, 1 << 18, 1 << 19))
         render.render(frameCount: 48_000, buffers: buffer.mutableAudioBufferList)
         var peak: Float = 0
         for i in 0..<48_000 {
@@ -75,7 +79,7 @@ struct AudioTests {
         }
 
         // A crash can sound after riding has ended, then decay without sustained noise.
-        render.store(Int64((1 << 19) | (1 << 32)))
+        render.store(controlWord(1 << 19, 1 << 32))
         render.render(frameCount: 48_000, buffers: buffer.mutableAudioBufferList)
         var impactPeak: Float = 0
         for i in 0..<4_800 {
@@ -88,14 +92,14 @@ struct AudioTests {
         }
 
         // A stationary bicycle must not idle like a combustion engine.
-        render.store(Int64((3 << 20) | (1 << 18) | (1 << 19)))
+        render.store(controlWord(3 << 20, 1 << 18, 1 << 19))
         render.render(frameCount: 48_000, buffers: buffer.mutableAudioBufferList)
         for i in 47_000..<48_000 {
             precondition(abs(channels[0][i]) < 0.000001, "Stationary BMX has engine sound")
         }
 
         // A moving bicycle should have quiet wheel noise, and muting must stop it too.
-        render.store(Int64(10 * 256 | (3 << 20) | (1 << 18) | (1 << 19)))
+        render.store(controlWord(10 * 256, 3 << 20, 1 << 18, 1 << 19))
         render.render(frameCount: 48_000, buffers: buffer.mutableAudioBufferList)
         var wheelPeak: Float = 0
         for i in 0..<48_000 {
@@ -103,7 +107,7 @@ struct AudioTests {
             wheelPeak = max(wheelPeak, abs(channels[0][i]))
         }
         precondition(wheelPeak > 0.001 && wheelPeak < 0.04, "Bicycle wheel noise is missing or too loud")
-        render.store(Int64(10 * 256 | (3 << 20) | (1 << 18)))
+        render.store(controlWord(10 * 256, 3 << 20, 1 << 18))
         render.render(frameCount: 48_000, buffers: buffer.mutableAudioBufferList)
         for i in 47_000..<48_000 {
             precondition(abs(channels[0][i]) < 0.000001, "Mute leaked bicycle wheel noise")
@@ -113,7 +117,7 @@ struct AudioTests {
         func voiceStats(rpm: Int, voice: Int, load: Int, shifting: Bool = false) -> (Double,Int) {
             let state=EngineRenderState()
             let profile=voice == 3 ? 3 : voice == 1 || voice == 6 ? 1 : voice == 2 || voice == 7 ? 2 : 0
-            var word=UInt64((1 << 18) | (1 << 19)) | (UInt64(profile) << 20)
+            var word: UInt64 = packedBits(1 << 18, 1 << 19, UInt64(profile) << 20)
             word |= UInt64(rpm/16) << 22
             word |= UInt64(load) << 48
             word |= UInt64(voice) << 61
@@ -142,7 +146,7 @@ struct AudioTests {
         }
         // Ambient beds: rain is hissy, wind is a low rumble, the city hums; all bounded, and
         // none of them can leak when sound is muted or no ride is active.
-        func ambientStats(flags: Int64, level: Int64 = 255, main: UInt64 = UInt64((3 << 20) | (1 << 18) | (1 << 19))) -> (peak: Float, crossings: Int) {   // stationary BMX: no engine, only ambience
+        func ambientStats(flags: Int64, level: Int64 = 255, main: UInt64 = packedBits(3 << 20, 1 << 18, 1 << 19)) -> (peak: Float, crossings: Int) {   // stationary BMX: no engine, only ambience
             let state = EngineRenderState()
             state.store(Int64(bitPattern: main)); state.storeAmbient(flags | (level << 8))
             state.render(frameCount: 48_000, buffers: buffer.mutableAudioBufferList)
@@ -160,8 +164,8 @@ struct AudioTests {
         precondition(rain.crossings > wind.crossings * 3, "Rain must be brighter than wind (\(rain.crossings) vs \(wind.crossings))")
         let calm = ambientStats(flags: 2, level: 0), gale = ambientStats(flags: 2, level: 255)
         precondition(gale.peak > calm.peak * 1.3, "Wind must grow with speed")
-        precondition(ambientStats(flags: 7, main: UInt64((3 << 20) | (1 << 18))).peak < 0.000001, "Muted ambient leaked")
-        precondition(ambientStats(flags: 7, main: UInt64((3 << 20) | (1 << 19))).peak < 0.000001, "Ambient played without an active ride")
+        precondition(ambientStats(flags: 7, main: packedBits(3 << 20, 1 << 18)).peak < 0.000001, "Muted ambient leaked")
+        precondition(ambientStats(flags: 7, main: packedBits(3 << 20, 1 << 19)).peak < 0.000001, "Ambient played without an active ride")
         precondition(ambientStats(flags: 0).peak < 0.000001, "No ambient flag, no ambient sound")
         print("AudioTests passed: finite bounded stereo motor, mute, impact decay, BMX idle/rolling, eight voices, RPM firing rate, load and clutch cut, rain/wind/city ambience. No audio device opened.")
     }

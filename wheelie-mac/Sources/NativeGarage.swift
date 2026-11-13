@@ -168,6 +168,7 @@ final class GarageInspectorController: NSViewController {
     private var walletLabel: NSTextField!, unlockButton: NSButton!, unlockHint: NSTextField!
     private var missionLabels: [NSTextField] = []
     private var rivalPopup: NSPopUpButton!, rivalSameCheckbox: NSButton!
+    private var difficultyPopup: NSPopUpButton!, difficultyHint: NSTextField!
     private static let routeTitles = ["Valle · asfalto", "Sierra · tierra", "Dunas · atardecer", "Nieve · hielo y pinos", "Ciudad · lluvia"]
     private var playButton: NSButton!
     private var outfitLabel: NSTextField!
@@ -239,6 +240,13 @@ final class GarageInspectorController: NSViewController {
         transmissionHint = NSTextField(wrappingLabelWithString: "")
         transmissionHint.font = .systemFont(ofSize: 11); transmissionHint.textColor = .secondaryLabelColor
         addFullWidth(transmissionHint, to: stack)
+        difficultyPopup = NSPopUpButton(frame: .zero, pullsDown: false)
+        difficultyPopup.addItems(withTitles: BikePhysics.Assist.allCases.map { "Dificultad: " + $0.title })
+        difficultyPopup.target = self; difficultyPopup.action = #selector(difficultyChanged(_:)); difficultyPopup.setAccessibilityLabel("Dificultad")
+        editableControls.append(difficultyPopup); addFullWidth(difficultyPopup, to: stack)
+        difficultyHint = NSTextField(wrappingLabelWithString: "")
+        difficultyHint.font = .systemFont(ofSize: 11); difficultyHint.textColor = .secondaryLabelColor
+        addFullWidth(difficultyHint, to: stack)
         stiffnessSlider = NSSlider(value: 1, minValue: 0.65, maxValue: 1.45, target: self, action: #selector(suspensionChanged(_:)))
         dampingSlider = NSSlider(value: 1, minValue: 0.6, maxValue: 1.6, target: self, action: #selector(suspensionChanged(_:)))
         stiffnessValue = metricLabel(); dampingValue = metricLabel()
@@ -396,6 +404,7 @@ final class GarageInspectorController: NSViewController {
         challengeDetail.stringValue = game.challengeKind.detail
         ghostCheckbox.state = game.ghostEnabled ? .on : .off
         rivalPopup.selectItem(at: game.rivalLevel.rawValue)
+        difficultyPopup.selectItem(at: game.difficulty.rawValue); difficultyHint.stringValue = game.difficulty.detail
         rivalSameCheckbox.state = game.rivalSameVehicle ? .on : .off
         game.missions.refresh()
         for (i, mission) in game.missions.daily.enumerated() {
@@ -479,6 +488,11 @@ final class GarageInspectorController: NSViewController {
         game.ghostEnabled = sender.state == .on
         game.prefs.set(game.ghostEnabled, forKey: "ghost"); onChange()
     }
+    @objc private func difficultyChanged(_ sender: NSPopUpButton) {
+        guard !updating, game.mode == .garage, let level = BikePhysics.Assist(rawValue: sender.indexOfSelectedItem) else { return }
+        game.difficulty = level; game.prefs.set(level.rawValue, forKey: "difficulty"); game.bike.assist = level; game.loadRecords(); onChange()
+    }
+    func uiSelectDifficulty(_ level: BikePhysics.Assist) { difficultyPopup.selectItem(at: level.rawValue); difficultyChanged(difficultyPopup) }
     @objc private func rivalLevelChanged(_ sender: NSPopUpButton) {
         guard !updating, game.mode == .garage, let level = RivalLevel(rawValue: sender.indexOfSelectedItem) else { return }
         game.rivalLevel = level; game.prefs.set(level.rawValue, forKey: "rivalLevel"); onChange()

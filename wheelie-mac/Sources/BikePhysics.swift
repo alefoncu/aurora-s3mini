@@ -67,6 +67,22 @@ final class BikePhysics {
     static let circuitLength=1200.0
     var laps=3
     var finishDistance:Double { Self.circuit ? Double(laps)*Self.circuitLength : Self.finish }
+    /// Driving assistance. Assisted levels the bike for landing more firmly (also after plain jumps),
+    /// forgives bigger tilts and wears tyres half as fast; realistic never levels a flip for you,
+    /// is stricter about tilt and wears tyres and dampers twice as fast.
+    enum Assist: Int, CaseIterable {
+        case assisted, normal, realistic
+        var title: String { ["Asistido", "Normal", "Realista"][rawValue] }
+        var detail: String {
+            ["Nivela la moto al aterrizar, perdona inclinaciones grandes y el desgaste es la mitad. Las monedas son un 25 % menos.",
+             "El equilibrio estándar del juego.",
+             "Sin ayuda al aterrizar las volteretas, más estricto con la inclinación y el doble de desgaste. Las monedas son un 25 % más."][rawValue]
+        }
+        var coinMultiplier: Double { [0.75, 1, 1.25][rawValue] }
+        var crashLimits: (nose: Double, tail: Double) { [(2.05, -1.25), (1.85, -1.1), (1.7, -1.0)][rawValue] }
+        var wearRate: Double { [0.5, 1, 2][rawValue] }
+    }
+    var assist = Assist.normal
     /// Endless mode: no finish line; the last sector repeats until the rider crashes.
     var endless=false
     /// Cumulative wear: 0 fresh ... 1 worn. Tyres lose up to 30 % grip; hot dampers lose up to 35 % damping.
@@ -233,9 +249,9 @@ final class BikePhysics {
         frontSlip += (frontTargetSlip-frontSlip)*relaxation
         rearSlip += (rearTargetSlip-rearSlip)*relaxation
         if !settling {
-            tyreWear=min(1,tyreWear+(abs(frontSlip)+abs(rearSlip))*0.012*dt)
+            tyreWear=min(1,tyreWear+(abs(frontSlip)+abs(rearSlip))*0.012*assist.wearRate*dt)
             let work=abs(rearV-(bodyV+angularVelocity*lr))+abs(frontV-(bodyV+angularVelocity*lf))
-            suspensionHeat=max(0,min(1,suspensionHeat+(work*0.01-0.03*suspensionHeat)*dt))
+            suspensionHeat=max(0,min(1,suspensionHeat+(work*0.01*assist.wearRate-0.03*suspensionHeat)*dt))
         }
         // Closed-throttle compression drag belongs to the driven rear tyre;
         // bicycles freewheel. Braking shares the same finite tyre force budget.
@@ -288,7 +304,7 @@ final class BikePhysics {
         if trickAir { flipActive=true }
         // Releasing T during a flip commits to the nearest full turn: the rider levels the bike
         // for landing. Let go after the half-way point to finish the flip, earlier to abort it.
-        let snapping=flipActive && !trickHeld && !crashed && !rearContact && !frontContact && !settling && abs(airRotation)>0.4
+        let snapping=assist != .realistic && flipActive && !trickHeld && !crashed && !rearContact && !frontContact && !settling && abs(airRotation)>0.4
         let dampingTarget=(trickAir || snapping) ? 0.18 : (stoppieIntent ? 1.6 : forward ? 3.5 : back ? 0.9 : 1.4)
         angularDamping += (dampingTarget-angularDamping)*min(1,dt*10)
         var airTorque=trickAir ? -riderShift*inertia*Self.airTrickAcceleration : 0
@@ -297,7 +313,12 @@ final class BikePhysics {
             // choosing the nearest equivalent attitude: a full extra turn or none.
             let landing=atan(Self.slope(origin.x+max(0,speed)*0.2,route:route))
             let d=landing-pitch,error=atan2(sin(d),cos(d))
-            airTorque=inertia*(70*error-10*angularVelocity)
+            airTorque=assist == .assisted ? inertia*(110*error-14*angularVelocity) : inertia*(70*error-10*angularVelocity)
+        } else if assist == .assisted && !trickHeld && !flipActive && !crashed && !rearContact && !frontContact && !settling && airTime>0.12 {
+            // Assisted: a gentle levelling before landing, even after a plain jump or a ramp.
+            let landing=atan(Self.slope(origin.x+max(0,speed)*0.2,route:route))
+            let d=landing-pitch,error=atan2(sin(d),cos(d))
+            airTorque=inertia*(26*error-7*angularVelocity)
         }
         let torque=fr*lr+ff*lf+transfer+riderTorque+airTorque-angularVelocity*inertia*angularDamping
         angularVelocity += torque/inertia*dt
@@ -334,7 +355,7 @@ final class BikePhysics {
             else { stoppieDistance=0 }
             if !crashed { distance=max(distance,origin.x);coins=Int(max(0,distance)/80) }
             // A bike may rotate freely in the air; it crashes when it touches down badly.
-            if !crashed && (rearContact || frontContact) && (angle>1.85 || angle < -1.1) { crashed=true;speed *= 0.35;angularVelocity *= 0.6 }
+            if !crashed && (rearContact || frontContact) && (angle>assist.crashLimits.nose || angle < assist.crashLimits.tail) { crashed=true;speed *= 0.35;angularVelocity *= 0.6 }
             if !rearContact && !frontContact {
                 airTime+=dt;airRotation+=angularVelocity*dt
                 if !crashed {

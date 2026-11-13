@@ -32,6 +32,12 @@ public class CalcActivity extends Activity {
 
     @Override protected void onCreate(Bundle b) {
         super.onCreate(b);
+        if (b != null) {
+            cur = b.getString("current", "0");
+            String savedAccumulator = b.getString("accumulator");
+            acc = savedAccumulator == null ? null : new BigDecimal(savedAccumulator);
+            pending = b.getChar("pending"); fresh = b.getBoolean("fresh"); error = b.getBoolean("error");
+        }
         d = getResources().getDisplayMetrics().density;
         night = (getResources().getConfiguration().uiMode & Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES;
         text = night ? Color.WHITE : 0xFF14123A;
@@ -79,19 +85,37 @@ public class CalcActivity extends Activity {
             }
             col.addView(r, new LinearLayout.LayoutParams(-1, 0, 1f));
         }
+        root.setOnApplyWindowInsetsListener((v, insets) -> {
+            col.setPadding(col.getPaddingLeft(), insets.getSystemWindowInsetTop(), col.getPaddingRight(), col.getPaddingBottom());
+            return insets;
+        });
         setContentView(root);
         show();
         col.addOnLayoutChangeListener((v, ll, tt, rr, bb, oll, ott, orr, obb) -> {   // half-height windows (split screen): scale keys and display to the room available
             if (bb - tt == obb - ott) return;
             for (java.util.Map.Entry<String, TextView> e : btn.entrySet()) {
                 float keyH = (bb - tt - col.getPaddingTop() - col.getPaddingBottom()) / 7.2f - 8 * d;
-                e.getValue().setTextSize(TypedValue.COMPLEX_UNIT_PX, Math.min(e.getValue().getTextSize(), Math.max(14 * d, keyH * 0.46f)));
+                float normal = TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_SP,
+                        isOp(e.getKey()) ? 34 : 28, getResources().getDisplayMetrics());
+                e.getValue().setTextSize(TypedValue.COMPLEX_UNIT_PX, Math.min(normal, Math.max(14 * d, keyH * 0.46f)));
             }
             show();
         });
     }
 
-    @Override public void onConfigurationChanged(Configuration c) { super.onConfigurationChanged(c); recreate(); }
+    @Override protected void onSaveInstanceState(Bundle state) {
+        state.putString("current", cur);
+        state.putString("accumulator", acc == null ? null : acc.toString());
+        state.putChar("pending", pending); state.putBoolean("fresh", fresh); state.putBoolean("error", error);
+        super.onSaveInstanceState(state);
+    }
+
+    @Override public void onConfigurationChanged(Configuration c) {
+        super.onConfigurationChanged(c);
+        boolean dark = (c.uiMode & Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES;
+        // The weighted keypad and layout listener resize in place; keep the live calculation.
+        if (dark != night) recreate(); else show();
+    }
 
     private boolean isOp(String k) { return "÷×−+".contains(k) || k.equals("="); }
 

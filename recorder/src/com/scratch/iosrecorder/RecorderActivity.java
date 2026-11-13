@@ -55,6 +55,12 @@ public class RecorderActivity extends Activity {
         accent = night ? 0xFF7BA7FF : 0xFF3B6BEA;
         glass = night ? 0x24FFFFFF : 0x99FFFFFF;
         stroke = night ? 0x38FFFFFF : 0xE6FFFFFF;
+        build();
+    }
+
+    private void build() {
+        boolean compact = getResources().getConfiguration().screenHeightDp < 400;
+        if (pulse != null) { pulse.cancel(); pulse = null; }
         Window win = getWindow();
         win.addFlags(WindowManager.LayoutParams.FLAG_DRAWS_SYSTEM_BAR_BACKGROUNDS);
         win.setStatusBarColor(Color.TRANSPARENT);
@@ -65,33 +71,44 @@ public class RecorderActivity extends Activity {
         root.addView(scrim, new FrameLayout.LayoutParams(-1, -1));
         LinearLayout col = new LinearLayout(this);
         col.setOrientation(LinearLayout.VERTICAL);
-        col.setPadding(dp(16), dp(24), dp(16), dp(12));
+        col.setPadding(dp(16), dp(android.os.Build.VERSION.SDK_INT >= 24 && isInMultiWindowMode() ? 0 : 24), dp(16), dp(compact ? 8 : 12));
         root.addView(col, new FrameLayout.LayoutParams(-1, -1));
-        TextView title = label("Grabadora", 30, "sans-serif-thin");
-        title.setPadding(dp(4), dp(10), 0, dp(2));
+        root.setOnApplyWindowInsetsListener((v, insets) -> {
+            col.setPadding(col.getPaddingLeft(), insets.getSystemWindowInsetTop(), col.getPaddingRight(), col.getPaddingBottom());
+            return insets;
+        });
+        TextView title = label("Grabadora", compact ? 24 : 30, "sans-serif-thin");
+        title.setPadding(dp(4), dp(compact ? 0 : 10), 0, dp(2));
         col.addView(title);
-        timer = label("00:00", 52, "sans-serif-thin");
+        timer = label("00:00", compact ? 32 : 52, "sans-serif-thin");
         timer.setGravity(Gravity.CENTER);
-        col.addView(timer, new LinearLayout.LayoutParams(-1, dp(68)));
+        LinearLayout recordingRow = null;
+        if (compact) {
+            recordingRow = new LinearLayout(this); recordingRow.setGravity(Gravity.CENTER_VERTICAL);
+            recordingRow.addView(timer, new LinearLayout.LayoutParams(0, dp(56), 1));
+        } else col.addView(timer, new LinearLayout.LayoutParams(-1, dp(68)));
         FrameLayout controls = new FrameLayout(this);
         halo = new View(this);
         halo.setBackground(shape(0x30FF3B30, 1000));
-        FrameLayout.LayoutParams hp = new FrameLayout.LayoutParams(dp(108), dp(108), Gravity.CENTER);
+        FrameLayout.LayoutParams hp = new FrameLayout.LayoutParams(dp(compact ? 56 : 108), dp(compact ? 56 : 108), Gravity.CENTER);
         controls.addView(halo, hp);
-        recordButton = label("●", 54, "sans-serif-light");
+        recordButton = label("●", compact ? 32 : 54, "sans-serif-light");
         recordButton.setTextColor(RED);
         recordButton.setGravity(Gravity.CENTER);
         recordButton.setBackground(shape(glass, 1000));
         recordButton.setContentDescription("Iniciar grabación");
         spring(recordButton);
         recordButton.setOnClickListener(v -> { if (recording) stopRecording(); else startRecording(); });
-        controls.addView(recordButton, new FrameLayout.LayoutParams(dp(90), dp(90), Gravity.CENTER));
-        col.addView(controls, new LinearLayout.LayoutParams(-1, dp(116)));
+        controls.addView(recordButton, new FrameLayout.LayoutParams(dp(compact ? 48 : 90), dp(compact ? 48 : 90), Gravity.CENTER));
+        if (compact) {
+            recordingRow.addView(controls, new LinearLayout.LayoutParams(dp(64), dp(56)));
+            col.addView(recordingRow, new LinearLayout.LayoutParams(-1, dp(56)));
+        } else col.addView(controls, new LinearLayout.LayoutParams(-1, dp(116)));
         status = label("Toca para grabar", 14, "sans-serif-light");
         status.setGravity(Gravity.CENTER);
         col.addView(status, new LinearLayout.LayoutParams(-1, dp(28)));
         TextView heading = label("Grabaciones", 20, "sans-serif-light");
-        heading.setPadding(dp(4), dp(10), 0, dp(8));
+        heading.setPadding(dp(4), dp(compact ? 2 : 10), 0, dp(compact ? 2 : 8));
         col.addView(heading);
         ScrollView scroll = new ScrollView(this);
         scroll.setFillViewport(true);
@@ -100,6 +117,19 @@ public class RecorderActivity extends Activity {
         scroll.addView(rows, new ScrollView.LayoutParams(-1, -2));
         col.addView(scroll, new LinearLayout.LayoutParams(-1, 0, 1));
         setContentView(root);
+        syncRecordingUi();
+    }
+
+    private void syncRecordingUi() {
+        recordButton.setText(recording ? "■" : "●");
+        recordButton.setContentDescription(recording ? "Detener grabación" : "Iniciar grabación");
+        status.setText(recording ? "Grabando · toca para parar" : "Toca para grabar");
+        timer.setText(recording ? clock(SystemClock.elapsedRealtime() - started) : "00:00");
+        if (recording) {
+            pulse = ObjectAnimator.ofFloat(halo, "alpha", 1f, 0.15f);
+            pulse.setDuration(800); pulse.setRepeatMode(ValueAnimator.REVERSE);
+            pulse.setRepeatCount(ValueAnimator.INFINITE); pulse.start();
+        }
     }
 
     private int dp(float n) { return (int) (n * d + 0.5f); }
@@ -168,10 +198,7 @@ public class RecorderActivity extends Activity {
             recorder.prepare(); recorder.start();
             recording = true; started = SystemClock.elapsedRealtime();
             getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
-            recordButton.setText("■"); recordButton.setContentDescription("Detener grabación");
-            status.setText("Grabando · toca para parar"); timer.setText("00:00");
-            pulse = ObjectAnimator.ofFloat(halo, "alpha", 1f, 0.15f);
-            pulse.setDuration(800); pulse.setRepeatMode(ValueAnimator.REVERSE); pulse.setRepeatCount(ValueAnimator.INFINITE); pulse.start();
+            syncRecordingUi();
             refresh();
         } catch (Exception e) {
             releaseRecorder();
@@ -374,9 +401,9 @@ public class RecorderActivity extends Activity {
             } catch (SecurityException e) { toast("No se pudo renombrar"); }
         })); dialog.show();
     }
-    @Override protected void onResume() { super.onResume(); resumed = true; handler.removeCallbacks(tick); handler.post(tick); refresh(); }
-    @Override protected void onPause() {
-        resumed = false; handler.removeCallbacks(tick); stopRecording(); releaseRecorder(); releasePlayer(); super.onPause();
+    @Override protected void onStart() { super.onStart(); resumed = true; handler.removeCallbacks(tick); handler.post(tick); refresh(); }
+    @Override protected void onStop() {
+        resumed = false; handler.removeCallbacks(tick); stopRecording(); releaseRecorder(); releasePlayer(); super.onStop();
     }
     @Override protected void onDestroy() {
         stopRecording(); releaseRecorder(); releasePlayer(); ++loadVersion;
@@ -384,7 +411,12 @@ public class RecorderActivity extends Activity {
         if (pulse != null) pulse.cancel();
         super.onDestroy();
     }
-    @Override public void onConfigurationChanged(Configuration c) { super.onConfigurationChanged(c); recreate(); }
+    @Override public void onConfigurationChanged(Configuration c) {
+        super.onConfigurationChanged(c);
+        boolean dark = (c.uiMode & Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES;
+        if (dark != night) recreate();
+        else { build(); refresh(); }
+    }
     /** Aurora exit transition (res/anim/app_exit): soft zoom-out and fade instead of the ROM default. */
     @Override public void finish() {
         super.finish();

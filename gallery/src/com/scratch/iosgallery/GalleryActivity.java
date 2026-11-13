@@ -31,10 +31,16 @@ public class GalleryActivity extends Activity {
     private final TextView[] chips = new TextView[3];
     private BaseAdapter adapter;
     private int cell;
+    private android.os.Parcelable pendingGridState;
 
     @Override
     protected void onCreate(Bundle b) {
         super.onCreate(b);
+        if (b != null) {
+            filter = Math.max(0, Math.min(2, b.getInt("filter", 0)));
+            pendingGridState = b.getParcelable("grid_state");
+        }
+        boolean compact = getResources().getConfiguration().screenHeightDp < 400;
         d = getResources().getDisplayMetrics().density;
         night = (getResources().getConfiguration().uiMode & Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES;
         text = night ? Color.WHITE : 0xFF14123A;
@@ -61,9 +67,9 @@ public class GalleryActivity extends Activity {
         TextView title = new TextView(this);
         title.setText("Fotos");
         title.setTextColor(text);
-        title.setTextSize(TypedValue.COMPLEX_UNIT_SP, 34);
+        title.setTextSize(TypedValue.COMPLEX_UNIT_SP, compact ? 24 : 34);
         title.setTypeface(Typeface.create("sans-serif-thin", Typeface.NORMAL));
-        title.setPadding((int) (22 * d), (int) (12 * d), 0, 0);
+        title.setPadding((int) (22 * d), (int) ((compact ? 4 : 12) * d), 0, 0);
         col.addView(title);
         count = new TextView(this);
         count.setTextColor(text2);
@@ -81,7 +87,7 @@ public class GalleryActivity extends Activity {
             t.setTextSize(TypedValue.COMPLEX_UNIT_SP, 13);
             t.setTypeface(Typeface.create("sans-serif-light", Typeface.NORMAL));
             t.setPadding((int) (16 * d), (int) (7 * d), (int) (16 * d), (int) (7 * d));
-            t.setOnClickListener(v -> { filter = idx; applyFilter(); });
+            t.setOnClickListener(v -> { pendingGridState = null; filter = idx; applyFilter(); });
             chips[i] = t;
             LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-2, -2);
             lp.rightMargin = (int) (8 * d);
@@ -109,6 +115,10 @@ public class GalleryActivity extends Activity {
             }
         };
         grid.setAdapter(adapter);
+        grid.addOnLayoutChangeListener((v, l, t, r, btm, oldL, oldT, oldR, oldB) -> {
+            int next = Math.max(1, (r - l - gap * (COLS - 1)) / COLS);
+            if (next != cell) { cell = next; adapter.notifyDataSetChanged(); }
+        });
         grid.setOnItemClickListener((p, v, i, id) -> {
             Media.current = new ArrayList<>(shown);
             startActivity(new Intent(this, ViewerActivity.class).putExtra("pos", i));
@@ -124,6 +134,10 @@ public class GalleryActivity extends Activity {
         grid.setEmptyView(empty);
         col.addView(box, new LinearLayout.LayoutParams(-1, 0, 1f));
         root.addView(col, new FrameLayout.LayoutParams(-1, -1));
+        root.setOnApplyWindowInsetsListener((v, insets) -> {
+            col.setPadding(col.getPaddingLeft(), insets.getSystemWindowInsetTop(), col.getPaddingRight(), col.getPaddingBottom());
+            return insets;
+        });
         setContentView(root);
         styleChips();
     }
@@ -133,8 +147,20 @@ public class GalleryActivity extends Activity {
         super.onResume();
         new Thread(() -> {
             final List<Media.Item> items = Media.query(getContentResolver());
-            ui.post(() -> { all.clear(); all.addAll(items); applyFilter(); });
+            ui.post(() -> {
+                if (isFinishing() || isDestroyed()) return;
+                all.clear(); all.addAll(items); applyFilter();
+                if (pendingGridState != null) {
+                    grid.onRestoreInstanceState(pendingGridState); pendingGridState = null;
+                }
+            });
         }).start();
+    }
+
+    @Override protected void onSaveInstanceState(Bundle state) {
+        state.putInt("filter", filter);
+        state.putParcelable("grid_state", pendingGridState != null ? pendingGridState : grid.onSaveInstanceState());
+        super.onSaveInstanceState(state);
     }
 
     @Override

@@ -30,7 +30,7 @@ public class PhoneActivity extends Activity {
         {"7", "PQRS"}, {"8", "TUV"}, {"9", "WXYZ"}, {"*", ""}, {"0", "+"}, {"#", ""}};
 
     private float d;
-    private boolean night;
+    private boolean night, compact;
     private int text, text2, scrim, glass, glassStroke, accent, ok, danger;
     private final Handler ui = new Handler(Looper.getMainLooper());
     private FrameLayout pages;
@@ -45,11 +45,21 @@ public class PhoneActivity extends Activity {
     private final List<String[]> contacts = new ArrayList<>();     // name, id, lookup
     private final List<String[]> shown = new ArrayList<>();
     private int statusH;
+    private String contactsQuery = "";
+    private ScrollView keypadScroll;
+    private int restoredKeypadScroll;
 
     @Override
     protected void onCreate(Bundle b) {
         super.onCreate(b);
         d = getResources().getDisplayMetrics().density;
+        compact = getResources().getConfiguration().screenHeightDp <= 360;
+        if (b != null) {
+            tab = Math.max(0, Math.min(2, b.getInt("tab", 2)));
+            number.append(b.getString("number", ""));
+            contactsQuery = b.getString("contacts_query", "");
+            restoredKeypadScroll = b.getInt("keypad_scroll", 0);
+        }
         night = (getResources().getConfiguration().uiMode & Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES;
         text = night ? Color.WHITE : 0xFF14123A;
         text2 = night ? 0xB3FFFFFF : 0x9914123A;
@@ -74,19 +84,39 @@ public class PhoneActivity extends Activity {
         pages = new FrameLayout(this);
         FrameLayout.LayoutParams pl = new FrameLayout.LayoutParams(-1, -1);
         pl.topMargin = statusH;
-        pl.bottomMargin = (int) (80 * d);
+        pl.bottomMargin = (int) ((compact ? 56 : 80) * d);
         root.addView(pages, pl);
+        // Fullscreen layout also extends under the status bar in the upper split pane.
+        // The lower pane receives a zero top inset; use the actual window, not split mode.
+        root.setOnApplyWindowInsetsListener((view, insets) -> {
+            int top = insets.getSystemWindowInsetTop();
+            if (pl.topMargin != top) {
+                pl.topMargin = top;
+                pages.setLayoutParams(pl);
+            }
+            return insets;
+        });
 
-        root.addView(buildTabBar(), new FrameLayout.LayoutParams(-1, (int) (60 * d), Gravity.BOTTOM) {{
-            leftMargin = rightMargin = (int) (14 * d); bottomMargin = (int) (14 * d); }});
+        root.addView(buildTabBar(), new FrameLayout.LayoutParams(-1, (int) ((compact ? 48 : 60) * d), Gravity.BOTTOM) {{
+            leftMargin = rightMargin = (int) (14 * d); bottomMargin = (int) ((compact ? 4 : 14) * d); }});
         setContentView(root);
+        root.requestApplyInsets();
 
-        handleIntent(getIntent());
+        if (b == null) handleIntent(getIntent());
         selectTab(tab);
     }
 
     @Override
-    protected void onNewIntent(Intent i) { super.onNewIntent(i); handleIntent(i); selectTab(tab); }
+    protected void onNewIntent(Intent i) { super.onNewIntent(i); setIntent(i); handleIntent(i); selectTab(tab); }
+
+    @Override
+    protected void onSaveInstanceState(Bundle out) {
+        out.putInt("tab", tab);
+        out.putString("number", number.toString());
+        out.putString("contacts_query", contactsQuery);
+        out.putInt("keypad_scroll", keypadScroll == null ? restoredKeypadScroll : keypadScroll.getScrollY());
+        super.onSaveInstanceState(out);
+    }
 
     @Override
     public void onConfigurationChanged(Configuration c) { super.onConfigurationChanged(c); recreate(); }
@@ -160,6 +190,14 @@ public class PhoneActivity extends Activity {
         LinearLayout col = new LinearLayout(this);
         col.setOrientation(LinearLayout.VERTICAL);
         col.setGravity(Gravity.CENTER_HORIZONTAL);
+        LinearLayout body = new LinearLayout(this);
+        body.setOrientation(LinearLayout.VERTICAL);
+        body.setGravity(Gravity.CENTER_HORIZONTAL);
+        keypadScroll = new ScrollView(this);
+        keypadScroll.setFillViewport(true);
+        keypadScroll.setClipToPadding(false);
+        keypadScroll.addView(body, new ScrollView.LayoutParams(-1, -2));
+        col.addView(keypadScroll, new LinearLayout.LayoutParams(-1, 0, 1f));
         TelephonyManager tm = (TelephonyManager) getSystemService(Context.TELEPHONY_SERVICE);
         if (tm != null && tm.getSimState() == TelephonyManager.SIM_STATE_ABSENT) {
             TextView sim = new TextView(this);
@@ -167,27 +205,27 @@ public class PhoneActivity extends Activity {
             sim.setTextColor(danger);
             sim.setTextSize(TypedValue.COMPLEX_UNIT_SP, 12);
             sim.setGravity(Gravity.CENTER);
-            col.addView(sim, new LinearLayout.LayoutParams(-1, (int) (18 * d)));
+            body.addView(sim, new LinearLayout.LayoutParams(-1, (int) (18 * d)));
         } else {
-            col.addView(new View(this), new LinearLayout.LayoutParams(-1, (int) (18 * d)));
+            body.addView(new View(this), new LinearLayout.LayoutParams(-1, (int) (18 * d)));
         }
         numberView = new TextView(this);
         numberView.setTextColor(text);
-        numberView.setTextSize(TypedValue.COMPLEX_UNIT_SP, 34);
+        numberView.setTextSize(TypedValue.COMPLEX_UNIT_SP, compact ? 26 : 34);
         numberView.setTypeface(Typeface.create("sans-serif-thin", Typeface.NORMAL));
         numberView.setGravity(Gravity.CENTER);
         numberView.setSingleLine();
-        col.addView(numberView, new LinearLayout.LayoutParams(-1, (int) (48 * d)));
+        body.addView(numberView, new LinearLayout.LayoutParams(-1, (int) ((compact ? 32 : 48) * d)));
         matchView = new TextView(this);
         matchView.setTextColor(text2);
         matchView.setTextSize(TypedValue.COMPLEX_UNIT_SP, 14);
         matchView.setTypeface(Typeface.create("sans-serif-light", Typeface.NORMAL));
         matchView.setGravity(Gravity.CENTER);
         matchView.setSingleLine();
-        col.addView(matchView, new LinearLayout.LayoutParams(-1, (int) (20 * d)));
-        col.addView(new View(this), new LinearLayout.LayoutParams(-1, (int) (2 * d)));
+        body.addView(matchView, new LinearLayout.LayoutParams(-1, (int) (20 * d)));
+        body.addView(new View(this), new LinearLayout.LayoutParams(-1, (int) (2 * d)));
 
-        int sz = (int) (54 * d), gap = (int) (5 * d);
+        int sz = (int) (54 * d), gap = (int) ((compact ? 2 : 5) * d);
         for (int r = 0; r < 4; r++) {
             LinearLayout row = new LinearLayout(this);
             row.setGravity(Gravity.CENTER);
@@ -200,7 +238,7 @@ public class PhoneActivity extends Activity {
                 lp.setMargins(gap * 3, gap, gap * 3, gap);
                 row.addView(kv, lp);
             }
-            col.addView(row, new LinearLayout.LayoutParams(-2, -2));
+            body.addView(row, new LinearLayout.LayoutParams(-2, -2));
         }
         LinearLayout last = new LinearLayout(this);
         last.setGravity(Gravity.CENTER);
@@ -209,18 +247,22 @@ public class PhoneActivity extends Activity {
         call.setOnClickListener(v -> placeCall(number.toString()));
         last.addView(call, new LinearLayout.LayoutParams(sz, sz) {{ setMargins(gap * 3, gap, gap * 3, gap); }});
         IconView del = new IconView(this, "backspace", text2, 2f);
+        del.setContentDescription("Borrar último dígito");
         del.setPadding((int) (18 * d), (int) (18 * d), (int) (18 * d), (int) (18 * d));
         del.setOnClickListener(v -> { if (number.length() > 0) { number.setLength(number.length() - 1); refreshNumber(); } });
         del.setOnLongClickListener(v -> { number.setLength(0); refreshNumber(); return true; });
         last.addView(del, new LinearLayout.LayoutParams(sz, sz) {{ setMargins(gap * 3, gap, gap * 3, gap); }});
         col.addView(last, new LinearLayout.LayoutParams(-2, -2));
+        keypadScroll.post(() -> keypadScroll.scrollTo(0, restoredKeypadScroll));
         return col;
     }
 
     private void refreshNumber() {
         if (numberView == null) return;
         numberView.setText(number.toString());
+        numberView.setVisibility(compact && number.length() == 0 ? View.GONE : View.VISIBLE);
         matchView.setText("");
+        matchView.setVisibility(compact ? View.GONE : View.VISIBLE);
         final String n = number.toString();
         if (n.length() < 3) return;
         new Thread(() -> {
@@ -232,7 +274,12 @@ public class PhoneActivity extends Activity {
                 if (c != null && c.moveToFirst()) name = c.getString(0);
             } catch (Exception ignored) { } finally { if (c != null) c.close(); }
             final String m = name;
-            ui.post(() -> { if (n.contentEquals(number) && matchView != null && m != null) matchView.setText(m); });
+            ui.post(() -> {
+                if (n.contentEquals(number) && matchView != null && m != null && !m.trim().isEmpty()) {
+                    matchView.setText(m);
+                    matchView.setVisibility(View.VISIBLE);
+                }
+            });
         }).start();
     }
 
@@ -335,6 +382,8 @@ public class PhoneActivity extends Activity {
         col.addView(title("Contactos"));
         EditText search = new EditText(this);
         search.setHint("Buscar");
+        search.setText(contactsQuery);
+        search.setMinimumHeight((int) (48 * d));
         search.setHintTextColor(text2);
         search.setTextColor(text);
         search.setSingleLine();
@@ -368,7 +417,7 @@ public class PhoneActivity extends Activity {
         col.addView(list, new LinearLayout.LayoutParams(-1, 0, 1f));
         search.addTextChangedListener(new TextWatcher() {
             @Override public void beforeTextChanged(CharSequence s, int a, int b, int c) { }
-            @Override public void onTextChanged(CharSequence s, int a, int b, int c) { filterContacts(s.toString().trim()); }
+            @Override public void onTextChanged(CharSequence s, int a, int b, int c) { contactsQuery = s.toString(); filterContacts(contactsQuery.trim()); }
             @Override public void afterTextChanged(Editable e) { }
         });
         return col;
@@ -385,7 +434,7 @@ public class PhoneActivity extends Activity {
                         ContactsContract.Contacts.HAS_PHONE_NUMBER + "=1", null, ContactsContract.Contacts.DISPLAY_NAME + " COLLATE LOCALIZED ASC");
                 while (c != null && c.moveToNext()) out.add(new String[]{c.getString(0), String.valueOf(c.getLong(1)), c.getString(2)});
             } catch (Exception ignored) { } finally { if (c != null) c.close(); }
-            ui.post(() -> { contacts.clear(); contacts.addAll(out); filterContacts(""); });
+            ui.post(() -> { contacts.clear(); contacts.addAll(out); filterContacts(contactsQuery.trim()); });
         }).start();
     }
 
@@ -444,9 +493,9 @@ public class PhoneActivity extends Activity {
         TextView t = new TextView(this);
         t.setText(s);
         t.setTextColor(text);
-        t.setTextSize(TypedValue.COMPLEX_UNIT_SP, 32);
+        t.setTextSize(TypedValue.COMPLEX_UNIT_SP, compact ? 24 : 32);
         t.setTypeface(Typeface.create("sans-serif-thin", Typeface.NORMAL));
-        t.setPadding((int) (22 * d), (int) (14 * d), 0, (int) (8 * d));
+        t.setPadding((int) (22 * d), (int) ((compact ? 4 : 14) * d), 0, (int) ((compact ? 4 : 8) * d));
         return t;
     }
 
@@ -469,7 +518,7 @@ public class PhoneActivity extends Activity {
     private class KeyView extends View {
         private final String digit, letters;
         private final Paint p = new Paint(Paint.ANTI_ALIAS_FLAG);
-        KeyView(Context c, String digit, String letters) { super(c); this.digit = digit; this.letters = letters; setClickable(true); }
+        KeyView(Context c, String digit, String letters) { super(c); this.digit = digit; this.letters = letters; setContentDescription(digit); setClickable(true); }
         @Override protected void onDraw(Canvas cv) {
             float cx = getWidth() / 2f, cy = getHeight() / 2f, r = getWidth() / 2f - d;
             p.setStyle(Paint.Style.FILL);
@@ -496,7 +545,7 @@ public class PhoneActivity extends Activity {
 
     private class CallButton extends View {
         private final Paint p = new Paint(Paint.ANTI_ALIAS_FLAG);
-        CallButton(Context c) { super(c); setClickable(true); }
+        CallButton(Context c) { super(c); setContentDescription("Llamar"); setClickable(true); }
         @Override protected void onDraw(Canvas cv) {
             float cx = getWidth() / 2f, cy = getHeight() / 2f, r = getWidth() / 2f - d;
             p.setColor(isPressed() ? 0xFF059669 : ok);

@@ -225,6 +225,10 @@ public class HomeActivity extends Activity {
         // Home pressed again while already on the main page: open Multitarea
         boolean onMain = pager != null && pager.page() == 1;
         if (hasWindowFocus() && SystemClock.uptimeMillis() - resumedAt > 1500 && onMain && !editing && searchLayer == null && folderLayer == null && ccLayer == null && hasWindowFocus()) { showSwitcher(); return; }
+        if (ccLayer != null) hideControl();
+        if (folderLayer != null) closeFolder();
+        if (searchLayer != null) hideSearch();
+        if (editing) setEditing(false);
         if (pager != null) pager.goTo(1);
     }
 
@@ -286,6 +290,9 @@ public class HomeActivity extends Activity {
                 ccArmed = false;
                 break;
         }
+        // Sheets own their gestures: a card swipe must not also open search/the shade.
+        if (swLayer != null || folderLayer != null || ccLayer != null || searchLayer != null || editing)
+            return super.dispatchTouchEvent(e);
         if (e.getAction() == MotionEvent.ACTION_UP && !editing && searchLayer == null && folderLayer == null && ccLayer == null
                 && e.getY() > h * 0.30f && e.getY() < h - 130 * d && Math.abs(e.getX() - downX) < 10 * d && Math.abs(e.getY() - downY) < 10 * d) {
             long now = SystemClock.uptimeMillis();
@@ -1717,42 +1724,42 @@ public class HomeActivity extends Activity {
         final ImageView c = new ImageView(this);
         c.setScaleType(ImageView.ScaleType.CENTER);
         final int gs = (int) (28 * d);
-        final Runnable style = new Runnable() {
-            boolean state = on;
-            @Override public void run() {
-                GradientDrawable g = new GradientDrawable();
-                g.setShape(GradientDrawable.OVAL);
-                g.setColor(state ? (night ? 0xFF7BA7FF : 0xFF3B6BEA) : boxFill);
-                g.setStroke(Math.max(1, (int) d), boxStroke);
-                c.setBackground(g);
-                c.setImageBitmap(Tiles.make(glyph, gs, state ? (night ? 0xFF14123A : Color.WHITE) : labelColor));
-            }
-        };
-        style.run();
         final boolean[] st = {on};
-        c.setOnClickListener(v -> {
-            try { st[0] = f.flip(); } catch (Exception e) { Toast.makeText(this, "No disponible", Toast.LENGTH_SHORT).show(); return; }
+        final Runnable style = () -> {
             GradientDrawable g = new GradientDrawable();
             g.setShape(GradientDrawable.OVAL);
             g.setColor(st[0] ? (night ? 0xFF7BA7FF : 0xFF3B6BEA) : boxFill);
             g.setStroke(Math.max(1, (int) d), boxStroke);
             c.setBackground(g);
             c.setImageBitmap(Tiles.make(glyph, gs, st[0] ? (night ? 0xFF14123A : Color.WHITE) : labelColor));
-            c.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY);
+            box.setSelected(st[0]);
+            box.setContentDescription(caption + (st[0] ? ", activado" : ", desactivado"));
+        };
+        style.run();
+        box.setFocusable(true);
+        box.setOnClickListener(v -> {
+            try { st[0] = f.flip(); } catch (Exception e) { Toast.makeText(this, "No disponible", Toast.LENGTH_SHORT).show(); return; }
+            style.run();
+            box.announceForAccessibility(box.getContentDescription());
+            box.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY);
             c.animate().cancel(); c.setScaleX(0.88f); c.setScaleY(0.88f);
             c.animate().scaleX(1f).scaleY(1f).setDuration(300).setInterpolator(new android.view.animation.OvershootInterpolator(3f)).start();
         });
+        c.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
         int s = (int) (58 * d);
         box.addView(c, new LinearLayout.LayoutParams(s, s));
         TextView t = new TextView(this);
+        t.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
         t.setText(caption); t.setTextColor(subColor); t.setTextSize(TypedValue.COMPLEX_UNIT_SP, 11);
         t.setGravity(Gravity.CENTER);
         box.addView(t, new LinearLayout.LayoutParams(-2, -2) {{ topMargin = (int) (5 * d); }});
         return box;
     }
 
-    private SeekBar ccSlider(int max, int progress, SeekBar.OnSeekBarChangeListener l) {
+    private SeekBar ccSlider(String caption, int max, int progress, SeekBar.OnSeekBarChangeListener l) {
         SeekBar sb = new SeekBar(this);
+        sb.setContentDescription(caption);
+        sb.setLayoutParams(new LinearLayout.LayoutParams(-1, (int) (48 * d)));
         sb.setMax(max);
         sb.setProgress(progress);
         int accent = night ? 0xFF7BA7FF : 0xFF3B6BEA;
@@ -1831,7 +1838,7 @@ public class HomeActivity extends Activity {
         panel.addView(ccLabel("BRILLO"));
         int br = 128;
         try { br = Settings.System.getInt(getContentResolver(), Settings.System.SCREEN_BRIGHTNESS); } catch (Exception ignored) { }
-        panel.addView(ccSlider(255, br, new SeekBar.OnSeekBarChangeListener() {
+        panel.addView(ccSlider("Brillo", 255, br, new SeekBar.OnSeekBarChangeListener() {
             @Override public void onProgressChanged(SeekBar sb, int p, boolean user) {
                 if (!user) return;
                 try {
@@ -1848,7 +1855,7 @@ public class HomeActivity extends Activity {
 
         panel.addView(ccLabel("VOLUMEN"));
         final android.media.AudioManager am = (android.media.AudioManager) getSystemService(AUDIO_SERVICE);
-        panel.addView(ccSlider(am.getStreamMaxVolume(android.media.AudioManager.STREAM_MUSIC), am.getStreamVolume(android.media.AudioManager.STREAM_MUSIC), new SeekBar.OnSeekBarChangeListener() {
+        panel.addView(ccSlider("Volumen multimedia", am.getStreamMaxVolume(android.media.AudioManager.STREAM_MUSIC), am.getStreamVolume(android.media.AudioManager.STREAM_MUSIC), new SeekBar.OnSeekBarChangeListener() {
             @Override public void onProgressChanged(SeekBar sb, int p, boolean user) { if (user) am.setStreamVolume(android.media.AudioManager.STREAM_MUSIC, p, 0); }
             @Override public void onStartTrackingTouch(SeekBar sb) { }
             @Override public void onStopTrackingTouch(SeekBar sb) { }
@@ -2047,7 +2054,7 @@ public class HomeActivity extends Activity {
     }
 
 
-    // ---- Multitarea: recent apps as glass cards, split screen, swipe up to close ---------------------------
+    // ---- Multitarea: recent apps as glass cards, split screen, swipe up to dismiss ---------------------------
 
     private FrameLayout swLayer;
 
@@ -2064,11 +2071,13 @@ public class HomeActivity extends Activity {
                 ev.getNextEvent(e);
                 if (e.getEventType() == android.app.usage.UsageEvents.Event.MOVE_TO_FOREGROUND) { last.remove(e.getPackageName()); last.put(e.getPackageName(), e.getTimeStamp()); }
             }
+            SharedPreferences dismissed = getSharedPreferences("switcher_dismissed", MODE_PRIVATE);
             List<String> keys = new ArrayList<>(last.keySet());
             Collections.reverse(keys);
             for (String k : keys) {
                 if (out.size() >= 8) break;
-                if (k.equals(getPackageName()) || k.equals("com.android.systemui")) continue;
+                if (k.equals(getPackageName()) || k.equals("com.android.systemui")
+                        || last.get(k) <= dismissed.getLong(k, 0L)) continue;
                 for (App a : allApps) if (a.pkg.equals(k) && a.kids == null) { out.add(new Object[]{a, last.get(k)}); break; }
             }
         } catch (Exception ignored) { }
@@ -2124,7 +2133,7 @@ public class HomeActivity extends Activity {
                 }
             });
             TextView hint = new TextView(this);
-            hint.setText("Desliza una tarjeta hacia arriba para cerrarla"); hint.setTextColor(subColor); hint.setTextSize(TypedValue.COMPLEX_UNIT_SP, 12);
+            hint.setText("Desliza hacia arriba para retirar una tarjeta"); hint.setTextColor(subColor); hint.setTextSize(TypedValue.COMPLEX_UNIT_SP, 12);
             swLayer.addView(hint, new FrameLayout.LayoutParams(-2, -2, Gravity.BOTTOM | Gravity.CENTER_HORIZONTAL) {{ bottomMargin = (int) (58 * d); }});
         }
         content.addView(swLayer, new FrameLayout.LayoutParams(-1, -1));
@@ -2134,7 +2143,23 @@ public class HomeActivity extends Activity {
     }
 
     private View switcherCard(final App a, long when, final LinearLayout row) {
-        final LinearLayout card = new LinearLayout(this);
+        final FrameLayout owner = swLayer;
+        final float[] st = new float[2];
+        final LinearLayout card = new LinearLayout(this) {
+            @Override public boolean onInterceptTouchEvent(MotionEvent e) {
+                if (e.getActionMasked() == MotionEvent.ACTION_DOWN) {
+                    st[0] = e.getRawX(); st[1] = e.getRawY();
+                } else if (e.getActionMasked() == MotionEvent.ACTION_MOVE) {
+                    float dy = e.getRawY() - st[1], dx = e.getRawX() - st[0];
+                    if (dy < -10 * d && Math.abs(dy) > Math.abs(dx) * 1.2f) {
+                        animate().cancel();
+                        getParent().requestDisallowInterceptTouchEvent(true);
+                        return true;
+                    }
+                }
+                return super.onInterceptTouchEvent(e);
+            }
+        };
         card.setOrientation(LinearLayout.VERTICAL);
         card.setGravity(Gravity.CENTER_HORIZONTAL);
         card.setPadding((int) (14 * d), (int) (26 * d), (int) (14 * d), (int) (14 * d));
@@ -2160,8 +2185,7 @@ public class HomeActivity extends Activity {
         card.addView(split, new LinearLayout.LayoutParams(-1, -2));
         for (TextView p : new TextView[]{open, split}) { p.setGravity(Gravity.CENTER); p.setVisibility(View.VISIBLE); }
         card.setOnClickListener(v -> { hideSwitcher(); launch(a, card); });
-        // swipe up to close the app
-        final float[] st = new float[2];
+        // Dismiss this recent entry; Android does not let us close another app's task.
         card.setOnTouchListener((v, e) -> {
             switch (e.getAction()) {
                 case MotionEvent.ACTION_DOWN: st[0] = e.getRawX(); st[1] = e.getRawY(); return false;
@@ -2170,13 +2194,19 @@ public class HomeActivity extends Activity {
                     if (dy < -10 * d && Math.abs(dy) > Math.abs(dx) * 1.2f) { v.getParent().requestDisallowInterceptTouchEvent(true); v.setTranslationY(dy); v.setAlpha(Math.max(0.3f, 1f + dy / (260 * d))); return true; }
                     return false;
                 }
-                case MotionEvent.ACTION_UP: case MotionEvent.ACTION_CANCEL: {
+                case MotionEvent.ACTION_CANCEL:
+                    v.animate().cancel();
+                    v.animate().translationY(0f).alpha(1f).setDuration(180).start();
+                    return true;
+                case MotionEvent.ACTION_UP: {
                     float dy = e.getRawY() - st[1];
                     if (v.getTranslationY() < -90 * d && dy < -90 * d) {
                         v.animate().translationY(-420 * d).alpha(0f).setDuration(220).withEndAction(() -> {
-                            try { ((ActivityManager) getSystemService(ACTIVITY_SERVICE)).killBackgroundProcesses(a.pkg); } catch (Exception ignored) { }
+                            getSharedPreferences("switcher_dismissed", MODE_PRIVATE).edit()
+                                    .putLong(a.pkg, System.currentTimeMillis()).apply();
                             row.removeView(v);
-                            Toast.makeText(this, a.label + " cerrada", Toast.LENGTH_SHORT).show();
+                            Toast.makeText(this, a.label + " retirada de Multitarea", Toast.LENGTH_SHORT).show();
+                            if (row.getChildCount() == 0 && swLayer == owner) hideSwitcher();
                         }).start();
                         return true;
                     }

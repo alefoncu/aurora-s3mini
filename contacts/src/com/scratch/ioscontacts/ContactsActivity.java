@@ -22,7 +22,7 @@ import java.util.*;
 /** Own Contacts app: sectioned list with search and a detail page (call, SMS, email); edit/new through the stock editor. */
 public class ContactsActivity extends Activity {
     private float d;
-    private boolean night;
+    private boolean night, compact;
     private int text, text2, scrim, glass, glassStroke, accent, ok;
     private final Handler ui = new Handler(Looper.getMainLooper());
     private FrameLayout stage;
@@ -43,6 +43,7 @@ public class ContactsActivity extends Activity {
     protected void onCreate(Bundle b) {
         super.onCreate(b);
         d = getResources().getDisplayMetrics().density;
+        compact = getResources().getConfiguration().screenHeightDp <= 360;
         night = (getResources().getConfiguration().uiMode & Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES;
         text = night ? Color.WHITE : 0xFF14123A;
         text2 = night ? 0xB3FFFFFF : 0x9914123A;
@@ -64,7 +65,13 @@ public class ContactsActivity extends Activity {
         stage = new FrameLayout(this);
         stage.setPadding(0, (int) (24 * d), 0, 0);
         root.addView(stage, new FrameLayout.LayoutParams(-1, -1));
+        root.setOnApplyWindowInsetsListener((view, insets) -> {
+            int top = insets.getSystemWindowInsetTop();
+            if (stage.getPaddingTop() != top) stage.setPadding(0, top, 0, 0);
+            return insets;
+        });
         setContentView(root);
+        root.requestApplyInsets();
         listPage = buildList();
         detailPage = buildDetail();
         stage.addView(listPage, new FrameLayout.LayoutParams(-1, -1));
@@ -72,9 +79,29 @@ public class ContactsActivity extends Activity {
         detailPage.setVisibility(View.GONE);
         stage.setFocusableInTouchMode(true);
         stage.requestFocus();
+        if (b != null) {
+            search.setText(b.getString("query", ""));
+            if (b.containsKey("contact_id")) {
+                current = new Row();
+                current.id = b.getLong("contact_id");
+                current.lookup = b.getString("contact_lookup");
+                current.name = b.getString("contact_name", "");
+                current.star = b.getBoolean("contact_star");
+            }
+        }
     }
 
     @Override protected void onResume() { super.onResume(); load(); if (current != null) showDetail(current); }
+    @Override protected void onSaveInstanceState(Bundle out) {
+        out.putString("query", search == null ? "" : search.getText().toString());
+        if (current != null) {
+            out.putLong("contact_id", current.id);
+            out.putString("contact_lookup", current.lookup);
+            out.putString("contact_name", current.name);
+            out.putBoolean("contact_star", current.star);
+        }
+        super.onSaveInstanceState(out);
+    }
     @Override public void onConfigurationChanged(Configuration c) { super.onConfigurationChanged(c); recreate(); }
     @Override public void onBackPressed() { if (detailPage.getVisibility() == View.VISIBLE) closeDetail(); else super.onBackPressed(); }
 
@@ -87,11 +114,11 @@ public class ContactsActivity extends Activity {
         head.setGravity(Gravity.CENTER_VERTICAL);
         LinearLayout titles = new LinearLayout(this);
         titles.setOrientation(LinearLayout.VERTICAL);
-        titles.setPadding((int) (22 * d), (int) (12 * d), 0, (int) (4 * d));
+        titles.setPadding((int) (22 * d), (int) ((compact ? 4 : 12) * d), 0, (int) (4 * d));
         TextView t = new TextView(this);
         t.setText("Contactos");
         t.setTextColor(text);
-        t.setTextSize(TypedValue.COMPLEX_UNIT_SP, 34);
+        t.setTextSize(TypedValue.COMPLEX_UNIT_SP, compact ? 24 : 34);
         t.setTypeface(Typeface.create("sans-serif-thin", Typeface.NORMAL));
         titles.addView(t);
         count = new TextView(this);
@@ -107,6 +134,7 @@ public class ContactsActivity extends Activity {
 
         search = new EditText(this);
         search.setHint("Buscar");
+        search.setMinimumHeight((int) (48 * d));
         search.setHintTextColor(text2);
         search.setTextColor(text);
         search.setSingleLine();
@@ -283,13 +311,13 @@ public class ContactsActivity extends Activity {
         body.setGravity(Gravity.CENTER_HORIZONTAL);
         body.setPadding((int) (16 * d), 0, (int) (16 * d), (int) (24 * d));
         detailAvatar = new ImageView(this);
-        body.addView(detailAvatar, new LinearLayout.LayoutParams((int) (96 * d), (int) (96 * d)));
+        body.addView(detailAvatar, new LinearLayout.LayoutParams((int) ((compact ? 56 : 96) * d), (int) ((compact ? 56 : 96) * d)));
         detailName = new TextView(this);
         detailName.setTextColor(text);
-        detailName.setTextSize(TypedValue.COMPLEX_UNIT_SP, 28);
+        detailName.setTextSize(TypedValue.COMPLEX_UNIT_SP, compact ? 22 : 28);
         detailName.setTypeface(Typeface.create("sans-serif-thin", Typeface.NORMAL));
         detailName.setGravity(Gravity.CENTER);
-        detailName.setPadding(0, (int) (12 * d), 0, 0);
+        detailName.setPadding(0, (int) ((compact ? 4 : 12) * d), 0, 0);
         body.addView(detailName);
         detailSub = new TextView(this);
         detailSub.setTextColor(text2);
@@ -299,7 +327,7 @@ public class ContactsActivity extends Activity {
         detailBody = new LinearLayout(this);
         detailBody.setOrientation(LinearLayout.VERTICAL);
         LinearLayout.LayoutParams bp = new LinearLayout.LayoutParams(-1, -2);
-        bp.topMargin = (int) (20 * d);
+        bp.topMargin = (int) ((compact ? 8 : 20) * d);
         body.addView(detailBody, bp);
         scroll.addView(body);
         col.addView(scroll, new LinearLayout.LayoutParams(-1, 0, 1f));
@@ -309,7 +337,7 @@ public class ContactsActivity extends Activity {
     private void showDetail(Row r) {
         current = r;
         detailName.setText(r.name);
-        detailAvatar.setImageBitmap(avatar(r.name, (int) (96 * d)));
+        detailAvatar.setImageBitmap(avatar(r.name, (int) ((compact ? 56 : 96) * d)));
         detailBody.removeAllViews();
         detailSub.setText("");
         boolean first = listPage.getVisibility() == View.VISIBLE;

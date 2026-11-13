@@ -37,11 +37,13 @@ public class FilesActivity extends Activity {
     private final ExecutorService worker = Executors.newSingleThreadExecutor();
     private volatile int generation;
     private View pressedRow;
+    private int restorePosition = -1, restoreOffset;
     private boolean destroyed;
     private static final Locale ES = new Locale("es", "ES");
 
     @Override protected void onCreate(Bundle b) {
         super.onCreate(b);
+        boolean compact = getResources().getConfiguration().screenHeightDp < 400;
         d = getResources().getDisplayMetrics().density;
         night = (getResources().getConfiguration().uiMode & Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES;
         text = night ? Color.WHITE : 0xFF14123A;
@@ -53,6 +55,7 @@ public class FilesActivity extends Activity {
         if (b != null) {
             File saved = new File(b.getString("path", rootDir.getAbsolutePath()));
             if (inside(saved)) current = saved;
+            restorePosition = b.getInt("list_position", 0); restoreOffset = b.getInt("list_offset", 0);
         }
         Window win = getWindow();
         win.addFlags(WindowManager.LayoutParams.FLAG_DRAWS_SYSTEM_BAR_BACKGROUNDS);
@@ -64,15 +67,19 @@ public class FilesActivity extends Activity {
         root.addView(scrim, new FrameLayout.LayoutParams(-1, -1));
         LinearLayout col = new LinearLayout(this);
         col.setOrientation(LinearLayout.VERTICAL);
-        col.setPadding(dp(12), dp(24), dp(12), dp(12));
+        col.setPadding(dp(12), dp(android.os.Build.VERSION.SDK_INT >= 24 && isInMultiWindowMode() ? 0 : 24), dp(12), dp(compact ? 4 : 12));
         root.addView(col, new FrameLayout.LayoutParams(-1, -1));
+        root.setOnApplyWindowInsetsListener((v, insets) -> {
+            col.setPadding(col.getPaddingLeft(), insets.getSystemWindowInsetTop(), col.getPaddingRight(), col.getPaddingBottom());
+            return insets;
+        });
         LinearLayout heading = new LinearLayout(this);
         heading.setGravity(Gravity.CENTER_VERTICAL);
         back = button("‹", 34); back.setContentDescription("Subir de carpeta");
         heading.addView(back, new LinearLayout.LayoutParams(dp(40), dp(48)));
         back.setOnClickListener(v -> up());
-        path = label("", 25, text, "sans-serif-thin");
-        path.setMaxLines(2); path.setEllipsize(TextUtils.TruncateAt.START);
+        path = label("", compact ? 20 : 25, text, "sans-serif-thin");
+        path.setMaxLines(compact ? 1 : 2); path.setEllipsize(TextUtils.TruncateAt.START);
         path.setPadding(dp(10), dp(8), dp(6), dp(8));
         heading.addView(path, new LinearLayout.LayoutParams(0, -2, 1));
         TextView add = button("+", 30); add.setContentDescription("Crear carpeta");
@@ -80,7 +87,7 @@ public class FilesActivity extends Activity {
         add.setOnClickListener(v -> nameDialog(null));
         col.addView(heading, new LinearLayout.LayoutParams(-1, -2));
         TextView subtitle = label("ARCHIVOS", 11, accent, "sans-serif-light");
-        subtitle.setPadding(dp(4), dp(8), 0, dp(8)); col.addView(subtitle);
+        subtitle.setPadding(dp(4), dp(8), 0, dp(8)); if (!compact) col.addView(subtitle);
         HorizontalScrollView chips = new HorizontalScrollView(this);
         chips.setHorizontalScrollBarEnabled(false);
         LinearLayout quick = new LinearLayout(this);
@@ -95,7 +102,7 @@ public class FilesActivity extends Activity {
         }
         chips.addView(quick); col.addView(chips, new LinearLayout.LayoutParams(-1, dp(44)));
         status = label("", 12, text, "sans-serif-light");
-        status.setPadding(dp(4), dp(5), 0, dp(9)); col.addView(status);
+        status.setPadding(dp(4), dp(compact ? 2 : 5), 0, dp(compact ? 2 : 9)); col.addView(status);
         FrameLayout panel = new FrameLayout(this); panel.setBackground(shape(18));
         list = new ListView(this); list.setDivider(null); list.setCacheColorHint(Color.TRANSPARENT);
         adapter = new FileAdapter(); list.setAdapter(adapter);
@@ -149,7 +156,7 @@ public class FilesActivity extends Activity {
         try { String base = rootDir.getCanonicalPath(), p = f.getCanonicalPath(); return p.equals(base) || p.startsWith(base + File.separator); }
         catch (IOException | SecurityException e) { return false; }
     }
-    private void navigate(File f) { if (!inside(f)) { toast("Acceso fuera del almacenamiento no permitido"); return; } current = f; load(); }
+    private void navigate(File f) { restorePosition = -1; if (!inside(f)) { toast("Acceso fuera del almacenamiento no permitido"); return; } current = f; load(); }
     private void up() {
         if (current.equals(rootDir)) { finish(); return; }
         File parent = current.getParentFile(); navigate(parent != null && inside(parent) ? parent : rootDir);
@@ -178,6 +185,7 @@ public class FilesActivity extends Activity {
             runOnUiThread(() -> {
                 if (destroyed || request != generation) return;
                 entries.addAll(result); adapter.notifyDataSetChanged();
+                if (restorePosition >= 0) { list.setSelectionFromTop(restorePosition, restoreOffset); restorePosition = -1; }
                 status.setText(problem != null ? problem : result.isEmpty() ? "Carpeta vacía" : result.size() + (result.size() == 1 ? " elemento" : " elementos"));
             });
         });
@@ -299,7 +307,10 @@ public class FilesActivity extends Activity {
         });
     }
     private void toast(String s) { Toast.makeText(this, s, Toast.LENGTH_LONG).show(); }
-    @Override protected void onSaveInstanceState(Bundle b) { b.putString("path", current.getAbsolutePath()); super.onSaveInstanceState(b); }
+    @Override protected void onSaveInstanceState(Bundle b) { b.putString("path", current.getAbsolutePath());
+        b.putInt("list_position", list.getFirstVisiblePosition());
+        b.putInt("list_offset", list.getChildCount() == 0 ? 0 : list.getChildAt(0).getTop());
+        super.onSaveInstanceState(b); }
     @Override public void onConfigurationChanged(Configuration c) { super.onConfigurationChanged(c); recreate(); }
     @Override protected void onDestroy() { destroyed = true; generation++; worker.shutdownNow(); super.onDestroy(); }
     @Override public void finish() {

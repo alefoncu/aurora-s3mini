@@ -31,6 +31,7 @@ public abstract class NotesBase extends Activity {
     }
     protected int dp(float value) { return (int) (value * density + 0.5f); }
     protected int statusInset() {
+        if (android.os.Build.VERSION.SDK_INT >= 24 && isInMultiWindowMode()) return 0;
         int id = getResources().getIdentifier("status_bar_height", "dimen", "android");
         return id == 0 ? dp(24) : getResources().getDimensionPixelSize(id);
     }

@@ -23,3 +23,5 @@ Calendar-aware silence, smarter suggestions, notification digest.
 - Phase 2 (motion): spring page snap, icon fan and Multitarea depth done (README 72). Also done (README 73): interactive Control Center drag, rubber-band overscroll. Still planned: dock magnification, open/close zoom with glass.
 - Phase 3: Control Center second row done (README 74); stock-app design audit in progress.
 - Phase 4: silence during meetings done (README 75); notification digest and smarter suggestions still planned.
+
+- Usability pass (README 76): Home dismisses sheets/editing, overlay gestures stay inside their sheet, Control Center has whole-tile touch targets and accessible labels/states, and Multitarea dismissal survives reopening until the next app launch.

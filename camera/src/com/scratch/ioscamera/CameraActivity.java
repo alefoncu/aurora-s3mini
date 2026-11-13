@@ -30,6 +30,7 @@ public class CameraActivity extends Activity implements SurfaceHolder.Callback {
 
     private Camera camera;
     private int dispOrient;
+    private final Rect previewBounds = new Rect();
     private int timerSec;          // 0 = off, 3 or 10
     private boolean gridOn;
     private IconView timerBtn, gridBtn;
@@ -155,7 +156,7 @@ public class CameraActivity extends Activity implements SurfaceHolder.Callback {
         tabVideo = tab("VÍDEO", 1);
         tabs.addView(tabPhoto);
         if (VIDEO_ENABLED) tabs.addView(tabVideo);
-        root.addView(tabs, new FrameLayout.LayoutParams(w, topH, Gravity.TOP));
+        root.addView(tabs, new FrameLayout.LayoutParams(-1, topH, Gravity.TOP));
         timer = new TextView(this);
         timer.setTextColor(Color.WHITE);
         timer.setTextSize(16);
@@ -213,13 +214,50 @@ public class CameraActivity extends Activity implements SurfaceHolder.Callback {
         });
         final GestureDetector gd = new GestureDetector(this, new GestureDetector.SimpleOnGestureListener() {
             @Override public boolean onSingleTapUp(MotionEvent e) {
-                if (e.getY() > topH && e.getY() < topH + prevH) focusAt(e.getX(), e.getY() - topH, w, prevH, (int) e.getX(), (int) e.getY());
+                if (previewBounds.contains((int) e.getX(), (int) e.getY()))
+                    focusAt(e.getX() - previewBounds.left, e.getY() - previewBounds.top,
+                            previewBounds.width(), previewBounds.height(), (int) e.getX(), (int) e.getY());
                 return true;
             }
         });
         root.setOnTouchListener((v, e) -> { sgd.onTouchEvent(e); if (!sgd.isInProgress()) gd.onTouchEvent(e); return true; });
 
+        final Runnable fitPreview = () -> {
+            int width = root.getWidth() - root.getPaddingLeft() - root.getPaddingRight();
+            int height = root.getHeight() - root.getPaddingTop() - root.getPaddingBottom();
+            if (width <= 0 || height <= 0) return;
+            // Fit the portrait 4:3 preview between the two toolbars, using the actual window.
+            int previewHeight = Math.max(1, Math.min(width * 4 / 3, height - topH - (int) (72 * d)));
+            int previewWidth = Math.max(1, Math.min(width, previewHeight * 3 / 4));
+            int left = (width - previewWidth) / 2;
+            int rootLeft = root.getPaddingLeft() + left, rootTop = root.getPaddingTop() + topH;
+            previewBounds.set(rootLeft, rootTop, rootLeft + previewWidth, rootTop + previewHeight);
+            for (View overlay : new View[]{surface, shutterFlash, gridView, countdown}) {
+                FrameLayout.LayoutParams lp = (FrameLayout.LayoutParams) overlay.getLayoutParams();
+                if (lp.width == previewWidth && lp.height == previewHeight && lp.leftMargin == left && lp.topMargin == topH) continue;
+                lp.gravity = Gravity.TOP | Gravity.LEFT; lp.width = previewWidth; lp.height = previewHeight;
+                lp.leftMargin = left; lp.topMargin = topH; overlay.setLayoutParams(lp);
+            }
+            FrameLayout.LayoutParams bottom = (FrameLayout.LayoutParams) bar.getLayoutParams();
+            int bottomHeight = Math.max((int) (72 * d), height - topH - previewHeight);
+            if (bottom.width != width || bottom.height != bottomHeight) {
+                bottom.width = width; bottom.height = bottomHeight; bar.setLayoutParams(bottom);
+            }
+            FrameLayout.LayoutParams zoom = (FrameLayout.LayoutParams) zoomLabel.getLayoutParams();
+            int zoomTop = Math.max(topH, topH + previewHeight - (int) (44 * d));
+            if (zoom.topMargin != zoomTop) { zoom.topMargin = zoomTop; zoomLabel.setLayoutParams(zoom); }
+            focusRing.setVisibility(View.GONE);
+        };
+        root.addOnLayoutChangeListener((v, l, t, r, btm, oldL, oldT, oldR, oldB) -> fitPreview.run());
+        root.setOnApplyWindowInsetsListener((v, insets) -> {
+            // Split screen can expose system bars even though this activity is fullscreen.
+            root.setPadding(insets.getSystemWindowInsetLeft(), insets.getSystemWindowInsetTop(),
+                    insets.getSystemWindowInsetRight(), insets.getSystemWindowInsetBottom());
+            root.post(fitPreview); // Insets can change without changing the root's outer bounds.
+            return insets.consumeSystemWindowInsets();
+        });
         setContentView(root);
+        root.requestApplyInsets();
     }
 
     private float currentRatio() {
@@ -284,7 +322,9 @@ public class CameraActivity extends Activity implements SurfaceHolder.Callback {
                 } catch (Exception ignored) { }
             });
             FrameLayout.LayoutParams lp = (FrameLayout.LayoutParams) focusRing.getLayoutParams();
-            lp.leftMargin = rootX - lp.width / 2; lp.topMargin = rootY - lp.height / 2;
+            View parent = (View) focusRing.getParent();
+            lp.leftMargin = rootX - parent.getPaddingLeft() - lp.width / 2;
+            lp.topMargin = rootY - parent.getPaddingTop() - lp.height / 2;
             focusRing.setLayoutParams(lp);
             focusRing.setVisibility(View.VISIBLE);
             focusRing.setAlpha(1f);

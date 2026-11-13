@@ -24,7 +24,8 @@ import java.util.concurrent.Executors;
 public class CalendarActivity extends Activity {
     private static final Locale ES = new Locale("es", "ES");
     private float d;
-    private boolean night, destroyed, observing;
+    private boolean night, destroyed, observing, compact, monthExpanded;
+    private MonthPanel monthPanel;
     private int text, accent, glass, stroke, generation;
     private Calendar month, selected;
     private TextView heading, dayHeading;
@@ -41,6 +42,8 @@ public class CalendarActivity extends Activity {
     @Override protected void onCreate(Bundle state) {
         super.onCreate(state);
         d = getResources().getDisplayMetrics().density;
+        compact = getResources().getConfiguration().screenHeightDp < 420;
+        monthExpanded = state != null && state.getBoolean("monthExpanded", false);
         night = (getResources().getConfiguration().uiMode & Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES;
         text = night ? Color.WHITE : 0xFF14123A;
         accent = night ? 0xFF7BA7FF : 0xFF3B6BEA;
@@ -63,16 +66,30 @@ public class CalendarActivity extends Activity {
         scrim.setBackgroundColor(night ? 0x9914123A : 0x66F6F5FF);
         root.addView(scrim, new FrameLayout.LayoutParams(-1, -1));
         LinearLayout col = column(); col.setPadding(dp(12), dp(24), dp(12), dp(8));
-        root.addView(col, new FrameLayout.LayoutParams(-1, -1));
+        if (compact) {
+            ScrollView all = new ScrollView(this); all.setFillViewport(true);
+            all.addView(col, new ScrollView.LayoutParams(-1, -2));
+            root.addView(all, new FrameLayout.LayoutParams(-1, -1));
+        } else root.addView(col, new FrameLayout.LayoutParams(-1, -1));
 
         LinearLayout toolbar = new LinearLayout(this); toolbar.setGravity(Gravity.CENTER_VERTICAL);
-        TextView label = label("Calendario", 16, accent);
-        toolbar.addView(label, new LinearLayout.LayoutParams(0, dp(36), 1));
+        TextView label = label(compact ? "Calendario ▾" : "Calendario", 16, accent);
+        if (compact) {
+            label.setText(monthExpanded ? "Calendario ▴" : "Calendario ▾");
+            label.setContentDescription(monthExpanded ? "Ocultar calendario mensual" : "Mostrar calendario mensual");
+            label.setOnClickListener(v -> {
+                monthExpanded = !monthExpanded;
+                monthPanel.setVisibility(monthExpanded ? View.VISIBLE : View.GONE);
+                label.setText(monthExpanded ? "Calendario ▴" : "Calendario ▾");
+                label.setContentDescription(monthExpanded ? "Ocultar calendario mensual" : "Mostrar calendario mensual");
+            });
+        }
+        toolbar.addView(label, new LinearLayout.LayoutParams(0, dp(compact ? 48 : 36), 1));
         TextView today = control("Hoy", 16, "Ir a hoy");
         today.setOnClickListener(v -> { selected = midnight(System.currentTimeMillis()); month = (Calendar) selected.clone(); month.set(Calendar.DAY_OF_MONTH, 1); refreshMonth(); });
-        toolbar.addView(today, new LinearLayout.LayoutParams(dp(48), dp(36)));
+        toolbar.addView(today, new LinearLayout.LayoutParams(dp(48), dp(compact ? 48 : 36)));
         TextView add = control("+", 32, "Añadir evento"); add.setOnClickListener(v -> newEvent());
-        toolbar.addView(add, new LinearLayout.LayoutParams(dp(40), dp(36))); col.addView(toolbar);
+        toolbar.addView(add, new LinearLayout.LayoutParams(dp(compact ? 48 : 40), dp(compact ? 48 : 36))); col.addView(toolbar);
 
         LinearLayout header = new LinearLayout(this); header.setGravity(Gravity.CENTER_VERTICAL);
         heading = label("", 27, text); heading.setTypeface(Typeface.create("sans-serif-thin", Typeface.NORMAL));
@@ -83,7 +100,9 @@ public class CalendarActivity extends Activity {
         header.addView(prev, new LinearLayout.LayoutParams(dp(32), dp(48)));
         header.addView(next, new LinearLayout.LayoutParams(dp(32), dp(48))); col.addView(header);
 
-        MonthPanel panel = new MonthPanel(); panel.setOrientation(LinearLayout.VERTICAL);
+        MonthPanel panel = new MonthPanel(); monthPanel = panel;
+        if (compact && !monthExpanded) panel.setVisibility(View.GONE);
+        panel.setOrientation(LinearLayout.VERTICAL);
         panel.setBackground(round(glass, 20)); panel.setPadding(dp(4), dp(4), dp(4), dp(4));
         LinearLayout weekdays = new LinearLayout(this);
         for (String name : new String[]{"L", "M", "X", "J", "V", "S", "D"}) {
@@ -102,9 +121,17 @@ public class CalendarActivity extends Activity {
         col.addView(panel);
         dayHeading = label("", 17, text); dayHeading.setPadding(dp(6), dp(8), 0, 0);
         col.addView(dayHeading, new LinearLayout.LayoutParams(-1, dp(40)));
-        ScrollView scroll = new ScrollView(this); scroll.setFillViewport(true);
-        agenda = column(); scroll.addView(agenda, new ScrollView.LayoutParams(-1, -2));
-        col.addView(scroll, new LinearLayout.LayoutParams(-1, 0, 1));
+        agenda = column();
+        if (compact) col.addView(agenda, new LinearLayout.LayoutParams(-1, -2));
+        else {
+            ScrollView scroll = new ScrollView(this); scroll.setFillViewport(true);
+            scroll.addView(agenda, new ScrollView.LayoutParams(-1, -2));
+            col.addView(scroll, new LinearLayout.LayoutParams(-1, 0, 1));
+        }
+        root.setOnApplyWindowInsetsListener((v, insets) -> {
+            col.setPadding(col.getPaddingLeft(), insets.getSystemWindowInsetTop(), col.getPaddingRight(), col.getPaddingBottom());
+            return insets;
+        });
         setContentView(root); refreshMonth();
     }
 
@@ -126,6 +153,7 @@ public class CalendarActivity extends Activity {
     @Override protected void onDestroy() { destroyed = true; generation++; worker.shutdown(); super.onDestroy(); }
     @Override public void onConfigurationChanged(Configuration c) { super.onConfigurationChanged(c); recreate(); }
     @Override protected void onSaveInstanceState(Bundle out) {
+        out.putBoolean("monthExpanded", monthExpanded);
         out.putLong("selected", selected.getTimeInMillis()); out.putLong("month", month.getTimeInMillis()); super.onSaveInstanceState(out);
     }
     @Override protected void onNewIntent(Intent intent) { super.onNewIntent(intent); setIntent(intent); readIntent(intent); refreshMonth(); }

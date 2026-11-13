@@ -32,7 +32,7 @@ public class ClockActivity extends Activity {
         {"Santiago", "America/Santiago"}, {"São Paulo", "America/Sao_Paulo"}, {"Honolulu", "Pacific/Honolulu"}};
 
     private float d;
-    private boolean night;
+    private boolean night, compact;
     private int text, text2, scrim, glass, glassStroke, accent, danger, ok;
     private final Handler ui = new Handler(Looper.getMainLooper());
     private FrameLayout pages;
@@ -59,7 +59,7 @@ public class ClockActivity extends Activity {
 
     private final Runnable tick = new Runnable() {
         @Override public void run() {
-            if (swTime != null && page[1] != null && page[1].getVisibility() == View.VISIBLE) updateStopwatch();
+            if (swRunning && swTime != null && page[1] != null && page[1].getVisibility() == View.VISIBLE) updateStopwatch();
             if (page[2] != null && page[2].getVisibility() == View.VISIBLE) updateTimer();
             if (page[3] != null && page[3].getVisibility() == View.VISIBLE) renderWorld();
             ui.postDelayed(this, 100);
@@ -70,6 +70,16 @@ public class ClockActivity extends Activity {
     protected void onCreate(Bundle b) {
         super.onCreate(b);
         d = getResources().getDisplayMetrics().density;
+        compact = getResources().getConfiguration().screenHeightDp < 420;
+        if (b != null) {
+            tab = Math.max(0, Math.min(3, b.getInt("tab", 0)));
+            swStart = b.getLong("swStart", 0);
+            swElapsed = b.getLong("swElapsed", 0);
+            swRunning = b.getBoolean("swRunning", false);
+            timerChoice = b.getLong("timerChoice", timerChoice);
+            long[] savedLaps = b.getLongArray("laps");
+            if (savedLaps != null) for (long lap : savedLaps) laps.add(lap);
+        }
         night = (getResources().getConfiguration().uiMode & Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES;
         text = night ? Color.WHITE : 0xFF14123A;
         text2 = night ? 0xB3FFFFFF : 0x9914123A;
@@ -92,20 +102,37 @@ public class ClockActivity extends Activity {
         pages = new FrameLayout(this);
         FrameLayout.LayoutParams pl = new FrameLayout.LayoutParams(-1, -1);
         pl.topMargin = (int) (24 * d);
-        pl.bottomMargin = (int) (80 * d);
+        pl.bottomMargin = (int) ((compact ? 60 : 80) * d);
         root.addView(pages, pl);
-        FrameLayout.LayoutParams bl = new FrameLayout.LayoutParams(-1, (int) (60 * d), Gravity.BOTTOM);
+        FrameLayout.LayoutParams bl = new FrameLayout.LayoutParams(-1, (int) ((compact ? 48 : 60) * d), Gravity.BOTTOM);
         bl.leftMargin = bl.rightMargin = (int) (14 * d);
-        bl.bottomMargin = (int) (14 * d);
+        bl.bottomMargin = (int) ((compact ? 6 : 14) * d);
         root.addView(tabBar(), bl);
+        root.setOnApplyWindowInsetsListener((v, insets) -> {
+            FrameLayout.LayoutParams bounds = (FrameLayout.LayoutParams) pages.getLayoutParams();
+            if (bounds.topMargin != insets.getSystemWindowInsetTop()) {
+                bounds.topMargin = insets.getSystemWindowInsetTop(); pages.setLayoutParams(bounds);
+            }
+            return insets;
+        });
         setContentView(root);
-        select(0);
+        select(tab);
         ui.post(tick);
     }
 
     @Override protected void onResume() { super.onResume(); if (page[0] != null) renderAlarms(); updateTimerButton(); }
     @Override protected void onDestroy() { ui.removeCallbacks(tick); super.onDestroy(); }
     @Override public void onConfigurationChanged(Configuration c) { super.onConfigurationChanged(c); recreate(); }
+
+    @Override protected void onSaveInstanceState(Bundle out) {
+        out.putInt("tab", tab);
+        out.putLong("swStart", swStart); out.putLong("swElapsed", swElapsed);
+        out.putBoolean("swRunning", swRunning); out.putLong("timerChoice", timerChoice);
+        long[] savedLaps = new long[laps.size()];
+        for (int i = 0; i < laps.size(); i++) savedLaps[i] = laps.get(i);
+        out.putLongArray("laps", savedLaps);
+        super.onSaveInstanceState(out);
+    }
 
     // ---- tabs --------------------------------------------------------------------
 
@@ -163,9 +190,9 @@ public class ClockActivity extends Activity {
         TextView t = new TextView(this);
         t.setText(s);
         t.setTextColor(text);
-        t.setTextSize(TypedValue.COMPLEX_UNIT_SP, 34);
+        t.setTextSize(TypedValue.COMPLEX_UNIT_SP, compact ? 24 : 34);
         t.setTypeface(Typeface.create("sans-serif-thin", Typeface.NORMAL));
-        t.setPadding((int) (22 * d), (int) (12 * d), 0, (int) (8 * d));
+        t.setPadding((int) (22 * d), (int) ((compact ? 4 : 12) * d), 0, (int) ((compact ? 4 : 8) * d));
         head.addView(t, new LinearLayout.LayoutParams(0, -2, 1f));
         if (right != null) head.addView(right, new LinearLayout.LayoutParams((int) (56 * d), (int) (56 * d)));
         return head;
@@ -290,8 +317,10 @@ public class ClockActivity extends Activity {
         label.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_CAP_SENTENCES);
         box.addView(label);
 
+        ScrollView alarmFields = new ScrollView(this);
+        alarmFields.addView(box);
         AlertDialog.Builder b = new AlertDialog.Builder(this, night ? AlertDialog.THEME_DEVICE_DEFAULT_DARK : AlertDialog.THEME_DEVICE_DEFAULT_LIGHT)
-                .setView(box)
+                .setView(alarmFields)
                 .setNegativeButton("Cancelar", null)
                 .setPositiveButton("Guardar", (dlg, w) -> {
                     a.label = label.getText().toString().trim();
@@ -326,10 +355,10 @@ public class ClockActivity extends Activity {
         col.addView(title("Cronómetro", null));
         swTime = new TextView(this);
         swTime.setTextColor(text);
-        swTime.setTextSize(TypedValue.COMPLEX_UNIT_SP, 64);
+        swTime.setTextSize(TypedValue.COMPLEX_UNIT_SP, compact ? 40 : 64);
         swTime.setTypeface(Typeface.create("sans-serif-thin", Typeface.NORMAL));
         swTime.setGravity(Gravity.CENTER);
-        swTime.setPadding(0, (int) (30 * d), 0, (int) (20 * d));
+        swTime.setPadding(0, (int) ((compact ? 4 : 30) * d), 0, (int) ((compact ? 4 : 20) * d));
         col.addView(swTime);
         LinearLayout btns = new LinearLayout(this);
         btns.setGravity(Gravity.CENTER);
@@ -344,7 +373,7 @@ public class ClockActivity extends Activity {
             else { swStart = SystemClock.elapsedRealtime(); swRunning = true; }
             updateStopwatch();
         });
-        LinearLayout.LayoutParams bp = new LinearLayout.LayoutParams((int) (84 * d), (int) (84 * d));
+        LinearLayout.LayoutParams bp = new LinearLayout.LayoutParams((int) ((compact ? 56 : 84) * d), (int) ((compact ? 56 : 84) * d));
         bp.setMargins((int) (20 * d), 0, (int) (20 * d), 0);
         btns.addView(swLap, bp);
         btns.addView(swGo, bp);
@@ -353,10 +382,13 @@ public class ClockActivity extends Activity {
         lapBox = new LinearLayout(this);
         lapBox.setOrientation(LinearLayout.VERTICAL);
         lapBox.setPadding((int) (28 * d), (int) (16 * d), (int) (28 * d), 0);
-        sv.addView(lapBox);
-        col.addView(sv, new LinearLayout.LayoutParams(-1, 0, 1f));
-        updateStopwatch();
-        return col;
+        if (compact) col.addView(lapBox);
+        else {
+            sv.addView(lapBox);
+            col.addView(sv, new LinearLayout.LayoutParams(-1, 0, 1f));
+        }
+        updateStopwatch(); renderLaps();
+        return scrollWhenCompact(col);
     }
 
     private long elapsed() { return swRunning ? swElapsed + SystemClock.elapsedRealtime() - swStart : swElapsed; }
@@ -396,11 +428,16 @@ public class ClockActivity extends Activity {
         dial.addView(ring, new FrameLayout.LayoutParams(-1, -1));
         timerView = new TextView(this);
         timerView.setTextColor(text);
-        timerView.setTextSize(TypedValue.COMPLEX_UNIT_SP, 44);
+        timerView.setTextSize(TypedValue.COMPLEX_UNIT_SP, compact ? 32 : 44);
         timerView.setTypeface(Typeface.create("sans-serif-thin", Typeface.NORMAL));
         timerView.setGravity(Gravity.CENTER);
         dial.addView(timerView, new FrameLayout.LayoutParams(-1, -1));
-        col.addView(dial, new LinearLayout.LayoutParams((int) (190 * d), (int) (190 * d)));
+        LinearLayout compactControls = new LinearLayout(this);
+        compactControls.setGravity(Gravity.CENTER);
+        if (compact) {
+            compactControls.addView(dial, new LinearLayout.LayoutParams((int) (112 * d), (int) (112 * d)));
+            col.addView(compactControls, new LinearLayout.LayoutParams(-1, -2));
+        } else col.addView(dial, new LinearLayout.LayoutParams((int) (190 * d), (int) (190 * d)));
 
         LinearLayout chips = new LinearLayout(this);
         chips.setGravity(Gravity.CENTER);
@@ -426,9 +463,21 @@ public class ClockActivity extends Activity {
             else Alarms.startTimer(this, timerChoice);
             updateTimer();
         });
-        col.addView(timerGo, new LinearLayout.LayoutParams((int) (76 * d), (int) (76 * d)));
+        LinearLayout.LayoutParams goParams = new LinearLayout.LayoutParams((int) (76 * d), (int) (76 * d));
+        if (compact) {
+            goParams.leftMargin = (int) (20 * d);
+            compactControls.addView(timerGo, goParams);
+        } else col.addView(timerGo, goParams);
         updateTimer();
-        return col;
+        return scrollWhenCompact(col);
+    }
+
+    private View scrollWhenCompact(View content) {
+        if (!compact) return content;
+        ScrollView scroll = new ScrollView(this);
+        scroll.setFillViewport(true);
+        scroll.addView(content, new ScrollView.LayoutParams(-1, -2));
+        return scroll;
     }
 
     private void updateTimerButton() { if (timerGo != null) updateTimer(); }

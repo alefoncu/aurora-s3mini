@@ -182,13 +182,19 @@ public class MusicActivity extends Activity {
         TextView v = label(value, 23, false); v.setGravity(Gravity.CENTER); v.setTextColor(accent); v.setBackground(glass(20));
         v.setContentDescription(description); spring(v); v.setOnClickListener(w -> action.run()); return v;
     }
+    private boolean compact() { return getResources().getConfiguration().screenHeightDp < 400; }
     private void build() {
+        seeking = false;
         artRequest++; shownArt = null;
         miniTitle = miniPlay = bigPlay = shuffle = repeat = elapsed = total = songTitle = songArtist = null;
         progress = null; art = null; artNote = null;
         FrameLayout root = new FrameLayout(this);
         View scrim = new View(this); scrim.setBackgroundColor(night ? 0x9914123A : 0x66F6F5FF); root.addView(scrim, new FrameLayout.LayoutParams(-1, -1));
-        col = new LinearLayout(this); col.setOrientation(LinearLayout.VERTICAL); col.setPadding(dp(12), dp(24), dp(12), dp(8)); root.addView(col, new FrameLayout.LayoutParams(-1, -1));
+        col = new LinearLayout(this); col.setOrientation(LinearLayout.VERTICAL); col.setPadding(dp(12), dp(android.os.Build.VERSION.SDK_INT >= 24 && isInMultiWindowMode() ? 0 : 24), dp(12), dp(8)); root.addView(col, new FrameLayout.LayoutParams(-1, -1));
+        root.setOnApplyWindowInsetsListener((v, insets) -> {
+            col.setPadding(col.getPaddingLeft(), insets.getSystemWindowInsetTop(), col.getPaddingRight(), col.getPaddingBottom());
+            return insets;
+        });
         LinearLayout header = new LinearLayout(this); header.setGravity(Gravity.CENTER_VERTICAL);
         if (now || group != null) { TextView back = button("‹", "Volver a la biblioteca", () -> { if (now) now = false; else group = null; build(); }); header.addView(back, new LinearLayout.LayoutParams(dp(44), dp(44))); }
         heading = label(now ? "Reproduciendo" : group != null ? group : new String[]{"Canciones", "Artistas", "Álbumes"}[tab], now ? 26 : 32, true);
@@ -196,7 +202,11 @@ public class MusicActivity extends Activity {
         col.addView(header);
         content = new LinearLayout(this); content.setOrientation(LinearLayout.VERTICAL); col.addView(content, new LinearLayout.LayoutParams(-1, 0, 1));
         if (now) buildNow(); else buildLibrary();
-        buildMini(); buildTabs(); setContentView(root); refresh();
+        if (!now || !compact()) {
+            if (!compact() || PLAYER.current != null) buildMini();
+            buildTabs();
+        }
+        setContentView(root); refresh();
     }
     private void buildMini() {
         LinearLayout mini = new LinearLayout(this); mini.setGravity(Gravity.CENTER_VERTICAL); mini.setPadding(dp(10), dp(4), dp(4), dp(4)); mini.setBackground(glass(18));
@@ -251,12 +261,19 @@ public class MusicActivity extends Activity {
         });
         list.setOnItemClickListener((parent, view, position, id) -> {
             Object row = rows.get(position);
-            if (row instanceof Song) { PLAYER.queue.clear(); for (Object item : rows) if (item instanceof Song) PLAYER.queue.add((Song) item); PLAYER.play(this, (Song) row); }
+            if (row instanceof Song) { PLAYER.queue.clear(); for (Object item : rows) if (item instanceof Song) PLAYER.queue.add((Song) item); PLAYER.play(this, (Song) row); if (compact() && miniPlay == null) build(); }
             else { group = (String) row; build(); }
         });
         content.addView(list, new LinearLayout.LayoutParams(-1, -1));
     }
     private void buildNow() {
+        if (compact()) {
+            LinearLayout host = content;
+            ScrollView scroll = new ScrollView(this); scroll.setFillViewport(true);
+            content = new LinearLayout(this); content.setOrientation(LinearLayout.VERTICAL);
+            scroll.addView(content, new ScrollView.LayoutParams(-1, -2));
+            host.addView(scroll, new LinearLayout.LayoutParams(-1, -1));
+        }
         FrameLayout cover = new FrameLayout(this) {
             @Override protected void onMeasure(int widthSpec, int heightSpec) {
                 int side = Math.min(View.MeasureSpec.getSize(widthSpec), View.MeasureSpec.getSize(heightSpec));
@@ -266,11 +283,11 @@ public class MusicActivity extends Activity {
         GradientDrawable gradient = new GradientDrawable(GradientDrawable.Orientation.TL_BR, new int[]{0xFFFF82B8, 0xFFE93994, 0xFF8B48C7}); gradient.setCornerRadius(dp(24)); cover.setBackground(gradient); cover.setClipToOutline(true);
         art = new ImageView(this); art.setScaleType(ImageView.ScaleType.CENTER_CROP); cover.addView(art, new FrameLayout.LayoutParams(-1, -1));
         artNote = label("♫", 86, true); artNote.setGravity(Gravity.CENTER); artNote.setTextColor(Color.WHITE); cover.addView(artNote, new FrameLayout.LayoutParams(-1, -1));
-        LinearLayout.LayoutParams artwork = new LinearLayout.LayoutParams(-1, 0, 1); artwork.gravity = Gravity.CENTER_HORIZONTAL; artwork.setMargins(dp(26), dp(6), dp(26), dp(10)); content.addView(cover, artwork);
+        LinearLayout.LayoutParams artwork = new LinearLayout.LayoutParams(-1, compact() ? dp(80) : 0, compact() ? 0 : 1); artwork.gravity = Gravity.CENTER_HORIZONTAL; artwork.setMargins(dp(26), dp(6), dp(26), dp(10)); content.addView(cover, artwork);
         songTitle = label("Elige una canción", 26, true); songTitle.setSingleLine(true); songTitle.setEllipsize(android.text.TextUtils.TruncateAt.END); content.addView(songTitle);
         songArtist = label("Tu biblioteca, a tu ritmo", 17, false); songArtist.setSingleLine(true); songArtist.setEllipsize(android.text.TextUtils.TruncateAt.END); songArtist.setTextColor(accent); content.addView(songArtist);
         progress = new SeekBar(this); progress.setProgressTintList(android.content.res.ColorStateList.valueOf(accent)); progress.setThumbTintList(android.content.res.ColorStateList.valueOf(accent));
-        content.addView(progress, new LinearLayout.LayoutParams(-1, dp(30)));
+        content.addView(progress, new LinearLayout.LayoutParams(-1, dp(48)));
         progress.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
             public void onStartTrackingTouch(SeekBar bar) { seeking = true; }
             public void onProgressChanged(SeekBar bar, int value, boolean user) { if (user) elapsed.setText(time(value)); }
@@ -285,7 +302,7 @@ public class MusicActivity extends Activity {
         LinearLayout modes = new LinearLayout(this);
         shuffle = button("Aleatorio", "Cambiar reproducción aleatoria", () -> { PLAYER.shuffle = !PLAYER.shuffle; refresh(); }); shuffle.setTextSize(13);
         repeat = button("Repetir", "Cambiar modo de repetición", () -> { PLAYER.repeat = (PLAYER.repeat + 1) % 3; refresh(); }); repeat.setTextSize(13);
-        modes.addView(shuffle, new LinearLayout.LayoutParams(0, dp(40), 1)); modes.addView(repeat, new LinearLayout.LayoutParams(0, dp(40), 1)); content.addView(modes);
+        modes.addView(shuffle, new LinearLayout.LayoutParams(0, dp(48), 1)); modes.addView(repeat, new LinearLayout.LayoutParams(0, dp(48), 1)); content.addView(modes);
     }
     private static String time(long ms) { long sec = Math.max(0, ms / 1000); return String.format(Locale.US, "%d:%02d", sec / 60, sec % 60); }
     private void refresh() {
@@ -374,7 +391,11 @@ public class MusicActivity extends Activity {
         if (PLAYER.owner.get() == this) { PLAYER.owner.clear(); if (!isChangingConfigurations()) { PLAYER.releasePlayer(); PLAYER.abandon(); } }
         super.onDestroy();
     }
-    @Override public void onConfigurationChanged(Configuration c) { super.onConfigurationChanged(c); recreate(); }
+    @Override public void onConfigurationChanged(Configuration c) {
+        super.onConfigurationChanged(c);
+        boolean dark = (c.uiMode & Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES;
+        if (dark != night) recreate(); else build();
+    }
     @Override public void onBackPressed() { if (now) { now = false; build(); } else if (group != null) { group = null; build(); } else super.onBackPressed(); }
     /** Aurora exit transition, copied from CalcActivity. */
     @Override public void finish() {

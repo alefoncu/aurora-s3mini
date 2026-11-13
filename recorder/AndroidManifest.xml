@@ -6,7 +6,7 @@
     <application android:icon="@drawable/ic_launcher" android:label="Grabadora">
         <activity android:resizeableActivity="true" android:name=".RecorderActivity" android:label="Grabadora" android:screenOrientation="portrait"
                   android:theme="@android:style/Theme.Holo.Wallpaper.NoTitleBar"
-                  android:configChanges="orientation|keyboardHidden|screenSize|uiMode" android:exported="true">
+                  android:configChanges="orientation|keyboardHidden|screenSize|screenLayout|smallestScreenSize|uiMode" android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN"/>
                 <category android:name="android.intent.category.LAUNCHER"/>

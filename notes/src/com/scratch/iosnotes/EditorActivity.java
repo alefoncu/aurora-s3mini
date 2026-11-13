@@ -45,6 +45,9 @@ public class EditorActivity extends NotesBase {
         FrameLayout root = root();
         LinearLayout column = new LinearLayout(this); column.setOrientation(LinearLayout.VERTICAL);
         column.setPadding(0, statusInset(), 0, 0);
+        column.setOnApplyWindowInsetsListener((v, insets) -> {
+            column.setPadding(0, insets.getSystemWindowInsetTop(), 0, 0); return insets;
+        });
         LinearLayout toolbar = new LinearLayout(this); toolbar.setGravity(Gravity.CENTER_VERTICAL);
         toolbar.setPadding(dp(12), dp(10), dp(12), 0);
         TextView back = pill("‹ Notas"); back.setOnClickListener(v -> finish()); toolbar.addView(back);

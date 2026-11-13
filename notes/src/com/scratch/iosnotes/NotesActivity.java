@@ -40,6 +40,9 @@ public class NotesActivity extends NotesBase {
         FrameLayout root = root();
         ScrollView scroll = new ScrollView(this); scroll.setFillViewport(true); scroll.setClipToPadding(true);
         scroll.setPadding(0, statusInset(), 0, 0);
+        scroll.setOnApplyWindowInsetsListener((v, insets) -> {
+            scroll.setPadding(0, insets.getSystemWindowInsetTop(), 0, 0); return insets;
+        });
         LinearLayout column = new LinearLayout(this); column.setOrientation(LinearLayout.VERTICAL);
         column.setPadding(dp(20), dp(20), dp(20), dp(100));
         column.addView(label("Notas", 34, "sans-serif-thin"));
@@ -63,15 +66,24 @@ public class NotesActivity extends NotesBase {
             public void onTextChanged(CharSequence s, int start, int before, int count) { render(false); }
             public void afterTextChanged(Editable s) { }
         });
+        if (state != null) {
+            search.setText(state.getString("query", ""));
+            scroll.post(() -> scroll.scrollTo(0, state.getInt("scroll_y", 0)));
+        }
     }
-    @Override protected void onResume() {
-        super.onResume();
+    @Override protected void onSaveInstanceState(Bundle state) {
+        state.putString("query", search.getText().toString());
+        state.putInt("scroll_y", ((ScrollView) cards.getParent().getParent()).getScrollY());
+        super.onSaveInstanceState(state);
+    }
+    @Override protected void onStart() {
+        super.onStart();
         if (!observing) { getContentResolver().registerContentObserver(NotesProvider.CONTENT_URI, true, observer); observing = true; }
         reload();
     }
-    @Override protected void onPause() {
+    @Override protected void onStop() {
         if (observing) { getContentResolver().unregisterContentObserver(observer); observing = false; }
-        super.onPause();
+        super.onStop();
     }
     private void reload() {
         List<Note> loaded = new ArrayList<>();

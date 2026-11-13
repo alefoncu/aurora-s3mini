@@ -1,4 +1,4 @@
-# Wheelie Ride 6.15 · macOS
+# Wheelie Ride 6.16 · macOS
 
 Juego independiente inspirado en la base de Wheelie Challenge: conducción lateral, caballitos, equilibrio, saltos, vehículos y piloto personalizables. Swift/AppKit nativo, sin navegador, red ni descargas en tiempo de ejecución.
 
@@ -22,7 +22,7 @@ Desde la versión 4 hay una geometría en metros compartida por la física, el v
 
 Es un modelo de conducción arcade lateral: las ruedas tienen recorrido vertical y el chasis tiene cabeceo; no modela la dirección lateral, deformación completa del neumático ni una moto tridimensional. Los controles de peso incluyen amortiguación para que los caballitos puedan corregirse.
 
-## Esta versión (6.15)
+## Esta versión (6.16)
 
 - **Diez vehículos:** Street 125, Enduro 250, Sport 600, BMX, Scooter 80, Scrambler 400, Trial 200, Hyper R 1000, Cruiser 750 y Volt E-8, con geometría, velocidad, aceleración y respuesta distintas.
 - **Bifurcaciones:** en el modo infinito y en las rutas largas la carretera se parte cada ~1.100 m; eliges con la tecla **C** entre el camino normal y el alto.
@@ -338,6 +338,16 @@ Rutas con bifurcaciones y caída con colisiones y cámara.
 - **Caída con obstáculos:** mientras cae, el piloto choca también con los conos, barriles y troncos cercanos (círculos apoyados en el suelo), además de con la moto.
 - **Cámara en la caída:** una vez que el piloto se aleja más de 3 m de la moto, la cámara apunta al punto medio entre ambos (y vuelve al volver a empezar), para que no se pierda fuera de la pantalla.
 - Pendiente de revisar jugando: el equilibrio del camino alto (3,2 m y rampas cada 42 m) y la lectura de las bifurcaciones a ventanas estrechas.
+
+### Actualización 6.16
+
+La caída del piloto, rehecha a partir de un diagnóstico en primer plano (`--ragdoll <carpeta>` guarda tiras de tres lanzamientos del piloto solo, una imagen cada 0,12 s).
+
+- **Qué estaba mal:** el piloto volaba como una estatua (todas sus partículas salían con la misma velocidad y mantenía la postura sentada), caía plano como una tabla y se paraba en seco (rebote casi nulo y fricción constante), y quedaba tendido recto y simétrico.
+- **Manos y pies enganchados:** al salir, las manos y los pies conservan solo parte de la velocidad (como si siguieran un instante agarrados al manillar y a las estriberas), así que el torso se adelanta, el cuerpo gira y los miembros se sacuden. Una pequeña asimetría determinista evita que los dos lados se muevan igual.
+- **Giro y suelo:** el giro de la moto se hereda casi entero (hasta ±7 rad/s) y permite volteretas; el cuerpo rebota (restitución 0,3 en impactos fuertes), desliza con menos fricción mientras va rápido (0,52) y agarra al casi pararse (0,9), de modo que rueda, se encoge y se asienta.
+- **Rodillas y codos:** no se doblan hacia atrás. El límite se aplica **solo al dibujar** (`displayPose`): la simulación va libre. Forzar la articulación dentro de la física inyectaba energía y lanzaba al piloto hasta 30 m hacia atrás (se midió en 480 casos); sin ello, todos los vehículos y rutas avanzan al menos 3,75 m.
+- Pendiente de revisar jugando: que el aspecto de cada caída (volteo, deslizamiento, golpe contra obstáculos) te parezca natural en las situaciones reales de juego.
 
 ## Estado final y límites conocidos
 

@@ -195,8 +195,8 @@ extension RideView {
         RideProfile.section("moto y piloto") { drawBike(yaw:bike.spinYaw,alpha:1) }
         if ragdoll != nil {
             NSGraphicsContext.saveGraphicsState(); let t=NSAffineTransform(); t.translateX(by:art.focusX-camX*ppm,yBy:art.groundY+camY); t.concat()
-            if let companion=passengerRagdoll { art.drawRider(companion.pose,units:ppm,kind:bike.kind,passenger:true,detached:true) }
-            if let ragdoll { art.drawRider(ragdoll.pose,units:ppm,kind:bike.kind,detached:true) }
+            if let companion=passengerRagdoll { art.drawRider(companion.displayPose,units:ppm,kind:bike.kind,passenger:true,detached:true) }
+            if let ragdoll { art.drawRider(ragdoll.displayPose,units:ppm,kind:bike.kind,detached:true) }
             NSGraphicsContext.restoreGraphicsState()
         }
         RideProfile.section("lluvia") { art.weather(intensity:weather.rain,time:animationTime) }

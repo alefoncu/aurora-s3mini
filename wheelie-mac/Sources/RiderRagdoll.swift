@@ -50,6 +50,16 @@ final class RiderRagdoll {
             return cr>=0 ? 1 : -1
         }
         hinges=[(0,5,6,side(0,5,6)),(0,7,8,side(0,7,8)),(1,3,4,side(1,3,4))]
+        // Hands and feet are still caught on the bars and pegs when the body is already leaving: they keep only part of the speed,
+        // so the torso is yanked past them and the limbs swing instead of travelling as a frozen seated pose.
+        let flailSeed=sin(origin.x*12.9898+velocity.x*78.233+velocity.y*37.719)
+        let flail=flailSeed-floor(flailSeed)            // 0..<1, deterministic
+        let snagged:[Int:Double]=[3:0.62,4:0.45,5:0.70,6:0.50,7:0.70,8:0.50]
+        for (i,keep) in snagged {
+            let own=particles[i].velocity-velocity
+            let sideways=(i%2 == 0 ? 1.0 : -1.0)*(flail-0.5)*3.2
+            particles[i].velocity=velocity*keep+own+RideVector(-sideways*0.4,sideways)
+        }
         let pairs=[(0,1),(1,2),(1,3),(3,4),(0,5),(5,6),(0,7),(7,8),(0,2)]
         bones=pairs.map { a,b in
             Bone(a:a,b:b,length:Self.length(local[b]-local[a]),stiffness:(a==0 && b==2) ? 0.7 : 1)
@@ -58,6 +68,24 @@ final class RiderRagdoll {
 
     var pose:RiderPose {
         let p=particles.map(\.position)
+        return RiderPose(hip:p[0],shoulder:p[1],neck:p[1]+(p[2]-p[1])*0.275,head:p[2],
+            elbow:p[3],knee:p[5],hand:p[4],foot:p[6],farKnee:p[7],farFoot:p[8],
+            upperArmLength:template.upperArmLength,forearmLength:template.forearmLength,
+            thighLength:template.thighLength,shinLength:template.shinLength,torsoLength:template.torsoLength)
+    }
+
+    /// The pose to draw: the physical pose with knees and elbows folded the right way. The simulation itself stays free (forcing a hinge
+    /// inside it injects energy), so only the picture is corrected, by mirroring a backwards joint across the line between its neighbours.
+    var displayPose:RiderPose {
+        var p=particles.map(\.position)
+        for (a,m,c,sign) in hinges {
+            let ab=p[m]-p[a],bc=p[c]-p[m],cr=ab.x*bc.y-ab.y*bc.x
+            guard cr*sign < -1e-6 else { continue }
+            let ac=p[c]-p[a],l=Self.length(ac)
+            guard l>1e-9 else { continue }
+            let n=ac/l,projection=p[a]+n*Self.dot(p[m]-p[a],n)
+            p[m]=projection*2-p[m]
+        }
         return RiderPose(hip:p[0],shoulder:p[1],neck:p[1]+(p[2]-p[1])*0.275,head:p[2],
             elbow:p[3],knee:p[5],hand:p[4],foot:p[6],farKnee:p[7],farFoot:p[8],
             upperArmLength:template.upperArmLength,forearmLength:template.forearmLength,
@@ -105,18 +133,6 @@ final class RiderRagdoll {
                 }
                 if !inside { clear[i]=true }
             }
-            // A joint bent the wrong way is mirrored across the line between its neighbours (distances are preserved).
-            for (a,m,c,sign) in hinges {
-                let pa=particles[a].position,pm=particles[m].position,pc=particles[c].position
-                let ab=pm-pa,bc=pc-pm,cr=ab.x*bc.y-ab.y*bc.x
-                guard cr*sign < -1e-5 else { continue }
-                let ac=pc-pa,l=Self.length(ac)
-                guard l>1e-9 else { continue }
-                let n=ac/l,projection=pa+n*Self.dot(pm-pa,n)
-                particles[m].position=projection*2-pm
-                let v=particles[m].velocity,vn=n*Self.dot(v,n)
-                particles[m].velocity=vn*2-v
-            }
             for i in particles.indices {
                 let p=particles[i].position
                 let slope=BikePhysics.slope(p.x,route:route,lane:lane)
@@ -137,11 +153,11 @@ final class RiderRagdoll {
                 let tangent=RideVector(normal.y,-normal.x)
                 let originalNormal=Self.dot(incoming[i],normal)
                 let correctedNormal=Self.dot(v,normal)
-                let bounce=originalNormal < -1.2 ? -originalNormal*0.06 : 0
+                let bounce=originalNormal < -1.5 ? min(4.5,-originalNormal*0.30) : 0
                 // Remove inward contact velocity and apply a small impact bounce.
                 v += normal*(max(bounce,correctedNormal)-correctedNormal)
                 var parallel=Self.dot(v,tangent)
-                let friction=0.85*9.81*h
+                let friction=(abs(Self.dot(v,tangent))>1.6 ? 0.52 : 0.9)*9.81*h   // slides while fast, grips when nearly stopped
                 parallel=parallel>0 ? max(0,parallel-friction) : min(0,parallel+friction)
                 v=normal*Self.dot(v,normal)+tangent*parallel
             }

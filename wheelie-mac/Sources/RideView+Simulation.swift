@@ -52,7 +52,7 @@ extension RideView {
                 let pose=RiderRig.solve(vehicle:bike.kind.rig,lean:riderLean,lift:riderLift,pedalPhase:pedalPhase,cycling:bike.kind == .bmx)
                 // The rider leaves with what they were carrying (never less than the bike's own speed), and only a part of the bike's spin.
                 let velocity=RideVector(max(0,min(38,max(riderVelocity.x,previousSpeed*0.7))),max(-6,min(4,riderVelocity.y)))
-                let spin=max(-6,min(6,bike.angularVelocity))*0.5
+                let spin=max(-7,min(7,bike.angularVelocity*0.8))
                 ragdoll=RiderRagdoll(pose:pose,origin:bike.chassisPosition,pitch:bike.pitch,velocity:velocity,angularVelocity:spin,route:bike.route)
                 if art.passenger && bike.kind.supportsPassenger {
                     let companion=RiderRig.solve(vehicle:bike.kind.rig,lean:riderLean*0.3,lift:riderLift,passenger:true)

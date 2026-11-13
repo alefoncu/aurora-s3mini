@@ -76,6 +76,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSToolbarDelegate, NST
         if let i=CommandLine.arguments.firstIndex(of:"--snapshot"),i+1<CommandLine.arguments.count { snapshots(to:CommandLine.arguments[i+1]) }
         if let i=CommandLine.arguments.firstIndex(of:"--responsive"),i+1<CommandLine.arguments.count { responsiveSnapshots(to:CommandLine.arguments[i+1]) }
         if let i=CommandLine.arguments.firstIndex(of:"--crash"),i+1<CommandLine.arguments.count { crashSequences(to:CommandLine.arguments[i+1]) }
+        if let i=CommandLine.arguments.firstIndex(of:"--ragdoll"),i+1<CommandLine.arguments.count { ragdollSheets(to:CommandLine.arguments[i+1]) }
         if CommandLine.arguments.contains("--bench") { runBenchmark() }
         if CommandLine.arguments.contains("--fps") { measureLiveFrameRate() }
         if let i=CommandLine.arguments.firstIndex(of:"--screenshot"),i+1<CommandLine.arguments.count { windowScreenshots(to:CommandLine.arguments[i+1]) }
@@ -167,6 +168,34 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSToolbarDelegate, NST
             print("    "+r.sections.map { String(format:"%@ %.1f",$0.0 as NSString,$0.1) }.joined(separator:" · "))
         }
         RideProfile.enabled=false
+        NSApp.terminate(nil)
+    }
+    /// Developer aid: the rider's fall alone, in close-up and without a background: several throws, one panel every 0.12 s.
+    func ragdollSheets(to directory:String) {
+        try? FileManager.default.createDirectory(atPath:directory,withIntermediateDirectories:true)
+        let scenarios:[(String,BikeKind,RideVector,Double)]=[("forward-12",.sport,RideVector(12,1.5),2.0),("backward-spin",.sport,RideVector(8,3),-5.0),("slow-tipover",.commuter,RideVector(3,0.5),1.5)]
+        let cols=6,rows=3,cw=300,ch=220,u=95.0
+        for (name,kind,velocity,spin) in scenarios {
+            let pose=RiderRig.solve(vehicle:kind.rig,lean:0.2)
+            let doll=RiderRagdoll(pose:pose,origin:RideVector(0,0.6),pitch:0,velocity:velocity,angularVelocity:spin,route:0)
+            let sheet=NSImage(size:NSSize(width:cw*cols,height:ch*rows)); sheet.lockFocusFlipped(true)
+            NSColor(hex:0xE9EDF2).setFill(); NSRect(x:0,y:0,width:cw*cols,height:ch*rows).fill()
+            for k in 0..<(cols*rows) {
+                let ox=Double((k%cols)*cw),oy=Double((k/cols)*ch)
+                NSGraphicsContext.saveGraphicsState()
+                NSBezierPath(rect:NSRect(x:ox,y:oy,width:Double(cw),height:Double(ch))).addClip()
+                let hip=doll.pose.hip
+                // The panel follows the rider horizontally; the ground is drawn as a line.
+                let t=NSAffineTransform(); t.translateX(by:ox+Double(cw)/2-hip.x*u,yBy:oy+Double(ch)-30); t.concat()
+                NSColor(hex:0x6B5B4A).setStroke(); let ground=NSBezierPath(); ground.move(to:NSPoint(x:hip.x*u-200,y:-BikePhysics.ground(hip.x-2,route:0)*u)); ground.line(to:NSPoint(x:hip.x*u+200,y:-BikePhysics.ground(hip.x+2,route:0)*u)); ground.lineWidth=2; ground.stroke()
+                game.art.drawRider(doll.displayPose,units:u,kind:kind,detached:true)
+                NSGraphicsContext.restoreGraphicsState()
+                NSColor.black.withAlphaComponent(0.5).setFill(); NSString(string:String(format:"%.2f s",Double(k)*0.12)).draw(at:NSPoint(x:ox+6,y:oy+4),withAttributes:[.font:NSFont.systemFont(ofSize:11)])
+                for _ in 0..<14 { doll.update(1.0/120*1.0) }   // 0.12 s of simulation
+            }
+            sheet.unlockFocus()
+            if let tiff=sheet.tiffRepresentation,let rep=NSBitmapImageRep(data:tiff) { try? rep.representation(using:.png,properties:[:])?.write(to:URL(fileURLWithPath:directory+"/"+name+".png")) }
+        }
         NSApp.terminate(nil)
     }
     /// Developer aid: filmstrips of the rider's fall in three kinds of crash, one PNG each.

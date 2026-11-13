@@ -48,8 +48,8 @@ import Foundation
         let thrown=RiderRagdoll(pose:local,origin:origin,pitch:0,velocity:velocity,angularVelocity:0,route:0)
         precondition(distance(thrown.pose.hip,origin+local.hip)<1e-10,"Initial local/world conversion")
         let start=thrown.pose.hip
-        thrown.update(1/120)
-        precondition(thrown.pose.hip.x>start.x && thrown.pose.hip.y<start.y,"Initial velocity and gravity")
+        for _ in 0..<12 { thrown.update(1/120) }   // hands and feet are snagged for an instant, so measure over 0.1 s
+        precondition(thrown.pose.hip.x>start.x+0.15 && thrown.pose.hip.y<start.y,"Initial velocity and gravity")
         // A solid bike: a rider thrown at it never ends up inside it, and joints keep their one-way hinge.
         do {
             let pose=RiderRig.solve(vehicle:BikeKind.sport.rig,lean:0)

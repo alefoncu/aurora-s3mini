@@ -34,7 +34,7 @@ extension RideRenderer {
         let brakeLine=NSBezierPath(); brakeLine.move(to:grip)
         brakeLine.curve(to:caliper,controlPoint1:NSPoint(x:grip.x+10,y:grip.y+18),controlPoint2:NSPoint(x:frontAxle.x-17,y:frontAxle.y-26))
         brakeLine.lineWidth=0.65; NSColor(hex:0x242C33).setStroke(); brakeLine.stroke()
-        if kind != .scooter { vmEngine(kind:kind); vmExhaust(kind:kind) }
+        if kind != .scooter && kind != .electric { vmEngine(kind:kind); vmExhaust(kind:kind) }
         switch kind {
         case .commuter: vmStreetBody(rig:rig)
         case .motocross: vmEnduroBody(rig:rig)
@@ -43,6 +43,8 @@ extension RideRenderer {
         case .scooter: vmScooterBody(rig:rig)
         case .scrambler: vmScramblerBody(rig:rig)
         case .trials: vmTrialsBody(rig:rig)
+        case .cruiser: vmCruiserBody(rig:rig)
+        case .electric: vmElectricBody(rig:rig)
         case .bmx: break
         }
         vmHandlebar(fork:fork,grip:grip,kind:kind)
@@ -214,6 +216,27 @@ extension RideRenderer {
         line(93,-57,93,-51,0.7,NSColor.white.withAlphaComponent(0.8))
         vmMetalLink(NSPoint(x:79,y:-63),NSPoint(x:74,y:-81),width:1.2,dark:false)
         vmRounded(NSRect(x:69,y:-85,width:11,height:6),radius:2.6,colors:[NSColor(hex:0x889CA5),NSColor(hex:0x243740)],angle:90)
+    }
+    /// Cruiser: the street body plus a rear saddlebag, a chrome backrest and a deep fender.
+    private func vmCruiserBody(rig:VehicleRig) {
+        vmStreetBody(rig:rig)
+        let bag=NSBezierPath(roundedRect:NSRect(x:-12,y:-41,width:34,height:19),xRadius:6,yRadius:6)
+        vmFill(bag,colors:[NSColor(hex:0x8A5E3C),NSColor(hex:0x4A2F1C)],angle:80,outline:0.7)
+        for x in [-3.0,18.0] { line(x,-41,x,-22,0.6,NSColor(hex:0xC8A070,alpha:0.7)) }
+        vmRounded(NSRect(x:3,y:-37,width:8,height:5),radius:1.6,colors:[NSColor(hex:0xD8C9A6),NSColor(hex:0x8E7B55)])
+        vmMetalLink(NSPoint(x:-10,y:-42),NSPoint(x:-11,y:-66),width:1.5,dark:false)
+        vmRounded(NSRect(x:-17,y:-72,width:12,height:7),radius:3,colors:[NSColor(hex:0x6B4A33),NSColor(hex:0x33200F)])
+        vmMetalLink(NSPoint(x:-3,y:-47),NSPoint(x:-10,y:-60),width:1.1,dark:false)
+    }
+    /// Electric bike: a minimal frame (borrowed from the trials bike) with a battery pack and hub motor instead of an engine.
+    private func vmElectricBody(rig:VehicleRig) {
+        vmTrialsBody(rig:rig)
+        let pack=NSBezierPath(roundedRect:NSRect(x:33,y:-37,width:32,height:26),xRadius:5,yRadius:5)
+        vmFill(pack,colors:[NSColor(hex:0x4A5560),NSColor(hex:0x1E262D)],angle:80,outline:0.8)
+        for i in 0..<4 { line(38+Double(i)*6.5,-33,38+Double(i)*6.5,-15,0.8,NSColor(hex:0x6FE08A,alpha:0.55)) }
+        vmRounded(NSRect(x:36,y:-35,width:10,height:3),radius:1,colors:[NSColor(hex:0x6FE08A),NSColor(hex:0x2E9E52)])
+        text("E",58,-30,8,NSColor(hex:0x6FE08A),.heavy,center:true)
+        vmMetalLink(NSPoint(x:12,y:-9),NSPoint(x:36,y:-18),width:3.2,dark:true)
     }
     private func vmEnduroBody(rig:VehicleRig) {
         let shroud=NSBezierPath();shroud.move(to:NSPoint(x:39,y:-54));shroud.curve(to:NSPoint(x:66,y:-68),controlPoint1:NSPoint(x:44,y:-62),controlPoint2:NSPoint(x:57,y:-69));shroud.line(to:NSPoint(x:79,y:-60));shroud.line(to:NSPoint(x:69,y:-34));shroud.curve(to:NSPoint(x:47,y:-32),controlPoint1:NSPoint(x:60,y:-28),controlPoint2:NSPoint(x:52,y:-31));shroud.close()

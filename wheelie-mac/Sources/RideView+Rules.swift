@@ -8,6 +8,7 @@ extension RideView {
         report=RunReport(); reported=false; runNotes.removeAll(); riderHandsOff=0; riderSuperman=0; supermanTime=0; lastSupermanTime=0; airborneWas=false
         tutorial=RideTutorial(); tutorialToast=""; tutorialToastAge=99; lapTimes.removeAll(); lapStart=0
         toasts.removeAll(); toastedIDs.removeAll(); toastClock=0; lastBanked=0; lastMultiplier=1
+        weather=WeatherState(); lastWeatherTime=0; bike.wetness=0
     }
     /// One rival in a duel, three on the circuit (around the chosen level), each with its own vehicle and seed.
     func startRival() {
@@ -22,8 +23,18 @@ extension RideView {
         }
         rivalFinishTimes=Array(repeating:nil,count:rivalRuns.count)
     }
+    /// Weather at the player's place in the course; the city keeps its steady rain even when dynamic weather is off.
+    func updateWeather() {
+        let lapX=BikePhysics.circuit || bike.endless ? bike.x.truncatingRemainder(dividingBy:1200) : bike.x
+        if weatherOn { weather=RideWeather.state(route:bike.route,x:lapX,time:elapsed,seed:weatherSeed) }
+        else { weather=WeatherState(); if bike.route == 4 { weather.rain=1 } }
+        bike.wetness=weather.wetness
+        if weather.storm { for _ in 0..<RideWeather.thunderCount(from:lastWeatherTime,to:elapsed,seed:weatherSeed) { audio.play(.thunder) } }
+        lastWeatherTime=elapsed
+    }
     func updateRival(_ dt:Double) {
         for (i,r) in rivalRuns.enumerated() {
+            r.bike.wetness=weatherOn ? RideWeather.state(route:bike.route,x:r.bike.x,time:elapsed,seed:weatherSeed).wetness : (bike.route == 4 ? 1 : 0)
             r.update(dt)
             if r.finished && rivalFinishTimes[i] == nil { rivalFinishTimes[i]=elapsed }
         }

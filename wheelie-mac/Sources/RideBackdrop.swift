@@ -13,6 +13,7 @@ final class RideBackdrop {
     private var photoNormal: CGImage?, photoMirrored: CGImage?
     private var strips: [(layers: [CALayer], width: Double, factor: Double)] = []
     private var mountains: [(layer: CALayer, period: Double, factor: Double)] = []
+    private var fogLayer: CALayer?
     static let tileWidth = 1880.0
 
     init(art: RideRenderer) {
@@ -65,7 +66,7 @@ final class RideBackdrop {
         guard route != self.route || night != self.night || h != self.height || backing != self.backing else { return }
         self.route = route; self.night = night; self.height = h; self.backing = backing
         CATransaction.begin(); CATransaction.setDisableActions(true)
-        root.sublayers = nil; photoTiles = []; strips = []; mountains = []
+        root.sublayers = nil; photoTiles = []; strips = []; mountains = []; fogLayer = nil
         root.bounds = CGRect(x: 0, y: 0, width: 1280, height: h)
         if h > 700 { root.addSublayer(colorLayer(frame(0, 700, 1280, h - 700), NSColor(hex: RideBackdrop.earthColor(route)))) }
         switch route {
@@ -74,6 +75,9 @@ final class RideBackdrop {
         default: buildPhotos()
         }
         buildVeils()
+        // Fog thickens the distance: a mist-coloured sheet whose opacity follows the weather.
+        let mist = colorLayer(frame(0, 0, 1280, h), NSColor(hex: night ? 0x59627A : 0xD5DCE0)); mist.opacity = Float(lastFog)
+        root.addSublayer(mist); fogLayer = mist
         for layer in root.sublayers ?? [] { layer.contentsScale = backing }
         CATransaction.commit()
         update(camera: lastCamera)
@@ -155,7 +159,11 @@ final class RideBackdrop {
     }
 
     // MARK: Per-frame update
-    private var lastCamera = 0.0
+    private var lastCamera = 0.0, lastFog = 0.0
+    func setFog(_ opacity: Double) {
+        lastFog = max(0, min(1, opacity.isFinite ? opacity : 0))
+        CATransaction.begin(); CATransaction.setDisableActions(true); fogLayer?.opacity = Float(lastFog); CATransaction.commit()
+    }
     /// Slide the layers for a camera position in backdrop pixels (metres x 108).
     func update(camera: Double) {
         lastCamera = camera
@@ -199,6 +207,7 @@ final class RideBackdrop {
 final class RideOverlay {
     let root = CALayer()
     private var height = 0.0
+    private var mist: CALayer?, flash: CALayer?
     init() { root.anchorPoint = .zero; root.position = .zero; root.masksToBounds = true }
     func configure(height: Double) {
         let h = height.rounded(); guard h != self.height else { return }
@@ -211,6 +220,15 @@ final class RideOverlay {
         }
         gradient(CGRect(x: 0, y: h - 165, width: 1280, height: 165), NSColor.black.withAlphaComponent(0.32), .clear)
         gradient(CGRect(x: 0, y: 0, width: 1280, height: 130), .clear, NSColor.black.withAlphaComponent(0.50))
+        let mist = CALayer(); mist.frame = CGRect(x: 0, y: 0, width: 1280, height: h); mist.backgroundColor = NSColor(hex: 0xD5DCE0).cgColor; mist.opacity = 0; mist.actions = RideBackdrop.noActions
+        let flash = CALayer(); flash.frame = mist.frame; flash.backgroundColor = NSColor(hex: 0xF4F8FF).cgColor; flash.opacity = 0; flash.actions = RideBackdrop.noActions
+        root.addSublayer(mist); root.addSublayer(flash); self.mist = mist; self.flash = flash
+        CATransaction.commit()
+    }
+    /// Fog over the world (a light veil) and the lightning flash, both as opacities of static layers.
+    func setWeather(fog: Double, flash level: Double) {
+        CATransaction.begin(); CATransaction.setDisableActions(true)
+        mist?.opacity = Float(max(0, min(1, fog.isFinite ? fog : 0))); flash?.opacity = Float(max(0, min(1, level.isFinite ? level : 0)))
         CATransaction.commit()
     }
 }

@@ -167,6 +167,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSToolbarDelegate, NST
             guard let rep=game.snapshotRep() else { return }
             try? rep.representation(using:.png,properties:[:])?.write(to:URL(fileURLWithPath:directory+"/"+name+".png"))
         }
+        // The newest vehicles.
+        for (name,kind) in [("vehicle-cruiser",BikeKind.cruiser),("vehicle-electric",.electric)] {
+            game.challengeKind = .free; game.bike.kind=kind; game.bike.route=0; game.night=false; game.start(); game.bike.x=400; game.bike.speed=8
+            for _ in 0..<30 { game.previous=ProcessInfo.processInfo.systemUptime-1/60; game.keys=[126]; game.tick() }
+            shot(name)
+        }
         // Purchased styles on three different vehicles.
         for (name,kind,helmet,jacket,livery) in [("styled-sport",BikeKind.sport,HelmetStyle.flames,JacketStyle.reflective,Livery.number),("styled-street",.commuter,.stripe,.racing,.stripes),("styled-hyper",.hyperbike,.gold,.twoTone,.checker)] {
             game.art.helmetStyle=helmet; game.art.jacketStyle=jacket; game.art.livery=livery
@@ -175,6 +181,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSToolbarDelegate, NST
             shot(name)
         }
         game.art.helmetStyle = .standard; game.art.jacketStyle = .standard; game.art.livery = .none; game.bike.kind = .sport
+        // Weather: fog bank in the valley, storm in the city, blizzard on the snow.
+        for (name,route,x,night,time) in [("weather-fog",0,550.0,false,1.0),("weather-storm",4,860.0,true,1.0),("weather-blizzard",3,690.0,false,1.0)] {
+            game.weatherOn=true; game.challengeKind = .free; game.bike.kind = .sport; game.bike.route=route; game.night=night; game.start(); game.bike.x=x; game.bike.speed=9
+            for _ in 0..<40 { game.previous=ProcessInfo.processInfo.systemUptime-1/60; game.keys=[126]; game.tick() }
+            shot(name)
+        }
+        game.night=false
         // Night with headlight, the guided tutorial banner and a 360 in the air.
         game.bike.route=1; game.night=true; game.challengeKind = .free; game.start()
         game.bike.x=300; for _ in 0..<60 { game.previous=ProcessInfo.processInfo.systemUptime-1/60; game.keys=[126]; game.tick() }
@@ -391,6 +404,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSToolbarDelegate, NST
         precondition(game.difficulty == .realistic && game.runContext.contains(".realista") && game.bike.assist == .realistic,"Difficulty reaches the game and the record context")
         inspector.uiSelectDifficulty(.assisted); precondition(game.runContext.contains(".asistido"),"Assisted has its own records")
         inspector.uiSelectDifficulty(.normal); precondition(game.runContext == contextBefore,"Normal keeps the original record context")
+        inspector.uiToggle("weather"); precondition(!game.weatherOn && !game.runContext.contains(".clima"),"Weather toggles off with its own records")
+        inspector.uiToggle("weather"); precondition(game.weatherOn && game.runContext.contains(".clima"),"Weather toggles back on")
         inspector.uiToggle("obstacles"); precondition(game.obstacles,"Obstacles checkbox")
         inspector.uiToggle("obstacles")
         // Cosmetic styles must be owned before riding; buying them works through the same unlock button.
@@ -521,6 +536,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSToolbarDelegate, NST
             precondition(!game.stats.earned.contains("first-flip"),"Toasts do not pay out: rewards are given when the run ends")
             game.garage()
         }
+        // Dynamic weather: a storm on the Sierra soaks the road and shows its label; with it off the road stays dry.
+        game.weatherOn=true; game.challengeKind = .free; game.bike.route=1; game.start(); game.bike.x=780; game.bike.speed=8
+        for _ in 0..<30 { game.previous=ProcessInfo.processInfo.systemUptime-1/60; game.keys=[126]; game.tick() }
+        precondition(game.weather.storm && game.bike.wetness>0.9 && game.weather.label == "Tormenta","A storm must soak the Sierra road")
+        precondition(game.snapshotRep(scale:0.25) != nil && game.backdrop.route == 1,"A stormy frame composes")
+        game.weatherOn=false; game.start(); game.bike.x=780
+        for _ in 0..<30 { game.previous=ProcessInfo.processInfo.systemUptime-1/60; game.keys=[126]; game.tick() }
+        precondition(!game.weather.storm && game.bike.wetness == 0,"Dynamic weather off keeps the road dry")
+        game.bike.route=4; game.start()
+        for _ in 0..<10 { game.previous=ProcessInfo.processInfo.systemUptime-1/60; game.keys=[126]; game.tick() }
+        precondition(game.bike.wetness == 1,"The city stays rainy without dynamic weather")
+        game.weatherOn=true; game.garage(); game.bike.route=originalRoute
         // Extra tricks: hands off, spin and superman keys are accepted while riding.
         game.challengeKind = .free; game.start(); game.keys=[126,4,5,9]
         for _ in 0..<30 { game.previous=ProcessInfo.processInfo.systemUptime-1/60; game.tick() }

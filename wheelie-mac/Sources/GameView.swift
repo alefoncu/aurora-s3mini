@@ -28,6 +28,10 @@ final class RideView: NSView {
     var challengeKind:RideChallengeKind = .free
     var ghostEnabled=true
     var absOn=false
+    /// Dynamic weather: fog banks, storms and blizzards along the route (its own records when on).
+    var weatherOn=true
+    var weather=WeatherState(), lastWeatherTime=0.0
+    var weatherSeed:UInt64 { UInt64(stats.totals.runs+1)*0x9E3779B1 }
     /// The styles currently selected, each of which must be owned before riding.
     var cosmeticItems:[RideUnlock] { [.helmet(art.helmetStyle),.jacket(art.jacketStyle),.livery(art.livery)] }
     var difficulty=BikePhysics.Assist.normal
@@ -96,6 +100,7 @@ final class RideView: NSView {
         art.livery=Livery(rawValue:prefs.integer(forKey:"livery")) ?? .none
         ghostEnabled=prefs.object(forKey:"ghost") == nil ? true : prefs.bool(forKey:"ghost")
         absOn=prefs.bool(forKey:"abs")
+        weatherOn=prefs.object(forKey:"weather") == nil ? true : prefs.bool(forKey:"weather")
         difficulty=BikePhysics.Assist(rawValue:prefs.object(forKey:"difficulty") == nil ? 1 : prefs.integer(forKey:"difficulty")) ?? .normal
         rivalLevel=RivalLevel(rawValue:prefs.integer(forKey:"rivalLevel")) ?? .normal
         rivalSameVehicle=prefs.object(forKey:"rivalSame") == nil ? true : prefs.bool(forKey:"rivalSame")
@@ -121,7 +126,7 @@ final class RideView: NSView {
         bike.reset()
     }
     var runContext:String {
-        "v6.\(bike.kind.rawValue).\(bike.route).\(obstacles ? "cones" : "clear").\(bike.transmission.automatic ? "auto" : "manual").\(Int((bike.suspensionStiffness*100).rounded())).\(Int((bike.suspensionDamping*100).rounded()))\(absOn ? ".abs" : "")\(difficulty == .normal ? "" : ".\(difficulty.title.lowercased())")\(challengeKind == .endless ? ".endless" : "")\(challengeKind == .circuit ? ".circuit\(bike.laps)" : "")"
+        "v6.\(bike.kind.rawValue).\(bike.route).\(obstacles ? "cones" : "clear").\(bike.transmission.automatic ? "auto" : "manual").\(Int((bike.suspensionStiffness*100).rounded())).\(Int((bike.suspensionDamping*100).rounded()))\(absOn ? ".abs" : "")\(weatherOn ? ".clima" : "")\(difficulty == .normal ? "" : ".\(difficulty.title.lowercased())")\(challengeKind == .endless ? ".endless" : "")\(challengeKind == .circuit ? ".circuit\(bike.laps)" : "")"
     }
     var recordKey:String { runContext }
     func ghostSnapshot()->RideGhostFrame {

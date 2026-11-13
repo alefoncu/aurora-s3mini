@@ -9,6 +9,7 @@ extension RideView {
             let previousFront=bike.frontWheelPosition,previousRear=bike.rearWheelPosition,previousSpeed=bike.speed,previousVertical=bike.verticalVelocity
             bike.update(dt,throttle:held(.throttle),brake:held(.brake),leanBack:held(.leanBack),leanForward:held(.leanForward),jump:held(.jump),frontBrake:held(.frontBrake),rearBrake:held(.rearBrake),trick:held(.stunt),spin:spinHeld,noHands:noHandsHeld)
             elapsed += dt
+            updateWeather()
             updateRival(dt)
             updateScoring(dt)
             challenges.update(frame:ghostSnapshot(),distance:bike.distance,wheelie:bike.wheelieDistance,
@@ -63,8 +64,8 @@ extension RideView {
             for i in dust.indices { dust[i].x += dust[i].vx*dt; dust[i].y += dust[i].vy*dt; dust[i].vy -= 2*dt; dust[i].life -= dt }
             dust.removeAll { $0.life<=0 }
         }
-        audio.setAmbient(route:bike.route,speed:bike.speed)
-        audio.update(speed:bike.speed,throttle:held(.throttle),vehicle:bike.kind.audioProfile,active:mode == .riding,rpm:bike.transmission.rpm,load:bike.throttlePosition,shifting:bike.transmission.shiftRemaining>0,slip:max(abs(bike.frontSlip),abs(bike.rearSlip)),timbre:BikeKind.allCases.firstIndex(of:bike.kind))
+        audio.setAmbient(route:bike.route,speed:bike.speed,rain:weather.rain)
+        audio.update(speed:bike.speed,throttle:held(.throttle),vehicle:bike.kind.audioProfile,active:mode == .riding,rpm:bike.transmission.rpm,load:bike.throttlePosition,shifting:bike.transmission.shiftRemaining>0,slip:max(abs(bike.frontSlip),abs(bike.rearSlip)),timbre:bike.kind.engineVoice)
         updateTouchBar()
         if mode == .riding || mode == .crashing { needsDisplay=true }
     }

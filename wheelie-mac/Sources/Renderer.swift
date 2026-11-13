@@ -118,10 +118,11 @@ final class RideRenderer {
         NSColor.white.withAlphaComponent(0.8).setFill(); flakes.fill()
     }
     /// Falling rain over the whole scene, drawn on top of the ride.
-    func weather(route:Int,time:Double) {
-        guard route==4 else { return }
+    /// Falling rain; `intensity` 0...1 sets how many drops there are.
+    func weather(intensity:Double,time:Double) {
+        guard intensity.isFinite,intensity>0.02 else { return }
         let drops=NSBezierPath()
-        for i in 0..<150 {
+        for i in 0..<Int(150*min(1,intensity)) {
             let speed=620+Double(i%7)*60
             var x=(Double(i)*97.0-time*90).truncatingRemainder(dividingBy:1400)
             if x<0 { x+=1400 }

@@ -83,6 +83,8 @@ final class BikePhysics {
         var wearRate: Double { [0.5, 1, 2][rawValue] }
     }
     var assist = Assist.normal
+    /// How wet the road is, 0...1: up to 25 % less grip in a downpour.
+    var wetness = 0.0 { didSet { wetness = wetness.isFinite ? max(0, min(1, wetness)) : 0 } }
     /// Endless mode: no finish line; the last sector repeats until the rider crashes.
     var endless=false
     /// Cumulative wear: 0 fresh ... 1 worn. Tyres lose up to 30 % grip; hot dampers lose up to 35 % damping.
@@ -200,7 +202,7 @@ final class BikePhysics {
         // A slipping tyre has slightly less usable grip than a rolling one.
         // Relaxation prevents instant transitions when a wheel lands or unlocks.
         let rearSurface=hazards ? Self.puddleFactor(rearNom.x) : 1,frontSurface=hazards ? Self.puddleFactor(frontNom.x) : 1
-        let wearFactor=1-0.30*tyreWear
+        let wearFactor=(1-0.30*tyreWear)*(1-0.25*wetness)
         let rearGrip=frictionCoefficient*wearFactor*rearSurface*rearNormalLoad*(1-0.18*min(1,abs(rearSlip)))
         let frontGrip=frictionCoefficient*wearFactor*frontSurface*frontNormalLoad*(1-0.18*min(1,abs(frontSlip)))
         let ratio=speed/kind.topSpeed

@@ -181,7 +181,7 @@ func controlWord(_ bits: UInt64...) -> Int64 { Int64(bitPattern: bits.reduce(0, 
             for i in 40_000..<48_000 { tail = max(tail, abs(channels[0][i])) }
             return (peak, tail)
         }
-        for kind in 1...7 {
+        for kind in 1...8 {
             let result = effect(kind)
             precondition(result.peak > 0.02 && result.peak < 0.9, "Effect \(kind) is silent or too loud: \(result.peak)")
             precondition(result.tail < 0.000001, "Effect \(kind) did not decay to silence")
@@ -197,7 +197,7 @@ func controlWord(_ bits: UInt64...) -> Int64 { Int64(bitPattern: bits.reduce(0, 
             for i in 0..<24_000 { precondition(channels[0][i].isFinite); peak = max(peak, abs(channels[0][i])) }
             precondition(peak < 1.2, "Overlapping effects clipped: \(peak)")
         }
-        print("AudioTests passed: finite bounded stereo motor, mute, impact decay, BMX idle/rolling, eight voices, RPM firing rate, load and clutch cut, rain/wind/city ambience, seven interface and trick effects. No audio device opened.")
+        print("AudioTests passed: finite bounded stereo motor, mute, impact decay, BMX idle/rolling, eight voices, RPM firing rate, load and clutch cut, rain/wind/city ambience, eight interface, trick and weather effects. No audio device opened.")
     }
 }
 """#

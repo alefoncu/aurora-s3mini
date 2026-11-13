@@ -30,6 +30,8 @@ extension RideView {
             backdrop.configure(route:bike.route,night:night,height:sceneHeight,backing:density)
             backdrop.update(camera:bike.x*RideScene.metresToPixels)
             overlay.configure(height:sceneHeight)
+            backdrop.setFog(weather.fog*0.6)
+            overlay.setWeather(fog:weather.fog*0.2,flash:weather.flash*0.55)
             backdropHost.fit(scale:viewportScale); overlayHost.fit(scale:viewportScale)
         }
         sceneView.needsDisplay=true; hudView.needsDisplay=true
@@ -146,6 +148,6 @@ extension RideView {
             if let ragdoll { art.drawRider(ragdoll.pose,units:ppm,kind:bike.kind,detached:true) }
             NSGraphicsContext.restoreGraphicsState()
         }
-        RideProfile.section("lluvia") { art.weather(route:bike.route,time:animationTime) }
+        RideProfile.section("lluvia") { art.weather(intensity:weather.rain,time:animationTime) }
     }
 }

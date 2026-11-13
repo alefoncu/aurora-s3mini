@@ -4,7 +4,7 @@ import Foundation
         for kind in BikeKind.allCases {
             var t=RideTransmission();t.reset(kind:kind)
             precondition(t.shiftRemaining==0 && t.rpm==RideTransmission.idleRPM(kind:kind))
-            if kind == .bmx || kind == .scooter {
+            if kind == .bmx || kind == .scooter || kind == .electric {
                 t.shift(up:true,kind:kind);precondition(t.gear==0)
                 t.update(dt:1/60,kind:kind,speed:5,throttle:1,drivenWheelRate:0)
                 precondition(t.driveMultiplier==1 && (kind != .bmx || t.rpm==0))

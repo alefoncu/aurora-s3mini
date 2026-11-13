@@ -15,16 +15,16 @@ struct RideTransmission {
     private var shiftCooldown = 0.0
 
     static func idleRPM(kind: BikeKind) -> Double {
-        switch kind { case .bmx: return 0; case .sport,.hyperbike: return 1_500; case .motocross,.trials: return 1_650; default: return 1_250 }
+        switch kind { case .bmx,.electric: return 0; case .sport,.hyperbike: return 1_500; case .motocross,.trials: return 1_650; default: return 1_250 }
     }
     static func redlineRPM(kind: BikeKind) -> Double {
-        switch kind { case .bmx: return 0; case .sport: return 13_500; case .hyperbike: return 14_200; case .motocross: return 10_500; case .trials: return 9_000; case .scooter: return 8_500; default: return 9_500 }
+        switch kind { case .bmx: return 0; case .sport: return 13_500; case .hyperbike: return 14_200; case .motocross: return 10_500; case .trials: return 9_000; case .cruiser: return 6_500; case .electric: return 12_000; case .scooter: return 8_500; default: return 9_500 }
     }
     private static func count(_ kind: BikeKind) -> Int {
-        switch kind { case .bmx,.scooter: return 0; case .sport,.hyperbike,.motocross: return 6; default: return 5 }
+        switch kind { case .bmx,.scooter,.electric: return 0; case .sport,.hyperbike,.motocross: return 6; default: return 5 }
     }
     mutating func reset(kind: BikeKind) {
-        gearCount = Self.count(kind); isCVT = kind == .scooter
+        gearCount = Self.count(kind); isCVT = kind == .scooter || kind == .electric
         gear = gearCount == 0 ? 0 : 1; rpm = Self.idleRPM(kind: kind)
         shiftRemaining = 0; shiftCooldown = 0; limiter = 1; gearBoost = gearCount > 0 ? 1.12 : 1
     }
@@ -42,7 +42,7 @@ struct RideTransmission {
     mutating func update(dt: Double, kind: BikeKind, speed: Double, throttle: Double, drivenWheelRate: Double) {
         guard dt.isFinite, dt > 0 else { return }
         let dt = min(dt,0.25)
-        if gearCount != Self.count(kind) || isCVT != (kind == .scooter) { reset(kind: kind) }
+        if gearCount != Self.count(kind) || isCVT != (kind == .scooter || kind == .electric) { reset(kind: kind) }
         shiftRemaining = max(0,shiftRemaining-dt); shiftCooldown = max(0,shiftCooldown-dt)
         guard kind != .bmx else { rpm = 0; limiter = 1; return }
         let gas = throttle.isFinite ? max(0,min(1,throttle)) : 0

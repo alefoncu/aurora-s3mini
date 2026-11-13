@@ -64,6 +64,7 @@ extension RideView {
             art.text(String(format:"Neumáticos %d %%",Int((1-bike.tyreWear*0.3)*100)),28,sceneHeight-58,11,bike.tyreWear>0.6 ? .systemOrange : NSColor.white.withAlphaComponent(0.8),.medium,mono:true)
             art.text(String(format:"Amortiguadores %d %%",Int((1-bike.suspensionHeat*0.35)*100)),28,sceneHeight-40,11,bike.suspensionHeat>0.6 ? .systemOrange : NSColor.white.withAlphaComponent(0.8),.medium,mono:true)
         }
+        if let label=weather.label { art.text(label.uppercased(),28,104,11,weather.storm ? NSColor.systemYellow : NSColor(hex:0xBFD4EA),.bold) }
         let stage=BikePhysics.difficultyStage(at:bike.x)
         if BikePhysics.circuit {
             art.text("CIRCUITO · VUELTA \(min(bike.laps,Int(bike.x/1200)+1))/\(bike.laps)",28,90,11,.white,.semibold)

@@ -309,7 +309,7 @@ final class GarageInspectorController: NSViewController {
         outfitLabel.font = .systemFont(ofSize: 11)
         outfitLabel.textColor = .secondaryLabelColor
         addFullWidth(outfitLabel, to: stack)
-        for (title, key) in [("Usar casco", "helmet"), ("Llevar acompañante", "passenger"), ("Obstáculos y charcos", "obstacles"), ("Frenos ABS", "abs")] {
+        for (title, key) in [("Usar casco", "helmet"), ("Llevar acompañante", "passenger"), ("Obstáculos y charcos", "obstacles"), ("Frenos ABS", "abs"), ("Clima dinámico (niebla y tormentas)", "weather")] {
             let checkbox = NSButton(checkboxWithTitle: title, target: self, action: #selector(optionChanged(_:)))
             checkbox.font = .systemFont(ofSize: 12); checkbox.identifier = NSUserInterfaceItemIdentifier(key)
             options[key] = checkbox; editableControls.append(checkbox); addFullWidth(checkbox, to: stack)
@@ -413,7 +413,7 @@ final class GarageInspectorController: NSViewController {
         }
         nightSwitch.state = game.night ? .on : .off
         transmissionPopup.selectItem(at: game.bike.transmission.automatic ? 0 : 1)
-        transmissionHint.stringValue = game.bike.kind == .bmx ? "La BMX conserva su desarrollo fijo y rueda libre." : game.bike.kind == .scooter ? "El scooter ajusta su transmisión automáticamente." : "Manual: Q baja marcha y F sube marcha. También puedes usar la Touch Bar."
+        transmissionHint.stringValue = game.bike.kind == .bmx ? "La BMX conserva su desarrollo fijo y rueda libre." : game.bike.kind == .scooter ? "El scooter ajusta su transmisión automáticamente." : game.bike.kind == .electric ? "La eléctrica tiene una sola marcha: el par es instantáneo." : "Manual: Q baja marcha y F sube marcha. También puedes usar la Touch Bar."
         stiffnessSlider.doubleValue = game.bike.suspensionStiffness
         dampingSlider.doubleValue = game.bike.suspensionDamping
         stiffnessValue.stringValue = "\(Int((game.bike.suspensionStiffness * 100).rounded())) %"
@@ -438,13 +438,14 @@ final class GarageInspectorController: NSViewController {
         options["passenger"]?.state = game.art.passenger ? .on : .off
         options["obstacles"]?.state = game.obstacles ? .on : .off
         options["abs"]?.state = game.absOn ? .on : .off
+        options["weather"]?.state = game.weatherOn ? .on : .off
         scoreLabel.stringValue = "\(Int(game.bestScore))"
         distanceLabel.stringValue = "\(Int(game.record)) m"; wheelieLabel.stringValue = "\(Int(game.best)) m"; stoppieLabel.stringValue = String(format:"%.1f m",game.bestStoppie)
         let canEdit = game.mode == .garage
         editableControls.forEach { $0.isEnabled = canEdit }
         rivalPopup.isEnabled = canEdit && game.challengeKind == .race
         rivalSameCheckbox.isEnabled = canEdit && game.challengeKind == .race
-        transmissionPopup.isEnabled = canEdit && game.bike.kind != .bmx && game.bike.kind != .scooter
+        transmissionPopup.isEnabled = canEdit && game.bike.kind != .bmx && game.bike.kind != .scooter && game.bike.kind != .electric
         options["passenger"]?.isEnabled = canEdit && game.bike.kind.supportsPassenger
         playButton.isEnabled = canEdit && locked.isEmpty
     }
@@ -475,7 +476,7 @@ final class GarageInspectorController: NSViewController {
         onChange()
     }
     @objc private func transmissionChanged(_ sender: NSPopUpButton) {
-        guard !updating, game.mode == .garage, game.bike.kind != .bmx, game.bike.kind != .scooter else { return }
+        guard !updating, game.mode == .garage, game.bike.kind != .bmx, game.bike.kind != .scooter, game.bike.kind != .electric else { return }
         game.bike.transmission.automatic = sender.indexOfSelectedItem == 0
         game.prefs.set(game.bike.transmission.automatic, forKey: "automatic")
         game.bike.reset(); game.needsDisplay = true; onChange()
@@ -571,7 +572,7 @@ final class GarageInspectorController: NSViewController {
     @objc private func optionChanged(_ sender: NSButton) {
         guard !updating, game.mode == .garage, let key = sender.identifier?.rawValue else { return }
         let value = sender.state == .on
-        switch key { case "helmet": game.art.helmetOn = value; case "passenger": game.art.passenger = value; case "abs": game.absOn = value; game.loadRecords(); default: game.obstacles = value }
+        switch key { case "helmet": game.art.helmetOn = value; case "passenger": game.art.passenger = value; case "abs": game.absOn = value; game.loadRecords(); case "weather": game.weatherOn = value; game.loadRecords(); default: game.obstacles = value }
         game.prefs.set(value, forKey: key); onChange()
     }
 }

@@ -16,7 +16,7 @@ enum RideUnlock: Hashable {
     var cost: Int {
         switch self {
         case .vehicle(let k):
-            switch k { case .commuter, .motocross, .bmx: return 0; case .scooter: return 40; case .sport, .scrambler: return 80; case .trials: return 100; case .hyperbike: return 220 }
+            switch k { case .commuter, .motocross, .bmx: return 0; case .scooter: return 40; case .sport, .scrambler: return 80; case .trials: return 100; case .cruiser: return 120; case .electric: return 150; case .hyperbike: return 220 }
         case .route(let r):
             switch r { case 0, 1: return 0; case 2: return 60; default: return 100 }
         case .helmet(let s): return s.cost

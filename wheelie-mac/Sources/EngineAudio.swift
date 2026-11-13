@@ -44,15 +44,17 @@ final class EngineAudio {
 
     /// Ambient bed for the current route: rain, wind (grows with speed) and a distant city hum.
     /// `windLevel` is 0...1. Nothing plays unless sound is enabled and a ride is active.
-    func setAmbient(route: Int, speed: Double) {
+    func setAmbient(route: Int, speed: Double, rain: Double = 0) {
         var flags: Int64 = 0
-        switch route { case 2: flags = 2; case 3: flags = 2; case 4: flags = 1 | 4; default: flags = 0 }
+        switch route { case 2: flags = 2; case 3: flags = 2; case 4: flags = 4; default: flags = 0 }
+        let rainLevel = Int64(max(0, min(255, ((rain.isFinite ? rain : 0) * 255).rounded())))
+        if rainLevel > 6 { flags |= 1 }
         let level = Int64(max(0, min(255, ((speed.isFinite ? max(0, speed) : 0) / 40 * 255).rounded())))
-        state.storeAmbient(flags | (level << 8) | (route == 3 ? 1 << 16 : 0))
+        state.storeAmbient(flags | (level << 8) | (route == 3 ? 1 << 16 : 0) | (rainLevel << 17))
     }
     /// Short synthesised effects for the interface and tricks. They play whenever sound is enabled,
     /// in the garage as well as while riding. `intensity` (0...1) shifts pitch or loudness.
-    enum SFX: Int { case chime = 1, coin, flip, landing, whoosh, combo, denied }
+    enum SFX: Int { case chime = 1, coin, flip, landing, whoosh, combo, denied, thunder }
     private var sfxSerial: UInt64 = 0
     func play(_ effect: SFX, intensity: Double = 0) {
         guard enabled else { return }
@@ -195,6 +197,8 @@ private final class EngineRenderState {
             return t < 0.35 ? low * 3 * sin(Double.pi * t / 0.35) * 0.35 * (0.6 + 0.4 * sin(tau * (4 + 12 * t) * t)) : 0
         case 6:  // combo tick, higher with the multiplier
             return t < 0.12 ? sin(tau * 660 * (1 + level * 0.9) * t) * exp(-t * 40) * 0.16 * min(1, t * 800) : 0
+        case 8:  // thunder: a low rumble that swells and rolls away
+            return t < 1.5 ? (low * 4 * 0.5 + sin(tau * 48 * t) * 0.18 + sin(tau * 31 * t) * 0.12) * min(1, t * 5) * exp(-t * 2.2) * 0.8 : 0
         default: // denied: two low buzzes
             let buzz = t < 0.28 ? ((sin(tau * 150 * t) > 0 ? 1.0 : -1.0) * 0.07 + sin(tau * 110 * t) * 0.05) * (t < 0.12 || t > 0.16 ? 1 : 0) * exp(-t * 6) : 0
             return buzz
@@ -245,14 +249,16 @@ private final class EngineRenderState {
         let windLevel = Double((ambientWord >> 8) & 0xFF) / 255
         let heavyWind = ambientWord & (1 << 16) != 0
         let live = enabled && active
-        let targetRain = live && rainOn ? 0.040 : 0
+        let rainBits = Double((ambientWord >> 17) & 0xFF)
+        let rainAmount = rainBits == 0 ? 1.0 : rainBits / 255          // legacy words without a level mean full rain
+        let targetRain = live && rainOn ? 0.040 * rainAmount : 0
         let targetWind = live && windOn ? (heavyWind ? 0.05 : 0.025) + windLevel * 0.05 : 0
         let targetCity = live && cityOn ? 0.016 : 0
         let sfxWord = UInt64(bitPattern: OSAtomicAdd64Barrier(0, sfxControls))
         if sfxWord != previousSFX {
             previousSFX = sfxWord
             let kind = Int(sfxWord & 0xFF)
-            if enabled && kind > 0 && kind <= 7 {
+            if enabled && kind > 0 && kind <= 8 {
                 // Reuse a finished voice, otherwise steal the oldest one.
                 var slot = 0, oldest = -1.0
                 for i in 0..<6 { let free = voiceKind[i] == 0; if free { slot = i; oldest = .infinity; break }; if voiceAge[i] > oldest { oldest = voiceAge[i]; slot = i } }

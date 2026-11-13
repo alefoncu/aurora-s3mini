@@ -151,17 +151,30 @@ import Foundation
                     if !hop.crashed { survived[assist,default:0]+=1 }
                     let wheelie=BikePhysics();wheelie.assist=assist;wheelie.kind=kind;var t=0.0
                     for _ in 0..<2400 where !wheelie.crashed { step(wheelie,back:true);t+=frame }
-                    crashTime[assist,default:0]+=t/8
+                    crashTime[assist,default:0]+=t/Double(BikeKind.allCases.count)
                 }
                 let b=BikePhysics();b.assist=assist;b.kind = .sport;b.route=3;b.x = -500;b.speed=22
                 for _ in 0..<400 {step(b,gas:false,brake:true)}
                 wear[assist]=b.tyreWear
             }
-            check((landed[.realistic] ?? 0)<=1 && (landed[.normal] ?? 0)>=7 && (landed[.assisted] ?? 0)==8,"Flip landings by mode: \(landed)")
-            check((survived[.assisted] ?? 0)==8 && (survived[.assisted] ?? 0)>=(survived[.normal] ?? 0),"Assisted survives a leaning hop everywhere: \(survived)")
+            let fleet=BikeKind.allCases.count
+            check((landed[.realistic] ?? 0)<=1 && (landed[.normal] ?? 0)>=fleet-1 && (landed[.assisted] ?? 0)==fleet,"Flip landings by mode: \(landed)")
+            check((survived[.assisted] ?? 0)==fleet && (survived[.assisted] ?? 0)>=(survived[.normal] ?? 0),"Assisted survives a leaning hop everywhere: \(survived)")
             check(crashTime[.assisted]!>crashTime[.normal]! && crashTime[.normal]!>crashTime[.realistic]!,"Tilt tolerance grows with assistance: \(crashTime)")
             check(wear[.assisted]!<wear[.normal]! && wear[.normal]!<wear[.realistic]!,"Tyre wear grows with difficulty: \(wear)")
             check(BikePhysics.Assist.allCases.map(\.coinMultiplier)==[0.75,1,1.25] && BikePhysics.Assist.allCases.allSatisfy { !$0.detail.isEmpty },"Mode descriptions and multipliers")
+        }
+        // Rain: a wet road lengthens braking, bounded and sanitised.
+        do {
+            func wetStop(_ wetness:Double)->Double {
+                let b=BikePhysics();b.kind = .sport;b.route=0;b.wetness=wetness;b.x = -500;b.speed=24
+                for _ in 0..<6 {step(b,gas:false)}
+                let start=b.x;var n=0
+                while b.speed>0.2 && n<6000 {step(b,gas:false,brake:true);n+=1}
+                return b.x-start
+            }
+            check(wetStop(1)>wetStop(0)*1.1 && wetStop(0.5)>wetStop(0) && wetStop(0.5)<wetStop(1),"Wet roads lengthen braking in proportion: \(wetStop(0)) \(wetStop(0.5)) \(wetStop(1))")
+            let odd=BikePhysics();odd.wetness = .nan;check(odd.wetness==0,"NaN wetness is dry");odd.wetness=7;check(odd.wetness==1,"Wetness is clamped");odd.wetness = -2;check(odd.wetness==0,"Negative wetness is dry")
         }
         // Wet patches cut grip; ABS never needs a longer stop than locked brakes.
         do {

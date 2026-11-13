@@ -4,7 +4,16 @@ final class RideView: NSView {
     enum Mode { case garage, riding, paused, crashing, result }
     let bike = BikePhysics(), art = RideRenderer(), audio = EngineAudio()
     let prefs:UserDefaults
-    var mode = Mode.garage
+    var mode = Mode.garage { didSet { if mode != oldValue { updateLayerVisibility() } } }
+    // Layers, back to front: backdrop (GPU) / world (CPU) / screen-edge shading (GPU) / HUD (CPU).
+    lazy var backdrop = RideBackdrop(art:art)
+    let overlay = RideOverlay()
+    var backdropHost:RideLayerHost!, sceneView:RideDrawView!, overlayHost:RideLayerHost!, hudView:RideDrawView!
+    /// Any redraw request also refreshes the layered scene, so existing `needsDisplay = true` calls keep working.
+    override var needsDisplay:Bool {
+        get { super.needsDisplay }
+        set { super.needsDisplay=newValue; if newValue { invalidateLayers() } }   // use the assigned value: the getter reads false for a window that is not on screen
+    }
     var keys = Set<UInt16>(), touchHeld = Set<RideAction>()
     var timer: Timer?, previous = ProcessInfo.processInfo.systemUptime
     var elapsed = 0.0, animationTime = 0.0, crashTime = 0.0, cameraY = 0.0, riderLean = 0.0
@@ -76,7 +85,7 @@ final class RideView: NSView {
         rivalLevel=RivalLevel(rawValue:prefs.integer(forKey:"rivalLevel")) ?? .normal
         rivalSameVehicle=prefs.object(forKey:"rivalSame") == nil ? true : prefs.bool(forKey:"rivalSame")
         loadHandlingPreferences()
-        audio.enabled=sound; loadRecords(); buildStateOverlay()
+        audio.enabled=sound; loadRecords(); buildLayers(); buildStateOverlay()
         let t=Timer(timeInterval:1/60,repeats:true) { [weak self] _ in self?.tick() }; timer=t; RunLoop.main.add(t,forMode:.common)
         NotificationCenter.default.addObserver(self,selector:#selector(deactivate),name:NSApplication.didResignActiveNotification,object:nil)
         NotificationCenter.default.addObserver(self,selector:#selector(windowResigned(_:)),name:NSWindow.didResignKeyNotification,object:nil)

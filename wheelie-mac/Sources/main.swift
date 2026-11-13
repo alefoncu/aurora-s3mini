@@ -61,6 +61,38 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSToolbarDelegate, NST
         if CommandLine.arguments.contains("--smoke-test") { smokeTest() }
         if let i=CommandLine.arguments.firstIndex(of:"--snapshot"),i+1<CommandLine.arguments.count { snapshots(to:CommandLine.arguments[i+1]) }
         if CommandLine.arguments.contains("--bench") { runBenchmark() }
+        if CommandLine.arguments.contains("--fps") { measureLiveFrameRate() }
+        if let i=CommandLine.arguments.firstIndex(of:"--screenshot"),i+1<CommandLine.arguments.count { windowScreenshots(to:CommandLine.arguments[i+1]) }
+    }
+    /// Developer aid: real frame rate in the real window, driven by the game's own 60 Hz timer and the run loop.
+    func measureLiveFrameRate() {
+        game.audio.enabled=false; game.progress.unlockEverything(); game.obstacles=true; game.bike.kind = .sport
+        for (name,route,night) in [("Valle",0,false),("Sierra",1,false),("Nieve",3,false),("Ciudad con lluvia y noche",4,true)] {
+            game.bike.route=route; game.night=night; game.challengeKind = .free; game.start(); game.keys=[126]
+            RunLoop.current.run(until:Date(timeIntervalSinceNow:1))        // warm-up
+            let before=game.sceneView.drawCount,start=ProcessInfo.processInfo.systemUptime
+            RunLoop.current.run(until:Date(timeIntervalSinceNow:4))
+            let fps=Double(game.sceneView.drawCount-before)/(ProcessInfo.processInfo.systemUptime-start)
+            print(String(format:"%-28@ %5.1f fotogramas por segundo",name as NSString,fps))
+        }
+        NSApp.terminate(nil)
+    }
+    /// Developer aid: capture the real on-screen window (GPU layers included) after letting the run loop present frames.
+    func windowScreenshots(to directory:String) {
+        game.audio.enabled=false; game.progress.unlockEverything(); game.obstacles=true; game.bike.kind = .sport
+        try? FileManager.default.createDirectory(atPath:directory,withIntermediateDirectories:true)
+        func pump(_ seconds:Double) { RunLoop.current.run(until:Date(timeIntervalSinceNow:seconds)) }
+        for (name,route,night) in [("live-valley",0,false),("live-snow",3,false),("live-city",4,true),("live-dunes",2,false)] {
+            game.bike.route=route; game.night=night; game.challengeKind = .free; game.start(); game.bike.x=560
+            for _ in 0..<45 { game.previous=ProcessInfo.processInfo.systemUptime-1/60; game.keys=[126]; game.tick(); pump(0.02) }
+            pump(0.4)
+            let id=CGWindowID(window.windowNumber)
+            if let image=CGWindowListCreateImage(.null,.optionIncludingWindow,id,[.boundsIgnoreFraming,.bestResolution]) {
+                let rep=NSBitmapImageRep(cgImage:image)
+                try? rep.representation(using:.png,properties:[:])?.write(to:URL(fileURLWithPath:directory+"/"+name+".png"))
+            }
+        }
+        NSApp.terminate(nil)
     }
     /// Frame cost of the heaviest scenes: one simulation tick plus one full draw into an offscreen bitmap.
     struct BenchResult { let name:String; let average:Double; let p95:Double; let worst:Double; var sections:[(String,Double)] = [] }
@@ -69,16 +101,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSToolbarDelegate, NST
         game.audio.enabled=false; game.progress.unlockEverything()
         setup()
         var samples:[Double]=[]
-        // Render into a bitmap of the requested pixel density (default: the screen's native one).
-        let rep:NSBitmapImageRep
-        if benchScale>0, let custom=NSBitmapImageRep(bitmapDataPlanes:nil,pixelsWide:Int(game.bounds.width*benchScale),pixelsHigh:Int(game.bounds.height*benchScale),bitsPerSample:8,samplesPerPixel:4,hasAlpha:true,isPlanar:false,colorSpaceName:.deviceRGB,bytesPerRow:0,bitsPerPixel:0) {
-            custom.size=game.bounds.size; rep=custom
-        } else if let native=game.bitmapImageRepForCachingDisplay(in:game.bounds) { rep=native }
-        else { return BenchResult(name:name,average:0,p95:0,worst:0) }
+        // The CPU cost per frame: simulation, the layer updates, and rasterising the two drawing views (world and HUD).
+        // The backdrop and shading are Core Animation layers composited by the GPU, so they are not part of this number.
+        func bitmap(for view:NSView)->NSBitmapImageRep? {
+            if benchScale>0 {
+                let rep=NSBitmapImageRep(bitmapDataPlanes:nil,pixelsWide:Int(view.bounds.width*benchScale),pixelsHigh:Int(view.bounds.height*benchScale),bitsPerSample:8,samplesPerPixel:4,hasAlpha:true,isPlanar:false,colorSpaceName:.deviceRGB,bytesPerRow:0,bitsPerPixel:0)
+                rep?.size=view.bounds.size; return rep
+            }
+            return view.bitmapImageRepForCachingDisplay(in:view.bounds)
+        }
+        guard let sceneRep=bitmap(for:game.sceneView),let hudRep=bitmap(for:game.hudView) else { return BenchResult(name:name,average:0,p95:0,worst:0) }
         for i in 0..<frames {
             let start=ProcessInfo.processInfo.systemUptime
             game.previous=start-1/60; game.keys=[126]; game.tick()
-            game.cacheDisplay(in:game.bounds,to:rep)
+            game.sceneView.cacheDisplay(in:game.sceneView.bounds,to:sceneRep)
+            game.hudView.cacheDisplay(in:game.hudView.bounds,to:hudRep)
             if i>=5 { samples.append((ProcessInfo.processInfo.systemUptime-start)*1000) }   // skip warm-up (textures, caches)
         }
         samples.sort()
@@ -108,7 +145,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSToolbarDelegate, NST
     func runBenchmark() {
         if let i=CommandLine.arguments.firstIndex(of:"--scale"),i+1<CommandLine.arguments.count { benchScale=Double(CommandLine.arguments[i+1]) ?? 0 }
         RideProfile.enabled=true
-        print("Escena                              media    p95   peor   (ms por fotograma: simulación + dibujo)")
+        print("Escena                              media    p95   peor   (ms de CPU por fotograma: simulación + capas + dibujo; el fondo va por GPU)")
         for r in benchmarkScenes(frames:90) {
             print(String(format:"%-34@ %6.2f %6.2f %6.2f",r.name as NSString,r.average,r.p95,r.worst))
             print("    "+r.sections.map { String(format:"%@ %.1f",$0.0 as NSString,$0.1) }.joined(separator:" · "))
@@ -123,13 +160,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSToolbarDelegate, NST
         for route in 0..<BikePhysics.routeCount {
             game.bike.route=route; game.night=false; game.start()
             game.bike.x = 560; for _ in 0..<90 { game.previous=ProcessInfo.processInfo.systemUptime-1/60; game.keys=[126]; game.tick() }
-            guard let rep=game.bitmapImageRepForCachingDisplay(in:game.bounds) else { continue }
-            game.cacheDisplay(in:game.bounds,to:rep)
+            guard let rep=game.snapshotRep() else { continue }
             try? rep.representation(using:.png,properties:[:])?.write(to:URL(fileURLWithPath:directory+"/route\(route).png"))
         }
         func shot(_ name:String) {
-            guard let rep=game.bitmapImageRepForCachingDisplay(in:game.bounds) else { return }
-            game.cacheDisplay(in:game.bounds,to:rep)
+            guard let rep=game.snapshotRep() else { return }
             try? rep.representation(using:.png,properties:[:])?.write(to:URL(fileURLWithPath:directory+"/"+name+".png"))
         }
         // Night with headlight, the guided tutorial banner and a 360 in the air.
@@ -378,7 +413,25 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSToolbarDelegate, NST
         for route in 0..<BikePhysics.routeCount {
             game.bike.route=route; game.night=route == 4; game.start()
             for _ in 0..<45 { game.previous=ProcessInfo.processInfo.systemUptime-1/60; game.tick() }
-            let frame=NSImage(size:game.bounds.size); frame.lockFocusFlipped(true); game.draw(game.bounds); frame.unlockFocus()
+            precondition(game.snapshotRep(scale:1) != nil,"Every route must compose a frame"); precondition(game.backdrop.route == route && !(game.backdrop.root.sublayers ?? []).isEmpty,"The backdrop layers follow the route")
+        }
+        // The scrolling backdrop never leaves a gap, whatever the route, time of day, window height or camera position.
+        func covers(_ spans:[ClosedRange<Double>])->Bool {
+            let sorted=spans.sorted { $0.lowerBound<$1.lowerBound }
+            var reach=0.0
+            for span in sorted { if span.lowerBound>reach+0.5 { return false }; reach=max(reach,span.upperBound) }
+            return reach>=1280
+        }
+        for (route,night) in [(0,false),(1,true),(2,false),(3,false),(4,true),(4,false)] {
+            for height in [620.0,752.0,1100.0] {
+                game.backdrop.configure(route:route,night:night,height:height,backing:2)
+                for step in 0..<400 {
+                    game.backdrop.update(camera:Double(step)*1_234.567+Double(step%7)*0.31)
+                    if route == 3 { precondition(covers(game.backdrop.mountainSpans) || game.backdrop.mountainSpans.allSatisfy { $0.lowerBound<=0 && $0.upperBound>=1280 },"Snow mountains must span the window (step \(step))") }
+                    else if route == 4 { for strip in game.backdrop.stripSpans { precondition(covers(strip),"A city strip leaves a gap (step \(step), height \(height))") } }
+                    else { precondition(covers(game.backdrop.scrollingSpans),"Photo tiles leave a gap on route \(route) at step \(step)") }
+                }
+            }
         }
         game.night=false; game.obstacles=false; game.bike.route=originalRoute
         // Race mode spawns a rival that rides the same physics.

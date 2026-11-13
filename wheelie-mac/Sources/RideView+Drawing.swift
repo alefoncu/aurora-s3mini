@@ -2,18 +2,56 @@ import Cocoa
 
 /// Scene drawing: garage, ride, obstacles, rival, ghost and the rider.
 extension RideView {
+    /// The garage is drawn by the view itself; while riding, four child views take over (see `buildLayers`).
     override func draw(_ dirtyRect:NSRect) {
-        if mode == .garage { drawGarage(); return }
-        // No full-window clear: the backdrop, earth and road below cover every pixel.
-        viewportScale=bounds.width/1280; origin = .zero; sceneHeight=bounds.height/viewportScale
+        if mode == .garage { drawGarage() }
+    }
+    func buildLayers() {
+        backdropHost=RideLayerHost(content:backdrop.root)
+        sceneView=RideDrawView(role:.scene); sceneView.game=self
+        overlayHost=RideLayerHost(content:overlay.root)
+        hudView=RideDrawView(role:.hud); hudView.game=self
+        for view in [backdropHost!,sceneView!,overlayHost!,hudView!] { view.frame=bounds; addSubview(view) }
+        updateLayerVisibility()
+    }
+    func updateLayerVisibility() {
+        guard backdropHost != nil else { return }
+        let riding = mode != .garage
+        for view in [backdropHost!,sceneView!,overlayHost!,hudView!] as [NSView] { view.isHidden = !riding }
+        if riding { invalidateLayers() }
+    }
+    func updateGeometry() { viewportScale=bounds.width/1280; origin = .zero; sceneHeight=bounds.height/viewportScale }
+    /// Refresh the GPU layers (cheap: a few positions) and ask the two drawing views to redraw.
+    func invalidateLayers() {
+        guard backdropHost != nil, mode != .garage else { return }
+        RideProfile.section("capas") {
+            updateGeometry()
+            let density=window?.backingScaleFactor ?? NSScreen.main?.backingScaleFactor ?? 2
+            backdrop.configure(route:bike.route,night:night,height:sceneHeight,backing:density)
+            backdrop.update(camera:bike.x*RideScene.metresToPixels)
+            overlay.configure(height:sceneHeight)
+            backdropHost.fit(scale:viewportScale); overlayHost.fit(scale:viewportScale)
+        }
+        sceneView.needsDisplay=true; hudView.needsDisplay=true
+    }
+    /// The world: snow, scenery, road, obstacles, rival, ghost, rider and weather (the backdrop is layers).
+    func drawScene() {
+        guard mode != .garage else { return }
+        updateGeometry()
         NSGraphicsContext.saveGraphicsState(); let transform=NSAffineTransform(); transform.translateX(by:origin.x,yBy:origin.y); transform.scale(by:viewportScale); transform.concat()
         NSBezierPath(rect:NSRect(x:0,y:0,width:1280,height:sceneHeight)).addClip()
-        let isGarage=mode == .garage
-        // Only the strip below the earth polygon (which ends at 740) can be left bare on tall windows.
-        if sceneHeight>700 { NSColor(hex:bike.route==0 ? 0x7A725E : bike.route==3 ? 0xB7C3CB : bike.route==4 ? 0x3A3F47 : 0x8F694B).setFill(); NSRect(x:0,y:700,width:1280,height:sceneHeight-700).fill() }
-        RideProfile.section("fondo") { art.background(camera:isGarage ? 220 : bike.x*RideScene.metresToPixels,route:bike.route,night:night,time:animationTime) }
-        RideProfile.section("carretera y escenario") { art.scenery(cameraX:isGarage ? 0 : bike.x,cameraY:isGarage ? 0 : cameraY+presentationOffset,route:bike.route,night:night,limit:isGarage ? 1200 : bike.endless ? .infinity : bike.finishDistance) }
-        if isGarage { drawGarage() } else { drawRide() }
+        art.snowfall(route:bike.route,time:animationTime)
+        RideProfile.section("carretera y escenario") { art.scenery(cameraX:bike.x,cameraY:cameraY+presentationOffset,route:bike.route,night:night,limit:bike.endless ? .infinity : bike.finishDistance) }
+        drawRide()
+        NSGraphicsContext.restoreGraphicsState()
+    }
+    /// Scores, timers, banners and hints, above the screen-edge shading.
+    func drawHUDLayer() {
+        guard mode != .garage else { return }
+        updateGeometry()
+        NSGraphicsContext.saveGraphicsState(); let transform=NSAffineTransform(); transform.translateX(by:origin.x,yBy:origin.y); transform.scale(by:viewportScale); transform.concat()
+        NSBezierPath(rect:NSRect(x:0,y:0,width:1280,height:sceneHeight)).addClip()
+        RideProfile.section("HUD") { hud(); drawControls() }
         NSGraphicsContext.restoreGraphicsState()
     }
     func drawGarage() {
@@ -107,8 +145,5 @@ extension RideView {
             NSGraphicsContext.restoreGraphicsState()
         }
         RideProfile.section("lluvia") { art.weather(route:bike.route,time:animationTime) }
-        art.gradient(NSRect(x:0,y:0,width:1280,height:165),NSColor.black.withAlphaComponent(0.32),.clear)
-        art.gradient(NSRect(x:0,y:sceneHeight-130,width:1280,height:130),.clear,NSColor.black.withAlphaComponent(0.50))
-        RideProfile.section("HUD") { hud(); drawControls() }
     }
 }

@@ -17,21 +17,8 @@ final class RideRenderer {
     var landscape: NSImage?, desert: NSImage?
     var asphaltTexture: NSImage?, dirtTexture: NSImage?
     private var treeTextures:[Int:NSImage]=[:]
-    /// Pre-rendered backdrops: scaled photographs, city strips and skies are drawn once and then blitted.
-    private var backdropCache:[String:NSImage]=[:]
-    private var backdropCG:[String:CGImage]=[:], textureCG:[String:CGImage]=[:]
-    private func cachedImage(_ key:String,size:NSSize,_ draw:()->Void)->NSImage {
-        if let hit=backdropCache[key] { return hit }
-        let img=NSImage(size:size); img.lockFocusFlipped(true); draw(); img.unlockFocus()
-        backdropCache[key]=img
-        backdropCG[key]=img.cgImage(forProposedRect:nil,context:nil,hints:nil)
-        return img
-    }
+    private var textureCG:[String:CGImage]=[:]
     /// Draw a cached backdrop through Core Graphics directly: no colour or resampling work, a plain copy.
-    private func blit(_ key:String,_ rect:NSRect,flipX:Bool=false) {
-        guard let cg=backdropCG[key] else { return }
-        blit(cg,rect,flipX:flipX)
-    }
     private func blit(_ cg:CGImage,_ rect:NSRect,flipX:Bool=false,quality:CGInterpolationQuality = .none) {
         guard let ctx=NSGraphicsContext.current?.cgContext else { return }
         ctx.saveGState(); ctx.interpolationQuality = quality
@@ -98,43 +85,27 @@ final class RideRenderer {
         if dirt { for _ in 0..<80 { let x=rand()*512,y=rand()*256; line(x,y,x+rand()*35+4,y-1,0.7,NSColor(hex:0xE5C898,alpha:0.2)) } }
         img.unlockFocus(); return img
     }
-    func background(camera:Double,route:Int,night:Bool,time:Double) {
-        if route==3 { snowBackdrop(camera:camera,time:time) } else if route==4 { cityBackdrop(camera:camera,night:night,time:time) } else if let source=route==2 ? desert : landscape {
-            let w=1880.0, scroll=camera*0.045, tile=Int(floor(scroll/w))
-            // The photograph is resampled once to its on-screen size; each frame is then a straight blit.
-            let key=route==2 ? "desert" : "valley"
-            _=cachedImage(key,size:NSSize(width:w+0.5,height:590)) { image(source,NSRect(x:0,y:0,width:w+0.5,height:590)) }
-            for n in tile...tile+1 {
-                let x=Double(n)*w-scroll
-                if n%2==0 { blit(key,NSRect(x:x,y:-30,width:w+0.5,height:590)) }
-                else { blit(key,NSRect(x:x,y:-30,width:w+0.5,height:590),flipX:true) }   // alternate tiles mirror so the seams match
-            }
-        } else {
-            gradient(NSRect(x:0,y:0,width:1280,height:560),NSColor(hex:0xADD0E4),NSColor(hex:0xD6DBB8))
-            for layer in 0..<4 {
-                var points:[(Double,Double)]=[(-20,600)]
-                for x in stride(from:-20.0,through:1300,by:14) { points.append((x,250+Double(layer)*62+sin((x+camera*Double(layer+1)*0.04)/190)*44+cos(x/81)*18)) }
-                points.append((1300,600)); poly(points,NSColor(hex:[0x9AAEA2,0x8F9E7D,0x718364,0x5B7656][layer]))
+    func hash(_ n:Double)->Double { let v=sin(n*12.9898)*43758.5453; return v-floor(v) }
+    /// One repeating strip of city buildings for a parallax layer (windows lit per building), baked once by the backdrop.
+    func cityStrip(layer:Int,count:Int,width:Double,night:Bool) {
+        for n in 0..<count {
+            let h=hash(Double(n*7+layer*31)),x=Double(n)*width
+            let height=130+h*210+Double(layer)*18,bw=width*(0.7+h*0.25),top=560-height+Double(layer)*34
+            box(x,top,bw,620-top,NSColor(hex:[0x1F2636,0x2A3245,0x39425A][layer]))
+            var wy=top+10
+            while wy<540 {
+                var wx=x+7
+                while wx<x+bw-10 {
+                    if hash(Double(n)*3.1+wx*0.07+wy*0.11)>0.55 { box(wx,wy,6,8,NSColor(hex:0xFFD58A,alpha:night ? 0.85 : 0.5)) }
+                    wx+=14
+                }
+                wy+=18
             }
         }
-        if route==2 { box(0,0,1280,570,NSColor(hex:0xEEB06A,alpha:0.23)); gradient(NSRect(x:0,y:0,width:1280,height:320),NSColor(hex:0x5C4165,alpha:0.22),.clear) }
-        if night { box(0,0,1280,600,NSColor(hex:0x101F3F,alpha:0.66)); circle(1090,85,29,NSColor(hex:0xFFF0CB,alpha:0.8)); for i in 0..<38 { circle(Double((i*137+53)%1280),Double((i*41+17)%220),1,NSColor.white.withAlphaComponent(0.58)) } }
-        // Gentle haze keeps the illustrated bike legible against photographic detail.
-        gradient(NSRect(x:0,y:270,width:1280,height:290),.clear,NSColor(hex:night ? 0x324A47 : 0xC1B58A,alpha:0.25))
     }
-    private func hash(_ n:Double)->Double { let v=sin(n*12.9898)*43758.5453; return v-floor(v) }
-    func snowBackdrop(camera:Double,time:Double) {
-        _=cachedImage("snow-sky",size:NSSize(width:1280,height:560)) { gradient(NSRect(x:0,y:0,width:1280,height:560),NSColor(hex:0xBFD3E2),NSColor(hex:0xF0F4F6)) }
-        blit("snow-sky",NSRect(x:0,y:0,width:1280,height:560))
-        for layer in 0..<4 {
-            var points:[(Double,Double)]=[(-20,600)]
-            for x in stride(from:-20.0,through:1300,by:14) {
-                let phase=(x+camera*Double(layer+1)*0.05)/Double(150+layer*40)
-                points.append((x,215+Double(layer)*58-abs(sin(phase))*92*(1-Double(layer)*0.18)+cos(x/57)*9))
-            }
-            points.append((1300,600)); poly(points,NSColor(hex:[0xDDE7EE,0xC6D4E0,0xAEC1D2,0x8FA6BB][layer]))
-        }
-        // Falling snow: every flake in one path, filled once.
+    /// Falling snow, in one path (the only animated part of the snow backdrop).
+    func snowfall(route:Int,time:Double) {
+        guard route==3 else { return }
         let flakes=NSBezierPath()
         for i in 0..<90 {
             let fall=40+Double(i%5)*14,sway=sin(time*0.8+Double(i))*14,r=1+Double(i%3)*0.7
@@ -143,40 +114,6 @@ final class RideRenderer {
             flakes.append(NSBezierPath(ovalIn:NSRect(x:x-r,y:y-r,width:2*r,height:2*r)))
         }
         NSColor.white.withAlphaComponent(0.8).setFill(); flakes.fill()
-    }
-    private static let cityStripBuildings=24
-    func cityBackdrop(camera:Double,night:Bool,time:Double) {
-        _=cachedImage("city-sky-\(night)",size:NSSize(width:1280,height:560)) {
-            gradient(NSRect(x:0,y:0,width:1280,height:560),NSColor(hex:night ? 0x10172A : 0x39425A),NSColor(hex:night ? 0x2B3550 : 0x7B8498))
-        }
-        RideProfile.section("  cielo") { blit("city-sky-\(night)",NSRect(x:0,y:0,width:1280,height:560)) }
-        for layer in 0..<3 { RideProfile.section("  edificios") {
-            let width=95.0+Double(layer)*15,count=Self.cityStripBuildings,stripWidth=Double(count)*width
-            // One repeating strip of buildings per parallax layer, drawn once (windows are lit per building).
-            let stripKey="city-strip-\(layer)-\(night)"
-            _=cachedImage(stripKey,size:NSSize(width:stripWidth,height:620)) {
-                for n in 0..<count {
-                    let h=hash(Double(n*7+layer*31)),x=Double(n)*width
-                    let height=130+h*210+Double(layer)*18,bw=width*(0.7+h*0.25),top=560-height+Double(layer)*34
-                    box(x,top,bw,620-top,NSColor(hex:[0x1F2636,0x2A3245,0x39425A][layer]))
-                    var wy=top+10
-                    while wy<540 {
-                        var wx=x+7
-                        while wx<x+bw-10 {
-                            if hash(Double(n)*3.1+wx*0.07+wy*0.11)>0.55 { box(wx,wy,6,8,NSColor(hex:0xFFD58A,alpha:night ? 0.85 : 0.5)) }
-                            wx+=14
-                        }
-                        wy+=18
-                    }
-                }
-            }
-            let scroll=camera*(0.03+Double(layer)*0.025)
-            var x0 = -scroll.truncatingRemainder(dividingBy:stripWidth)
-            if x0>0 { x0-=stripWidth }
-            var x=x0
-            while x<1280 { blit(stripKey,NSRect(x:x,y:0,width:stripWidth,height:620)); x+=stripWidth }
-        } }
-        RideProfile.section("  velo") { box(0,0,1280,600,NSColor(hex:0x0B1626,alpha:night ? 0.35 : 0.18)) }
     }
     /// Falling rain over the whole scene, drawn on top of the ride.
     func weather(route:Int,time:Double) {

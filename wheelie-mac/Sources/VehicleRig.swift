@@ -99,7 +99,7 @@ enum BikeKind:String,CaseIterable {
             frontTravel=0.12; rearTravel=0.12; mass=230; wheelMass=11
         case .bmx:
             front=94; radius=24; length=1.05
-            seat=RideVector(29,49); grip=RideVector(77,81); peg=RideVector(44,0)
+            seat=RideVector(29,49); grip=RideVector(77,72); peg=RideVector(44,0)
             frontTravel=0.025; rearTravel=0.025; mass=82; wheelMass=1.2
         case .scooter:
             front=100; radius=20; length=1.22

@@ -15,6 +15,10 @@ final class RiderRagdoll {
         let stiffness:Double
     }
     private var particles:[Particle]
+    /// Solid circles the body must not enter (the fallen bike's wheels and chassis), in world metres. Set every frame by the game.
+    var colliders:[(centre:RideVector,radius:Double)]=[]
+    /// A particle only collides once it has been clear of every collider: the rider starts seated inside the bike.
+    private var clear:[Bool]
     private let bones:[Bone]
     private let template:RiderPose
     /// Knees and elbows hinge one way only: (root, middle, end, side of the template bend).
@@ -32,6 +36,7 @@ final class RiderRagdoll {
         let local=[pose.hip,pose.shoulder,pose.head,pose.elbow,pose.hand,pose.knee,pose.foot,pose.farKnee,pose.farFoot]
         let masses=[9.0,8,4,1.2,0.6,2.5,1.2,2.5,1.2]
         let radii=[0.10,0.09,0.15,0.045,0.045,0.055,0.065,0.055,0.065]
+        clear=Array(repeating:false,count:local.count)
         particles=local.enumerated().map { i,v in
             let rotated=RideVector(v.x*c-v.y*s,v.x*s+v.y*c)
             return Particle(position:origin+rotated,
@@ -88,6 +93,15 @@ final class RiderRagdoll {
                 let correction=delta*((d-bone.length)/d*bone.stiffness/(wa+wb))
                 particles[bone.a].position += correction*wa
                 particles[bone.b].position -= correction*wb
+            }
+            // The bike is solid: push particles that have already been clear of it back out along the contact normal.
+            for i in particles.indices {
+                var inside=false
+                for c in colliders {
+                    let d=particles[i].position-c.centre,l=Self.length(d),reach=c.radius+particles[i].radius
+                    if l<reach { inside=true; if clear[i] && l>1e-9 { particles[i].position=c.centre+d*(reach/l) } }
+                }
+                if !inside { clear[i]=true }
             }
             // A joint bent the wrong way is mirrored across the line between its neighbours (distances are preserved).
             for (a,m,c,sign) in hinges {

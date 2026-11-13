@@ -1,4 +1,4 @@
-# Wheelie Ride 6.12 · macOS
+# Wheelie Ride 6.13 · macOS
 
 Juego independiente inspirado en la base de Wheelie Challenge: conducción lateral, caballitos, equilibrio, saltos, vehículos y piloto personalizables. Swift/AppKit nativo, sin navegador, red ni descargas en tiempo de ejecución.
 
@@ -22,7 +22,7 @@ Desde la versión 4 hay una geometría en metros compartida por la física, el v
 
 Es un modelo de conducción arcade lateral: las ruedas tienen recorrido vertical y el chasis tiene cabeceo; no modela la dirección lateral, deformación completa del neumático ni una moto tridimensional. Los controles de peso incluyen amortiguación para que los caballitos puedan corregirse.
 
-## Esta versión (6.12)
+## Esta versión (6.13)
 
 - **Diez vehículos:** Street 125, Enduro 250, Sport 600, BMX, Scooter 80, Scrambler 400, Trial 200, Hyper R 1000, Cruiser 750 y Volt E-8, con geometría, velocidad, aceleración y respuesta distintas.
 - **Cinco rutas:** Valle de asfalto, Sierra de tierra, Dunas al atardecer, Nieve y Ciudad bajo la lluvia, de 1.200 m (o de 3.000 y 6.000 m en rodar libre y carrera) en cuatro tramos de dificultad creciente, más un **modo infinito** sin meta, con modo nocturno y clima dinámico opcional.
@@ -312,4 +312,23 @@ Caída del piloto rehecha.
 ### Actualización 6.12
 
 Revisión del icono: la moto es un 8 % mayor y está más centrada; el sol es más grande y sus franjas ya no se salen del disco; el polvo y las rayas de la carretera quedan dentro de la esquina redondeada del icono en vez de recortados. Se lee igual a 128, 64 y 32 px sobre fondo claro y oscuro.
+
+### Actualización 6.13
+
+- **La moto es sólida para el piloto que cae:** mientras cae, el ragdoll choca contra las dos ruedas y el chasis de la moto caída (tres círculos que se actualizan cada fotograma). Una partícula solo choca después de haber salido una vez de la moto, porque el piloto empieza sentado dentro de ella. Nueva prueba: un piloto lanzado contra un sólido nunca lo atraviesa más de 16 cm y sus huesos siguen íntegros.
+- **BMX:** el manillar baja de 81 a 72 unidades de dibujo (de chopper a BMX); el solver del piloto sigue exacto con los 55.440 poses.
+- **Android:** la versión `wheelie/` queda documentada como congelada en la 1.1.
+
+## Estado final y límites conocidos
+
+Lo que está verificado: 10 conjuntos de pruebas automáticas (física a 30/120 fps, 55.440 poses del piloto con huesos exactos, ragdoll, terreno procedural, puntuación, progreso, clima, Touch Bar lógica, audio), un smoke test de la app real con ventana efímera (taller, carrera, tutorial, infinito, ruta larga, caída, Touch Bar), medición de fotogramas (58 a 60 fps) y capturas de todos los vehículos, tamaños de ventana, zonas del infinito y caídas.
+
+Lo que **no** se ha podido comprobar y conviene revisar jugando:
+
+- **Sensación de las motos:** forma, animación y acabado se han mejorado con revisión de capturas, pero no con juego prolongado. Si algo sigue pareciendo falso, anotar moto y momento (parada, aceleración, caballito, salto).
+- **Equilibrio:** precios, monedas y dificultad de los rivales no están calibrados con personas; el modo infinito se calibró con un piloto automático prudente (0 caídas en 480 carreras en cuatro rutas y 0 en 72 en la Sierra tras suavizar el terreno roto).
+- **Touch Bar:** la lógica está probada, pero no sobre hardware con Touch Bar.
+- **Ventanas muy estrechas** (≈ 760 pt) con el marcador cargado en carrera con tres rivales, y pantalla completa en monitores ultrapanorámicos.
+- **No existe:** modo de rutas con bifurcaciones (exige un modelo de terreno por carril, con cámara, obstáculos, rival y fantasma por carril).
+- **Caída del piloto:** no choca con los obstáculos del terreno, y la cámara no lo sigue si sale muy lejos.
 

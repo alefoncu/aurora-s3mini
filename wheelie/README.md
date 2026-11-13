@@ -1,3 +1,5 @@
+> **Estado: congelada en la versión 1.1.** El juego principal es la versión de macOS (`../wheelie-mac`, Swift/AppKit), que lleva muchas versiones de ventaja: trucos, progresión, rivales, clima, modo infinito, rutas largas y un arte completamente rehecho. Esta versión Android no recibe esas mejoras y se conserva solo como referencia histórica.
+
 # Wheelie Ride
 
 Juego Android nativo en Java/Canvas, inspirado en la conducción lateral y el equilibrio de [Wheelie Challenge](https://wheelie-challenge.softonic.com/android). Dibujos originales generados con Canvas, sin recursos ni código del juego de referencia. Funciona sin red ni permisos especiales; pensado para el Galaxy S3 Mini con Android 7.1.2.

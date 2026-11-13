@@ -50,6 +50,20 @@ import Foundation
         let start=thrown.pose.hip
         thrown.update(1/120)
         precondition(thrown.pose.hip.x>start.x && thrown.pose.hip.y<start.y,"Initial velocity and gravity")
-        print("RiderRagdollTests passed: all vehicle rigs/three routes, gravity and momentum, detached grips, contacts, constrained bones, fps, stall cap and invalid dt.")
+        // A solid bike: a rider thrown at it never ends up inside it, and joints keep their one-way hinge.
+        do {
+            let pose=RiderRig.solve(vehicle:BikeKind.sport.rig,lean:0)
+            let doll=RiderRagdoll(pose:pose,origin:RideVector(0,0.55),pitch:0,velocity:RideVector(7,2),angularVelocity:0,route:0)
+            let wall=(centre:RideVector(2.6,0.4),radius:0.45)
+            doll.colliders=[wall]
+            var deepest=0.0
+            for _ in 0..<720 {
+                doll.update(1/120)
+                for point in points(doll.pose) { deepest=max(deepest,wall.radius-distance(point,wall.centre)) }
+            }
+            precondition(deepest<0.16,"The fallen bike must be solid for the rider (deepest penetration \(deepest))")
+            precondition(boneError(doll.pose)<0.02,"Bones stay intact against a solid")
+        }
+        print("RiderRagdollTests passed: all vehicle rigs/three routes, gravity and momentum, detached grips, contacts, constrained bones, solid bike, fps, stall cap and invalid dt.")
     }
 }

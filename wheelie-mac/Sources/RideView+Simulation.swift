@@ -61,6 +61,9 @@ extension RideView {
             } else if bike.finished { score.finishRun(); playerFinishTime=elapsed; racePosition=RideRace.position(player:playerEntry,rivals:rivalEntries); challenges.raceWon = !rivalRuns.isEmpty && racePosition<=(challengeKind == .circuit ? 2 : 1); mode = .result; clearInput(); saveRun(); syncState() }
         } else if mode == .crashing {
             bike.update(dt,throttle:false,brake:false,leanBack:false,leanForward:false)
+            let wheel=bike.kind.rig.wheelRadius*0.95
+            let solid:[(centre:RideVector,radius:Double)]=[(bike.rearWheelPosition,wheel),(bike.frontWheelPosition,wheel),(bike.chassisPosition,0.28)]
+            ragdoll?.colliders=solid; passengerRagdoll?.colliders=solid
             ragdoll?.update(dt); passengerRagdoll?.update(dt)
             updateCamera(dt)
             crashTime += dt

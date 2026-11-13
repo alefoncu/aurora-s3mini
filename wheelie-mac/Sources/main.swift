@@ -75,6 +75,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSToolbarDelegate, NST
         if CommandLine.arguments.contains("--smoke-test") { smokeTest() }
         if let i=CommandLine.arguments.firstIndex(of:"--snapshot"),i+1<CommandLine.arguments.count { snapshots(to:CommandLine.arguments[i+1]) }
         if let i=CommandLine.arguments.firstIndex(of:"--responsive"),i+1<CommandLine.arguments.count { responsiveSnapshots(to:CommandLine.arguments[i+1]) }
+        if let i=CommandLine.arguments.firstIndex(of:"--crash"),i+1<CommandLine.arguments.count { crashSequences(to:CommandLine.arguments[i+1]) }
         if CommandLine.arguments.contains("--bench") { runBenchmark() }
         if CommandLine.arguments.contains("--fps") { measureLiveFrameRate() }
         if let i=CommandLine.arguments.firstIndex(of:"--screenshot"),i+1<CommandLine.arguments.count { windowScreenshots(to:CommandLine.arguments[i+1]) }
@@ -166,6 +167,34 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSToolbarDelegate, NST
             print("    "+r.sections.map { String(format:"%@ %.1f",$0.0 as NSString,$0.1) }.joined(separator:" · "))
         }
         RideProfile.enabled=false
+        NSApp.terminate(nil)
+    }
+    /// Developer aid: filmstrips of the rider's fall in three kinds of crash, one PNG each.
+    func crashSequences(to directory:String) {
+        game.audio.enabled=false; game.progress.unlockEverything(); game.obstacles=false; game.bike.kind = .sport
+        try? FileManager.default.createDirectory(atPath:directory,withIntermediateDirectories:true)
+        // key codes: 126 up (gas), 123 left (lift), 124 right (weight forward), 125 down (brake)
+        let scenarios:[(String,BikeKind,Double,(Int)->[UInt16])]=[
+            ("wheelie-loop",.sport,12,{ i in i<30 ? [126] : [126,123] }),
+            ("stoppie-flip",.sport,16,{ i in i<20 ? [126] : [125,124] }),
+            ("highspeed-landing",.motocross,22,{ i in i<30 ? [126] : (i<34 ? [126,49] : [126,123]) })]
+        for (name,kind,speed,keys) in scenarios {
+            game.bike.route=1; game.night=false; game.challengeKind = .free; game.bike.kind=kind; game.start(); game.bike.x=400; game.bike.speed=speed
+            var frames:[NSBitmapImageRep]=[]; var crashTick = -1
+            for i in 0..<900 {
+                game.previous=ProcessInfo.processInfo.systemUptime-1/60; game.keys=Set(keys(i).map{$0}); game.tick()
+                if game.mode == .crashing && crashTick<0 { crashTick=i }
+                if crashTick>=0 && (i-crashTick)%9 == 0, let rep=game.snapshotRep(scale:0.5) { frames.append(rep) }
+                if game.mode == .result || frames.count>=10 { break }
+            }
+            guard frames.count>0 else { print("no crash in \(name)"); continue }
+            let cols=min(5,frames.count),rows=(frames.count+cols-1)/cols
+            let w=Int(frames[0].size.width/2.2),h=Int(frames[0].size.height/2.2)
+            let sheet=NSImage(size:NSSize(width:w*cols,height:h*rows)); sheet.lockFocus()
+            for (k,rep) in frames.enumerated() { NSImage(size:rep.size).draw(in:.zero); let img=NSImage(size:rep.size); img.addRepresentation(rep); img.draw(in:NSRect(x:(k%cols)*w,y:(rows-1-k/cols)*h,width:w,height:h)) }
+            sheet.unlockFocus()
+            if let tiff=sheet.tiffRepresentation,let rep=NSBitmapImageRep(data:tiff) { try? rep.representation(using:.png,properties:[:])?.write(to:URL(fileURLWithPath:directory+"/"+name+".png")) }
+        }
         NSApp.terminate(nil)
     }
     /// Developer aid: the same scene at very different window sizes, to check that nothing is cut off or overlapping.

@@ -43,13 +43,19 @@ extension RideView {
             if bike.landingImpact>0.7 { emitDust(count:min(15,Int(bike.landingImpact*3))); audio.impact() }
             dustClock += dt
             if dustClock>0.06 && bike.speed>2 && bike.rearContact { emitDust(count:abs(bike.rearSlip)>0.2 ? 4 : bike.route==0 ? 1 : 2); dustClock=0 }
+            if !bike.crashed {
+                let follow=1-exp(-dt/0.22)
+                riderVelocity += (RideVector(bike.speed,bike.verticalVelocity)-riderVelocity)*follow
+            }
             if bike.crashed {
                 let pose=RiderRig.solve(vehicle:bike.kind.rig,lean:riderLean,lift:riderLift,pedalPhase:pedalPhase,cycling:bike.kind == .bmx)
-                let velocity=RideVector(previousSpeed,bike.verticalVelocity)
-                ragdoll=RiderRagdoll(pose:pose,origin:bike.chassisPosition,pitch:bike.pitch,velocity:velocity,angularVelocity:bike.angularVelocity,route:bike.route)
+                // The rider leaves with what they were carrying (never less than the bike's own speed), and only a part of the bike's spin.
+                let velocity=RideVector(max(0,min(38,max(riderVelocity.x,previousSpeed*0.7))),max(-6,min(4,riderVelocity.y)))
+                let spin=max(-6,min(6,bike.angularVelocity))*0.5
+                ragdoll=RiderRagdoll(pose:pose,origin:bike.chassisPosition,pitch:bike.pitch,velocity:velocity,angularVelocity:spin,route:bike.route)
                 if art.passenger && bike.kind.supportsPassenger {
                     let companion=RiderRig.solve(vehicle:bike.kind.rig,lean:riderLean*0.3,lift:riderLift,passenger:true)
-                    passengerRagdoll=RiderRagdoll(pose:companion,origin:bike.chassisPosition,pitch:bike.pitch,velocity:velocity,angularVelocity:bike.angularVelocity,route:bike.route)
+                    passengerRagdoll=RiderRagdoll(pose:companion,origin:bike.chassisPosition,pitch:bike.pitch,velocity:velocity,angularVelocity:spin,route:bike.route)
                 }
                 score.crash(); mode = .crashing; crashTime=0; clearInput(); audio.impact(); emitDust(count:16); saveRun(); syncState()
             } else if bike.finished { score.finishRun(); playerFinishTime=elapsed; racePosition=RideRace.position(player:playerEntry,rivals:rivalEntries); challenges.raceWon = !rivalRuns.isEmpty && racePosition<=(challengeKind == .circuit ? 2 : 1); mode = .result; clearInput(); saveRun(); syncState() }

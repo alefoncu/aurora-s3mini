@@ -17,6 +17,8 @@ final class RiderRagdoll {
     private var particles:[Particle]
     private let bones:[Bone]
     private let template:RiderPose
+    /// Knees and elbows hinge one way only: (root, middle, end, side of the template bend).
+    private let hinges:[(Int,Int,Int,Double)]
     private let route:Int
     private static let step=1.0/240.0
 
@@ -36,6 +38,11 @@ final class RiderRagdoll {
                 velocity:velocity+RideVector(-rotated.y,rotated.x)*omega,
                 inverseMass:1/masses[i],radius:radii[i])
         }
+        func side(_ a:Int,_ m:Int,_ c:Int)->Double {
+            let ab=local[m]-local[a],bc=local[c]-local[m]; let cr=ab.x*bc.y-ab.y*bc.x
+            return cr>=0 ? 1 : -1
+        }
+        hinges=[(0,5,6,side(0,5,6)),(0,7,8,side(0,7,8)),(1,3,4,side(1,3,4))]
         let pairs=[(0,1),(1,2),(1,3),(3,4),(0,5),(5,6),(0,7),(7,8),(0,2)]
         bones=pairs.map { a,b in
             Bone(a:a,b:b,length:Self.length(local[b]-local[a]),stiffness:(a==0 && b==2) ? 0.7 : 1)
@@ -81,6 +88,18 @@ final class RiderRagdoll {
                 let correction=delta*((d-bone.length)/d*bone.stiffness/(wa+wb))
                 particles[bone.a].position += correction*wa
                 particles[bone.b].position -= correction*wb
+            }
+            // A joint bent the wrong way is mirrored across the line between its neighbours (distances are preserved).
+            for (a,m,c,sign) in hinges {
+                let pa=particles[a].position,pm=particles[m].position,pc=particles[c].position
+                let ab=pm-pa,bc=pc-pm,cr=ab.x*bc.y-ab.y*bc.x
+                guard cr*sign < -1e-5 else { continue }
+                let ac=pc-pa,l=Self.length(ac)
+                guard l>1e-9 else { continue }
+                let n=ac/l,projection=pa+n*Self.dot(pm-pa,n)
+                particles[m].position=projection*2-pm
+                let v=particles[m].velocity,vn=n*Self.dot(v,n)
+                particles[m].velocity=vn*2-v
             }
             for i in particles.indices {
                 let p=particles[i].position

@@ -1,4 +1,4 @@
-# Wheelie Ride 6.9 · macOS
+# Wheelie Ride 6.10 · macOS
 
 Juego independiente inspirado en la base de Wheelie Challenge: conducción lateral, caballitos, equilibrio, saltos, vehículos y piloto personalizables. Swift/AppKit nativo, sin navegador, red ni descargas en tiempo de ejecución.
 
@@ -22,7 +22,7 @@ Desde la versión 4 hay una geometría en metros compartida por la física, el v
 
 Es un modelo de conducción arcade lateral: las ruedas tienen recorrido vertical y el chasis tiene cabeceo; no modela la dirección lateral, deformación completa del neumático ni una moto tridimensional. Los controles de peso incluyen amortiguación para que los caballitos puedan corregirse.
 
-## Esta versión (6.9)
+## Esta versión (6.10)
 
 - **Diez vehículos:** Street 125, Enduro 250, Sport 600, BMX, Scooter 80, Scrambler 400, Trial 200, Hyper R 1000, Cruiser 750 y Volt E-8, con geometría, velocidad, aceleración y respuesta distintas.
 - **Cinco rutas:** Valle de asfalto, Sierra de tierra, Dunas al atardecer, Nieve y Ciudad bajo la lluvia, de 1.200 m (o de 3.000 y 6.000 m en rodar libre y carrera) en cuatro tramos de dificultad creciente, más un **modo infinito** sin meta, con modo nocturno y clima dinámico opcional.
@@ -294,4 +294,13 @@ Modo infinito de verdad y rutas largas. Ambos comparten un generador de terreno 
 - **Verificación:** el terreno es continuo con pendiente acotada en las cinco rutas (12 km, paso de 5 cm), determinista, y las zonas varían sin repetir cuestas ni respiros seguidos. Un piloto prudente recorre 3.000 m en cuatro vehículos y cinco rutas, y llega a 4.000 m en el infinito. Al ajustar el generador se midió que el piloto automático se caía en «Terreno roto» de la Sierra (13 de 72 carreras con los tres vehículos peores); se suavizó esa zona y quedó en 0 de 72. En total, 0 caídas en 480 carreras de infinito en las otras cuatro rutas.
 - Solo se dibujan y comprueban los obstáculos cercanos a la moto (búsqueda binaria), porque un infinito tiene miles.
 - Pendiente de revisar a mano: sensación de las cuestas y del terreno roto con otras motos, ritmo de la dificultad pasados los 5.000 m y cómo se ve el fondo con rutas muy largas.
+
+### Actualización 6.10
+
+Caída del piloto rehecha.
+
+- **Impulso propio:** el piloto sale con la velocidad que llevaba (un filtro de la velocidad de la moto de unos 0,2 s), no con la de la moto en el instante del choque. Antes, cuando la moto volcaba y se paraba en seco, el piloto salía casi sin velocidad y el giro de la moto sin limitar lo lanzaba hacia atrás y fuera de la pantalla. Ahora solo hereda la mitad del giro (máximo ±3 rad/s) y la velocidad vertical se acota, de modo que en un volteo hacia delante vuela hacia delante, describe un arco, aterriza y se desliza, siempre a la vista.
+- **Articulaciones con sentido:** rodillas y codos solo doblan hacia su lado: si una articulación se doblaba al revés se refleja respecto a la línea entre sus vecinas (las longitudes de hueso se conservan).
+- **Herramienta:** `--crash <carpeta>` guarda tiras de tres caídas (looping de caballito, volteo sobre la rueda delantera y aterrizaje a alta velocidad) para revisarlas.
+- No he jugado a mano esta versión. Pendiente: el piloto no choca con la moto ni con los obstáculos mientras cae, y la cámara no lo sigue si sale muy lejos.
 

@@ -167,6 +167,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSToolbarDelegate, NST
             guard let rep=game.snapshotRep() else { return }
             try? rep.representation(using:.png,properties:[:])?.write(to:URL(fileURLWithPath:directory+"/"+name+".png"))
         }
+        // Every vehicle, same pose, for artwork review (`lineup-<kind>.png`).
+        for kind in BikeKind.allCases {
+            game.challengeKind = .free; game.bike.kind=kind; game.bike.route=0; game.night=false; game.start(); game.bike.x=400; game.bike.speed=8
+            for _ in 0..<30 { game.previous=ProcessInfo.processInfo.systemUptime-1/60; game.keys=[126]; game.tick() }
+            shot("lineup-"+kind.rawValue)
+        }
         // The newest vehicles.
         for (name,kind) in [("vehicle-cruiser",BikeKind.cruiser),("vehicle-electric",.electric)] {
             game.challengeKind = .free; game.bike.kind=kind; game.bike.route=0; game.night=false; game.start(); game.bike.x=400; game.bike.speed=8

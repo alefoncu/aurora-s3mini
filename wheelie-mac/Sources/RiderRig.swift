@@ -10,6 +10,8 @@ struct RiderPose {
 enum RiderRig {
     static let pedalRadius=0.12
     private static let upperArm=0.31,forearm=0.31,thigh=0.40,shin=0.43,torso=0.49
+    /// The arms never lock out: the elbow keeps a natural bend (the torso leans in instead).
+    private static let elbowSlack=0.04
 
     /// Solve the body posture first so exact limb chains can reach their real
     /// contacts. This never shortens an endpoint or stretches a forearm/shin.
@@ -46,7 +48,13 @@ enum RiderRig {
         if passenger { hand=vehicle.seat+RideVector(0.10,0.19) }
         else if stunt { hand=hip+RideVector(-0.24,0.53) }
         else { hand=vehicle.grip*(1-hands)+(hip+RideVector(0.34,0.62))*hands }   // hands off: arm raised up and forward
-        hip=reachableRoot(hip,target:hand,minimum:0.05,maximum:torso+upperArm+forearm-0.02)
+        // Alternate the leg and arm reach constraints so pulling the hip towards the bars never overstretches a leg.
+        for _ in 0..<8 {
+            hip=reachableRoot(hip,target:hand,minimum:0.05,maximum:torso+upperArm+forearm-elbowSlack)
+            hip=reachableRoot(hip,target:foot,minimum:0.10,maximum:thigh+shin-0.015)
+            hip=reachableRoot(hip,target:farFoot,minimum:0.10,maximum:thigh+shin-0.015)
+        }
+        hip=reachableRoot(hip,target:hand,minimum:0.05,maximum:torso+upperArm+forearm-elbowSlack)
         let preferredTilt=(passenger ? -0.10 : vehicle.riderTorsoTilt)+lean*0.52+(cycling ? 0.05 : 0)
         let preferredAngle=(Double.pi/2-preferredTilt)*(1-fly)+0.18*fly
         let shoulder=reachableShoulder(hip:hip,hand:hand,preferredAngle:preferredAngle)
@@ -60,7 +68,7 @@ enum RiderRig {
             shinLength:shin,torsoLength:torso)
     }
     private static func reachableShoulder(hip:RideVector,hand:RideVector,preferredAngle:Double)->RideVector {
-        let offset=hand-hip,d=length(offset),reach=upperArm+forearm-0.01
+        let offset=hand-hip,d=length(offset),reach=upperArm+forearm-elbowSlack
         guard d>1e-10 else { return hip+RideVector(cos(preferredAngle),sin(preferredAngle))*torso }
         let direction=atan2(offset.y,offset.x)
         // Intersect the torso circle and arm reach disc, then project the

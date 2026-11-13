@@ -1,4 +1,4 @@
-# Wheelie Ride 6.5 · macOS
+# Wheelie Ride 6.6 · macOS
 
 Juego independiente inspirado en la base de Wheelie Challenge: conducción lateral, caballitos, equilibrio, saltos, vehículos y piloto personalizables. Swift/AppKit nativo, sin navegador, red ni descargas en tiempo de ejecución.
 
@@ -22,14 +22,14 @@ Desde la versión 4 hay una geometría en metros compartida por la física, el v
 
 Es un modelo de conducción arcade lateral: las ruedas tienen recorrido vertical y el chasis tiene cabeceo; no modela la dirección lateral, deformación completa del neumático ni una moto tridimensional. Los controles de peso incluyen amortiguación para que los caballitos puedan corregirse.
 
-## Esta versión (6.5)
+## Esta versión (6.6)
 
 - **Diez vehículos:** Street 125, Enduro 250, Sport 600, BMX, Scooter 80, Scrambler 400, Trial 200, Hyper R 1000, Cruiser 750 y Volt E-8, con geometría, velocidad, aceleración y respuesta distintas.
 - **Cinco rutas:** Valle de asfalto, Sierra de tierra, Dunas al atardecer, Nieve y Ciudad bajo la lluvia, de 1.200 m en cuatro tramos de dificultad creciente, con modo nocturno y clima dinámico opcional.
 - **Trucos y puntuación:** caballito, invertido, saltos, volteretas, manos fuera, giro de 360° y superman, con cadenas y multiplicador.
 - **Retos:** tutorial guiado, contrarreloj, carrera contra rival, circuito cerrado de tres vueltas con tres rivales, modo infinito y fantasma de tu mejor vuelta.
 - **Progresión:** monedas, desbloqueos, estilos comprables de casco, chaqueta y moto, misiones diarias y semanal, estadísticas y logros, tres modos de dificultad.
-- **Presentación:** vehículos y muñecos con volúmenes y materiales propios, color libre de moto, chaqueta, casco y piel, sombras y polvo, fondo en capas de Core Animation a 60 fps, sonido sintetizado de motor, rodadura, ambiente e interfaz.
+- **Presentación:** vehículos con mecánica a la vista (motores monocilíndrico, V-twin y cuatro en línea, radiadores, bastidores, escapes, cadena, horquilla con tijas) y piloto con proporciones humanas, volúmenes y materiales propios, color libre de moto, chaqueta, casco y piel, sombras y polvo, fondo en capas de Core Animation a 60 fps, sonido sintetizado de motor, rodadura, ambiente e interfaz.
 - **Mac nativo:** ventana Retina, pantalla completa, barra de herramientas personalizable, menús, atajos y Touch Bar.
 - Récords separados por vehículo, ruta, dificultad y clima. Las preferencias de versiones anteriores se conservan; los récords nuevos usan un espacio separado (`v5`) porque la física cambió, y los anteriores permanecen guardados.
 
@@ -124,7 +124,8 @@ La app también acepta `--smoke-test` para probar su máquina de estados real co
 - `Sources/RideChallenges.swift`: retos (caballito, invertido, salto, contrarreloj) y fantasma de la mejor vuelta.
 - `Sources/RiderRig.swift`: postura y cinemática inversa del piloto.
 - `Sources/RiderRagdoll.swift`: caída del personaje desprendido.
-- `Sources/VehicleArtwork.swift`: materiales y piezas móviles de los vehículos.
+- `Sources/VehicleArtwork.swift`: ruedas, frenos, basculante, amortiguador, horquilla, bastidor, motores, escapes y manillar.
+- `Sources/VehicleBodies.swift`: carrocería de cada vehículo (depósito, carenados, faros, asientos).
 - `Sources/RiderArtwork.swift`: dibujo del muñeco a partir del esqueleto resuelto.
 - `Sources/Renderer.swift`: carretera, motocicletas y piloto articulado.
 - `Sources/GameView.swift`: estado de la partida, preferencias, entrada y récords (clase `RideView`). El resto de `RideView` está repartido en extensiones: `RideView+Simulation.swift` (bucle de fotograma y colisiones), `RideView+Rules.swift` (reglas de la partida: puntos, rival, tutorial, misiones, avisos), `RideView+Overlay.swift` (pausa y resultados), `RideView+Drawing.swift` (escena), `RideView+HUD.swift` (marcador), `RideBackdrop.swift` (fondo y velos como capas de Core Animation) y `RideLayers.swift` (vistas por capas y captura compuesta).
@@ -247,3 +248,15 @@ Cierra las limitaciones de 6.1 hasta donde el modelo lo permite.
 - **Clima dinámico:** niebla en el valle y las dunas, tormenta con relámpagos en la Sierra y la ciudad, ventisca en la nieve, cada una a mitad de ruta (suave al entrar y salir). Efectos reales: la lluvia moja la carretera (hasta un 25 % menos de adherencia), la niebla vela el paisaje (capas GPU), los relámpagos iluminan la escena y el trueno llega unos 0,9 s después; el sonido de la lluvia sigue su intensidad. Casilla *Clima dinámico* en el taller, activada por defecto, con **récords propios** (sufijo `.clima`); desactivada, el juego es el de antes (la ciudad sigue lloviendo). Hay etiqueta en el marcador ("NIEBLA DENSA", "TORMENTA").
 - **Dos vehículos nuevos:** **Cruiser 750** (120 monedas): larga, baja y pesada, asiento bajo, manillar alto, pies adelantados, alforja y respaldo; V-twin grave, 150 km/h. **Volt E-8** (150 monedas): eléctrica, una sola marcha, par instantáneo, 130 km/h, batería con luces verdes. Es **silenciosa**: no tiene voz de motor, solo ruido de rodadura (no he sintetizado un zumbido eléctrico). Pasan todas las pruebas de física, giros, tutorial y rival con los diez vehículos.
 - **No hecho: rutas con bifurcaciones.** El terreno es una única función de la distancia: una bifurcación real (dos caminos a la vez, con elección) exige un modelo de terreno por carril, cámara y obstáculos por carril, rival y fantasma por carril. No he querido fingirlo con un salto decorativo; queda como trabajo de diseño propio.
+
+### Actualización 6.6
+
+Rediseño del arte de motos y piloto. La física y la geometría del rig no cambian (los 55.440 poses y todas las suites pasan igual); solo cambia cómo se dibujan.
+
+- **Piloto con proporciones humanas:** extremidades ahusadas con musculatura (muslo, gemelo, bíceps, antebrazo), torso con curva lumbar y hombros, pelvis sentada, cuello, y cabeza con perfil. Manos con palma, cuatro dedos y pulgar sobre el puño, con guantes de cuero o protecciones según el equipo; zapatillas con suela y cordones, botas de cuero con puntera y botas de enduro con hebillas; rodilleras, deslizadores, coderas, hump de espalda y paneles del mono. Casco integral con carcasa moldeada, visera tintada con sello de goma, pivote y reflejo, ventilaciones, goma en la base, pico y gafas en enduro. Los guantes cierran el puño sobre el manillar (nudillos acorazados en deportiva y enduro) y se ve el contrapeso del extremo del manillar.
+- **Motos con mecánica a la vista:** bastidor visible por tipo (cuna de acero, doble viga de aluminio, cuna abierta), motores monocilíndrico con aletas, V-twin de 45° con varillas cromadas y cuatro en línea con colectores, radiadores con mangueras, escapes propios (silenciador de titanio bajo el colín en las deportivas, cámara de expansión en el enduro, tubos escalonados en la custom, tubo alto con protector en la scrambler), basculante con refuerzo y tensor, cadena con piñón y corona dentados, amortiguador con depósito remoto, horquilla invertida en las deportivas con tijas, pinzas de freno (radial en las deportivas), discos ondulados y llantas de radios cruzados, de cinco brazos o de tres.
+- **Carrocerías por vehículo:** deportivas con colín, depósito, carenado, quilla y pantalla (esquinas suavizadas, sin formas de huevo); Street y Scrambler retro con faro cromado; enduro con tomas de radiador, porta número y guardabarros; Cruiser con depósito de gota, guardabarros profundos, alforja de cuero y respaldo; Scooter con escudo, plataforma y tapa de transmisión; Trial esquelética; Volt E-8 con batería aleteada y motor central.
+- **Revisión con Gemini y ajustes:** los brazos ya no se bloquean (el solver deja siempre unos 4 cm de holgura, un codo de unos 140°, y el torso se inclina hacia el manillar; los 55.440 poses siguen exactos); el casco es un 9 % más pequeño y el cuello más grueso; el colín de la Sport y la Hyper es más corto y más alto; la caja de aire del enduro ya no parece una maleta; la Volt E-8 lleva una viga fina en lugar de un depósito de gasolina. Descartado por no ser un defecto: la rueda delantera levantada en las capturas es el caballito de la física.
+- **Rendimiento:** el dibujo de moto y piloto cuesta unos 9,5 ms de CPU por fotograma (antes el fotograma completo rondaba 15 a 17 ms); en la ventana real se miden 58,5 a 60 fps en las cuatro escenas de `--fps`.
+- **Herramientas:** `--snapshot` guarda además `lineup-<vehículo>.png` con los diez vehículos en la misma pose, para revisar el arte.
+- No he jugado a mano esta versión: la revisión visual se hizo con capturas. Pendiente de revisar en pantalla: aspecto de la BMX (solo cambió el piloto, el cuadro tiene más detalle), colores secundarios fijos (negro, plata, cromo) que no siguen el color elegido, y cómo queda la combinación de estilos comprados con las nuevas carrocerías.

@@ -17,7 +17,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSToolbarDelegate, NST
     var pauseItem:NSToolbarItem?, nightItem:NSToolbarItem?, audioItem:NSToolbarItem?
     var split:NSSplitViewController!, sidebar:GarageSidebarController!, inspector:GarageInspectorController!
     var sidebarItem:NSSplitViewItem!, inspectorItem:NSSplitViewItem!
-    var lastGarage:Bool?
+    var lastGarage:Bool?, lastNarrow:Bool?
+    /// Below this window width the vehicle list is hidden; the inspector's vehicle popup replaces it.
+    static let narrowWindow:CGFloat = 1060
+    func windowDidResize(_ notification:Notification) { adaptGarageLayout() }
+    func adaptGarageLayout() {
+        guard let window, game != nil else { return }
+        let narrow=window.frame.width<Self.narrowWindow
+        guard narrow != lastNarrow else { return }
+        lastNarrow=narrow
+        if game.mode == .garage { sidebarItem.isCollapsed=narrow }
+    }
     var settings:NSPanel?, settingsResume=false
     var colorWells:[String:NSColorWell]=[:]
     var smokePreferences:String?
@@ -26,7 +36,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSToolbarDelegate, NST
         NSTouchBar.isAutomaticCustomizeTouchBarMenuItemEnabled=true
         window=RideWindow(contentRect:NSRect(x:0,y:0,width:1280,height:720),styleMask:[.titled,.closable,.miniaturizable,.resizable,.fullSizeContentView],backing:.buffered,defer:false)
         window.styleMask.remove(.fullSizeContentView)
-        window.title="Wheelie Ride"; window.contentMinSize=NSSize(width:1000,height:620)
+        window.title="Wheelie Ride"; window.contentMinSize=NSSize(width:760,height:520)
         window.titlebarAppearsTransparent=true; window.toolbarStyle = .unified; window.isReleasedWhenClosed=false; window.delegate=self
         let preferences:UserDefaults
         if CommandLine.arguments.contains("--smoke-test") {
@@ -43,6 +53,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSToolbarDelegate, NST
             self.game.bike.kind=kind; self.game.prefs.set(BikeKind.allCases.firstIndex(of:kind) ?? 0,forKey:"vehicle"); self.game.loadHandlingPreferences(); self.game.loadRecords(); self.game.syncState()
         })
         inspector=GarageInspectorController(game:game,onPlay: { [weak self] in self?.game.start() },onChange: { [weak self] in self?.game.syncState() })
+        inspector.onVehicle = { [weak self] kind in
+            guard let self, self.game.mode == .garage else { return }
+            self.game.bike.kind=kind; self.game.prefs.set(BikeKind.allCases.firstIndex(of:kind) ?? 0,forKey:"vehicle"); self.game.loadHandlingPreferences(); self.game.loadRecords(); self.game.syncState()
+        }
         let center=NSViewController(); center.view=game
         split=NSSplitViewController(); split.splitView.dividerStyle = .thin
         sidebarItem=NSSplitViewItem(sidebarWithViewController:sidebar); sidebarItem.minimumThickness=200; sidebarItem.maximumThickness=250; sidebarItem.canCollapse=true
@@ -60,6 +74,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSToolbarDelegate, NST
         buildMenu(); syncWindow(); if !restored { window.center() }; window.makeKeyAndOrderFront(nil); window.makeFirstResponder(game); NSApp.activate(ignoringOtherApps:true)
         if CommandLine.arguments.contains("--smoke-test") { smokeTest() }
         if let i=CommandLine.arguments.firstIndex(of:"--snapshot"),i+1<CommandLine.arguments.count { snapshots(to:CommandLine.arguments[i+1]) }
+        if let i=CommandLine.arguments.firstIndex(of:"--responsive"),i+1<CommandLine.arguments.count { responsiveSnapshots(to:CommandLine.arguments[i+1]) }
         if CommandLine.arguments.contains("--bench") { runBenchmark() }
         if CommandLine.arguments.contains("--fps") { measureLiveFrameRate() }
         if let i=CommandLine.arguments.firstIndex(of:"--screenshot"),i+1<CommandLine.arguments.count { windowScreenshots(to:CommandLine.arguments[i+1]) }
@@ -151,6 +166,30 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSToolbarDelegate, NST
             print("    "+r.sections.map { String(format:"%@ %.1f",$0.0 as NSString,$0.1) }.joined(separator:" · "))
         }
         RideProfile.enabled=false
+        NSApp.terminate(nil)
+    }
+    /// Developer aid: the same scene at very different window sizes, to check that nothing is cut off or overlapping.
+    func responsiveSnapshots(to directory:String) {
+        window.setFrameAutosaveName("")   // never save these artificial sizes as the user's window frame
+        game.audio.enabled=false; game.progress.unlockEverything(); game.obstacles=true; game.bike.kind = .sport
+        try? FileManager.default.createDirectory(atPath:directory,withIntermediateDirectories:true)
+        func pump(_ seconds:Double) { RunLoop.current.run(until:Date(timeIntervalSinceNow:seconds)) }
+        game.bike.route=0; game.night=false; game.challengeKind = .race; game.start(); game.bike.x=420
+        for _ in 0..<50 { game.previous=ProcessInfo.processInfo.systemUptime-1/60; game.keys=[126]; game.tick() }
+        for (w,h) in [(1280,720),(760,520),(900,900),(1700,640),(2560,1080),(1000,1400)] {
+            window.setContentSize(NSSize(width:w,height:h)); pump(0.4)
+            guard let rep=game.snapshotRep(scale:1) else { continue }
+            let name="size-\(Int(game.bounds.width))x\(Int(game.bounds.height))"
+            try? rep.representation(using:.png,properties:[:])?.write(to:URL(fileURLWithPath:directory+"/"+name+".png"))
+        }
+        // The garage in the real window (split view with its side panels) at a wide and a narrow size.
+        game.garage()
+        for (w,h) in [(1360,760),(820,600)] {
+            window.setContentSize(NSSize(width:w,height:h)); syncWindow(); pump(0.7)
+            if let image=CGWindowListCreateImage(.null,.optionIncludingWindow,CGWindowID(window.windowNumber),[.boundsIgnoreFraming,.bestResolution]) {
+                try? NSBitmapImageRep(cgImage:image).representation(using:.png,properties:[:])?.write(to:URL(fileURLWithPath:directory+"/garage-\(w)x\(h).png"))
+            }
+        }
         NSApp.terminate(nil)
     }
     /// Developer aid: write one PNG per route (with obstacles on) using isolated preferences.
@@ -251,7 +290,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSToolbarDelegate, NST
         if lastGarage != garage {
             lastGarage=garage
             if !garage { inspector.endEditing() }
-            sidebarItem.isCollapsed = !garage
+            sidebarItem.isCollapsed = !garage || window.frame.width<Self.narrowWindow
             inspectorItem.isCollapsed = !garage
         }
         if garage { sidebar.reload(); sidebar.sync(kind:game.bike.kind); inspector.refresh() }
@@ -374,6 +413,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSToolbarDelegate, NST
     func windowWillClose(_ notification:Notification) { game.preserveRun(); game.audio.stop(); game.bar.releaseAll() }
     /// Exercise the actual UI state machine without injecting global keyboard events.
     func smokeTest() {
+        window.setFrameAutosaveName(""); window.setContentSize(NSSize(width:1280,height:720))   // a known, unsaved size: the layout depends on it
         game.audio.enabled=false
         // ---- Garage UI flow: wallet, locks, purchases, challenge, rival and option controls ----
         let originalKind=game.bike.kind,originalRoute=game.bike.route

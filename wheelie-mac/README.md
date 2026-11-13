@@ -1,4 +1,4 @@
-# Wheelie Ride 6.6 · macOS
+# Wheelie Ride 6.7 · macOS
 
 Juego independiente inspirado en la base de Wheelie Challenge: conducción lateral, caballitos, equilibrio, saltos, vehículos y piloto personalizables. Swift/AppKit nativo, sin navegador, red ni descargas en tiempo de ejecución.
 
@@ -22,7 +22,7 @@ Desde la versión 4 hay una geometría en metros compartida por la física, el v
 
 Es un modelo de conducción arcade lateral: las ruedas tienen recorrido vertical y el chasis tiene cabeceo; no modela la dirección lateral, deformación completa del neumático ni una moto tridimensional. Los controles de peso incluyen amortiguación para que los caballitos puedan corregirse.
 
-## Esta versión (6.6)
+## Esta versión (6.7)
 
 - **Diez vehículos:** Street 125, Enduro 250, Sport 600, BMX, Scooter 80, Scrambler 400, Trial 200, Hyper R 1000, Cruiser 750 y Volt E-8, con geometría, velocidad, aceleración y respuesta distintas.
 - **Cinco rutas:** Valle de asfalto, Sierra de tierra, Dunas al atardecer, Nieve y Ciudad bajo la lluvia, de 1.200 m en cuatro tramos de dificultad creciente, con modo nocturno y clima dinámico opcional.
@@ -78,6 +78,10 @@ Integración real con `NSTouchBar` de AppKit, sin complementos ni herramientas e
 - Retirar el dedo, deslizarlo fuera, pausar, cerrar un elemento o perder el foco libera los controles.
 
 Las pruebas automáticas validan el estado del controlador, pulsación/liberación accesible, entradas combinadas y cancelación. No simulan dedos ni verifican la distribución o respuesta sobre el hardware físico; esa comprobación se hace en el Mac con Touch Bar.
+
+## Actualización automática de la app instalada
+
+Cada commit que cambie la app se instala también en `~/Applications/Wheelie Ride.app`, con copia de seguridad de la versión anterior. Las reglas y los pasos están en [`CLAUDE.md`](CLAUDE.md), que Claude Code carga al trabajar en esta carpeta. Para hacerlo a mano: `./build.sh --install` (con la app cerrada).
 
 ## Compilar e instalar
 
@@ -261,3 +265,14 @@ Rediseño del arte de motos y piloto. La física y la geometría del rig no camb
 - **Icono nuevo:** la Sport cian con el piloto en un caballito sobre un atardecer retro (sol con franjas, montañas y carretera), ajustado a la rejilla de macOS con margen y sombra. Se regenera con `make-icon.swift` (receta en `Assets/README.md`).
 - **Herramientas:** `--snapshot` guarda además `lineup-<vehículo>.png` con los diez vehículos en la misma pose, para revisar el arte.
 - No he jugado a mano esta versión: la revisión visual se hizo con capturas. Pendiente de revisar en pantalla: aspecto de la BMX (solo cambió el piloto, el cuadro tiene más detalle), colores secundarios fijos (negro, plata, cromo) que no siguen el color elegido, y cómo queda la combinación de estilos comprados con las nuevas carrocerías.
+
+### Actualización 6.7
+
+La app es responsive: la partida y el taller se adaptan a cualquier tamaño de ventana.
+
+- **Escena:** el lienzo lógico ya no es de 1280 puntos fijos. Se escala por la altura (720 puntos lógicos) y su ancho sigue a la ventana, entre 900 y 1700 puntos: una ventana ancha o ultrapanorámica enseña más carretera por delante, una estrecha o baja no recorta la moto ni el marcador. La moto se coloca al 29 % del ancho y el suelo al 63,6 % del alto. El fondo, el sombreado y las nubes se reconstruyen por escalones de ancho para no rehacerlos en cada píxel al redimensionar.
+- **Marcador:** velocidad, tiempo, puntos, posición, avisos y tutorial se anclan a los bordes o al centro de la ventana en vez de a coordenadas fijas. En carrera, las líneas de posición ya no se solapan con el cuadro de puntos.
+- **Taller:** el tamaño mínimo de la ventana baja de 1000×620 a 760×520. Por debajo de 1060 puntos de ancho se oculta la lista lateral de vehículos y un selector **Vehículo** al principio del panel de ajustes la sustituye (también existe en ventanas anchas). La vista previa de la moto ya se escalaba al espacio disponible.
+- **Herramientas:** `--responsive <carpeta>` captura la partida a seis tamaños de ventana y el taller real (ancho y estrecho). No guarda esos tamaños como la posición de ventana del usuario, y el smoke test fija su propio tamaño sin guardarlo.
+- Pendiente de revisar a mano: ventanas muy estrechas (≈760 pt) con el marcador cargado en carrera con tres rivales, y pantalla completa en monitores ultrapanorámicos.
+

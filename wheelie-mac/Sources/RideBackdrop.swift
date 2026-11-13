@@ -7,7 +7,7 @@ import QuartzCore
 /// view scales `root` to the window.
 final class RideBackdrop {
     let root = CALayer()
-    private(set) var route = -1, night = false, height = 0.0, backing: CGFloat = 0
+    private(set) var route = -1, night = false, height = 0.0, width = 1280.0, backing: CGFloat = 0
     private let art: RideRenderer
     private var photoTiles: [CALayer] = []
     private var photoNormal: CGImage?, photoMirrored: CGImage?
@@ -61,14 +61,14 @@ final class RideBackdrop {
 
     // MARK: Building
     /// Rebuild the layer tree when the route, the time of day, the window height or the screen density change.
-    func configure(route: Int, night: Bool, height: Double, backing: CGFloat) {
+    func configure(route: Int, night: Bool, width: Double = 1280, height: Double, backing: CGFloat) {
         let h = height.rounded()
-        guard route != self.route || night != self.night || h != self.height || backing != self.backing else { return }
-        self.route = route; self.night = night; self.height = h; self.backing = backing
+        guard route != self.route || night != self.night || h != self.height || width != self.width || backing != self.backing else { return }
+        self.route = route; self.night = night; self.height = h; self.width = width; self.backing = backing
         CATransaction.begin(); CATransaction.setDisableActions(true)
         root.sublayers = nil; photoTiles = []; strips = []; mountains = []; fogLayer = nil
-        root.bounds = CGRect(x: 0, y: 0, width: 1280, height: h)
-        if h > 700 { root.addSublayer(colorLayer(frame(0, 700, 1280, h - 700), NSColor(hex: RideBackdrop.earthColor(route)))) }
+        root.bounds = CGRect(x: 0, y: 0, width: width, height: h)
+        if h > 700 { root.addSublayer(colorLayer(frame(0, 700, width, h - 700), NSColor(hex: RideBackdrop.earthColor(route)))) }
         switch route {
         case 3: buildSnow()
         case 4: buildCity()
@@ -76,7 +76,7 @@ final class RideBackdrop {
         }
         buildVeils()
         // Fog thickens the distance: a mist-coloured sheet whose opacity follows the weather.
-        let mist = colorLayer(frame(0, 0, 1280, h), NSColor(hex: night ? 0x59627A : 0xD5DCE0)); mist.opacity = Float(lastFog)
+        let mist = colorLayer(frame(0, 0, width, h), NSColor(hex: night ? 0x59627A : 0xD5DCE0)); mist.opacity = Float(lastFog)
         root.addSublayer(mist); fogLayer = mist
         for layer in root.sublayers ?? [] { layer.contentsScale = backing }
         CATransaction.commit()
@@ -103,7 +103,7 @@ final class RideBackdrop {
     }
 
     private func buildSnow() {
-        root.addSublayer(gradientLayer(frame(0, 0, 1280, 560), top: NSColor(hex: 0xBFD3E2), bottom: NSColor(hex: 0xF0F4F6)))
+        root.addSublayer(gradientLayer(frame(0, 0, width, 560), top: NSColor(hex: 0xBFD3E2), bottom: NSColor(hex: 0xF0F4F6)))
         let colors = [0xDDE7EE, 0xC6D4E0, 0xAEC1D2, 0x8FA6BB]
         for layerIndex in 0..<4 {
             let period = Double(150 + layerIndex * 40), span = Double.pi * period      // |sin| repeats every pi * period
@@ -122,7 +122,7 @@ final class RideBackdrop {
 
     private func buildCity() {
         let night = self.night
-        root.addSublayer(gradientLayer(frame(0, 0, 1280, 560), top: NSColor(hex: night ? 0x10172A : 0x39425A), bottom: NSColor(hex: night ? 0x2B3550 : 0x7B8498)))
+        root.addSublayer(gradientLayer(frame(0, 0, width, 560), top: NSColor(hex: night ? 0x10172A : 0x39425A), bottom: NSColor(hex: night ? 0x2B3550 : 0x7B8498)))
         let count = 24
         for layerIndex in 0..<3 {
             let width = 95.0 + Double(layerIndex) * 15, stripWidth = Double(count) * width
@@ -135,27 +135,31 @@ final class RideBackdrop {
             }
             strips.append((layers, stripWidth, 0.03 + Double(layerIndex) * 0.025))
         }
-        root.addSublayer(colorLayer(frame(0, 0, 1280, 600), NSColor(hex: 0x0B1626, alpha: night ? 0.35 : 0.18)))
+        root.addSublayer(colorLayer(frame(0, 0, width, 600), NSColor(hex: 0x0B1626, alpha: night ? 0.35 : 0.18)))
     }
 
     /// Tints, the night sky and the haze: static, so they cost nothing per frame.
     private func buildVeils() {
         if route == 2 {
-            root.addSublayer(colorLayer(frame(0, 0, 1280, 570), NSColor(hex: 0xEEB06A, alpha: 0.23)))
-            root.addSublayer(gradientLayer(frame(0, 0, 1280, 320), top: NSColor(hex: 0x5C4165, alpha: 0.22), bottom: .clear))
+            root.addSublayer(colorLayer(frame(0, 0, width, 570), NSColor(hex: 0xEEB06A, alpha: 0.23)))
+            root.addSublayer(gradientLayer(frame(0, 0, width, 320), top: NSColor(hex: 0x5C4165, alpha: 0.22), bottom: .clear))
         }
         if night {
-            root.addSublayer(colorLayer(frame(0, 0, 1280, 600), NSColor(hex: 0x101F3F, alpha: 0.66)))
-            let moon = CAShapeLayer(); moon.frame = CGRect(x: 0, y: 0, width: 1280, height: height); moon.actions = Self.noActions
+            root.addSublayer(colorLayer(frame(0, 0, width, 600), NSColor(hex: 0x101F3F, alpha: 0.66)))
+            let moon = CAShapeLayer(); moon.frame = CGRect(x: 0, y: 0, width: width, height: height); moon.actions = Self.noActions
             moon.path = CGPath(ellipseIn: CGRect(x: 1090 - 29, y: up(85, 0) - 29, width: 58, height: 58), transform: nil)
             moon.fillColor = NSColor(hex: 0xFFF0CB, alpha: 0.8).cgColor; root.addSublayer(moon)
             let stars = CAShapeLayer(); stars.frame = moon.frame; stars.actions = Self.noActions
             let starPath = CGMutablePath()
-            for i in 0..<38 { starPath.addEllipse(in: CGRect(x: Double((i * 137 + 53) % 1280) - 1, y: up(Double((i * 41 + 17) % 220), 0) - 1, width: 2, height: 2)) }
+            let spread = Int(width)
+            for i in 0..<38 {
+                let sx = Double((i * 137 + 53) % spread) - 1, sy = up(Double((i * 41 + 17) % 220), 0) - 1
+                starPath.addEllipse(in: CGRect(x: sx, y: sy, width: 2, height: 2))
+            }
             stars.path = starPath; stars.fillColor = NSColor.white.withAlphaComponent(0.58).cgColor; root.addSublayer(stars)
         }
         let haze = NSColor(hex: night ? 0x324A47 : 0xC1B58A, alpha: 0.25)
-        root.addSublayer(gradientLayer(frame(0, 270, 1280, 290), top: .clear, bottom: haze))
+        root.addSublayer(gradientLayer(frame(0, 270, width, 290), top: .clear, bottom: haze))
     }
 
     // MARK: Per-frame update
@@ -206,21 +210,21 @@ final class RideBackdrop {
 /// The darkening at the top and bottom of the screen, as two static gradient layers drawn above the world.
 final class RideOverlay {
     let root = CALayer()
-    private var height = 0.0
+    private var height = 0.0, width = 1280.0
     private var mist: CALayer?, flash: CALayer?
     init() { root.anchorPoint = .zero; root.position = .zero; root.masksToBounds = true }
-    func configure(height: Double) {
-        let h = height.rounded(); guard h != self.height else { return }
-        self.height = h
+    func configure(width: Double = 1280, height: Double) {
+        let h = height.rounded(); guard h != self.height || width != self.width else { return }
+        self.height = h; self.width = width
         CATransaction.begin(); CATransaction.setDisableActions(true)
-        root.sublayers = nil; root.bounds = CGRect(x: 0, y: 0, width: 1280, height: h)
+        root.sublayers = nil; root.bounds = CGRect(x: 0, y: 0, width: width, height: h)
         func gradient(_ rect: CGRect, _ top: NSColor, _ bottom: NSColor) {
             let l = CAGradientLayer(); l.frame = rect; l.colors = [top.cgColor, bottom.cgColor]
             l.startPoint = CGPoint(x: 0.5, y: 1); l.endPoint = CGPoint(x: 0.5, y: 0); l.actions = RideBackdrop.noActions; root.addSublayer(l)
         }
-        gradient(CGRect(x: 0, y: h - 165, width: 1280, height: 165), NSColor.black.withAlphaComponent(0.32), .clear)
-        gradient(CGRect(x: 0, y: 0, width: 1280, height: 130), .clear, NSColor.black.withAlphaComponent(0.50))
-        let mist = CALayer(); mist.frame = CGRect(x: 0, y: 0, width: 1280, height: h); mist.backgroundColor = NSColor(hex: 0xD5DCE0).cgColor; mist.opacity = 0; mist.actions = RideBackdrop.noActions
+        gradient(CGRect(x: 0, y: h - 165, width: width, height: 165), NSColor.black.withAlphaComponent(0.32), .clear)
+        gradient(CGRect(x: 0, y: 0, width: width, height: 130), .clear, NSColor.black.withAlphaComponent(0.50))
+        let mist = CALayer(); mist.frame = CGRect(x: 0, y: 0, width: width, height: h); mist.backgroundColor = NSColor(hex: 0xD5DCE0).cgColor; mist.opacity = 0; mist.actions = RideBackdrop.noActions
         let flash = CALayer(); flash.frame = mist.frame; flash.backgroundColor = NSColor(hex: 0xF4F8FF).cgColor; flash.opacity = 0; flash.actions = RideBackdrop.noActions
         root.addSublayer(mist); root.addSublayer(flash); self.mist = mist; self.flash = flash
         CATransaction.commit()

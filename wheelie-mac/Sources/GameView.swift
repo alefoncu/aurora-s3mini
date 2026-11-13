@@ -21,7 +21,7 @@ final class RideView: NSView {
     var ragdoll:RiderRagdoll?, passengerRagdoll:RiderRagdoll?
     var knockedCones=Set<Int>()
     var viewportScale = 1.0, origin = NSPoint.zero
-    var sceneHeight=720.0
+    var sceneHeight=720.0,sceneWidth=1280.0
     var presentationOffset:Double { min(0,sceneHeight-690) }
     var night = false, obstacles = false, sound = true
     var record = 0.0, best = 0.0, bestStoppie = 0.0, bestTime = 0.0

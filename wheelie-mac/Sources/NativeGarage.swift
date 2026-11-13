@@ -152,6 +152,9 @@ final class GarageInspectorController: NSViewController {
     private unowned let game: RideView
     private let onPlay: () -> Void
     private let onChange: () -> Void
+    /// Selects a vehicle (the sidebar list does the same on wide windows).
+    var onVehicle: ((BikeKind) -> Void)?
+    private var vehiclePopup: NSPopUpButton!
     private var updating = false
     private var routePopup: NSPopUpButton!
     private var nightSwitch: NSSwitch!
@@ -202,6 +205,12 @@ final class GarageInspectorController: NSViewController {
             stack.topAnchor.constraint(equalTo: document.topAnchor, constant: 18),
             stack.bottomAnchor.constraint(equalTo: document.bottomAnchor, constant: -22)
         ])
+        addSection("VEHÍCULO", to: stack)
+        vehiclePopup = NSPopUpButton(frame: .zero, pullsDown: false)
+        vehiclePopup.addItems(withTitles: BikeKind.allCases.map(\.title))
+        vehiclePopup.target = self; vehiclePopup.action = #selector(vehicleChanged(_:)); vehiclePopup.setAccessibilityLabel("Vehículo")
+        editableControls.append(vehiclePopup); addFullWidth(vehiclePopup, to: stack)
+        addDivider(to: stack)
         addSection("MONEDAS", to: stack)
         walletLabel = metricLabel()
         addFullWidth(labeledRow("Saldo", control: walletLabel), to: stack)
@@ -397,6 +406,11 @@ final class GarageInspectorController: NSViewController {
             routePopup.item(at: i)?.title = game.progress.isUnlocked(item) ? title : "\(title) · 🔒 \(item.cost)"
         }
         routePopup.selectItem(at: max(0, min(BikePhysics.routeCount - 1, game.bike.route)))
+        for (i, kind) in BikeKind.allCases.enumerated() {
+            let item = RideUnlock.vehicle(kind)
+            vehiclePopup.item(at: i)?.title = game.progress.isUnlocked(item) ? kind.title : "\(kind.title) · 🔒 \(item.cost)"
+        }
+        vehiclePopup.selectItem(at: BikeKind.allCases.firstIndex(of: game.bike.kind) ?? 0)
         func lockText(_ item: RideUnlock, _ title: String) -> String { game.progress.isUnlocked(item) ? title : "\(title) · 🔒 \(item.cost)" }
         for (i, style) in HelmetStyle.allCases.enumerated() { helmetPopup.item(at: i)?.title = lockText(.helmet(style), style.title) }
         for (i, style) in JacketStyle.allCases.enumerated() { jacketPopup.item(at: i)?.title = lockText(.jacket(style), style.title) }
@@ -474,6 +488,10 @@ final class GarageInspectorController: NSViewController {
         items.forEach { game.progress.unlock($0) }
         game.audio.play(.coin)
         onChange()
+    }
+    @objc private func vehicleChanged(_ sender: NSPopUpButton) {
+        guard !updating, sender.indexOfSelectedItem >= 0, sender.indexOfSelectedItem < BikeKind.allCases.count else { return }
+        onVehicle?(BikeKind.allCases[sender.indexOfSelectedItem])
     }
     @objc private func transmissionChanged(_ sender: NSPopUpButton) {
         guard !updating, game.mode == .garage, game.bike.kind != .bmx, game.bike.kind != .scooter, game.bike.kind != .electric else { return }

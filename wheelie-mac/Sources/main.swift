@@ -212,6 +212,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSToolbarDelegate, NST
             for _ in 0..<30 { game.previous=ProcessInfo.processInfo.systemUptime-1/60; game.keys=[126]; game.tick() }
             shot("lineup-"+kind.rawValue)
         }
+        // Endless mode: three different zones, and a long route.
+        game.challengeKind = .endless; game.bike.kind = .sport
+        for (i,seed) in [(0,UInt64(5)),(1,UInt64(9)),(2,UInt64(21))] {
+            game.bike.route = i == 1 ? 1 : 0; game.night=false; game.start(); BikePhysics.seed=seed; BikePhysics.rebuildProceduralCourse()
+            game.bike.x=700+Double(i)*520; game.bike.reset(); game.bike.x=700+Double(i)*520; game.bike.speed=10
+            for _ in 0..<50 { game.previous=ProcessInfo.processInfo.systemUptime-1/60; game.keys=[126]; game.tick() }
+            shot("endless\(i)-\(BikePhysics.zoneTitle(at:game.bike.x).replacingOccurrences(of:" ",with:"_"))")
+        }
+        game.challengeKind = .free; game.bike.route=0
         // The newest vehicles.
         for (name,kind) in [("vehicle-cruiser",BikeKind.cruiser),("vehicle-electric",.electric)] {
             game.challengeKind = .free; game.bike.kind=kind; game.bike.route=0; game.night=false; game.start(); game.bike.x=400; game.bike.speed=8
@@ -540,6 +549,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSToolbarDelegate, NST
         // Endless: no finish line.
         game.bike.route=0; game.challengeKind = .endless; game.start()
         precondition(game.bike.endless && game.runContext.contains(".endless"),"Endless mode flag and record context")
+        precondition(BikePhysics.procedural && BikePhysics.endlessCourse && !game.obstacleList.isEmpty && game.obstacleList == BikePhysics.proceduralObstacles,"Endless mode generates its own terrain and obstacles")
+        game.bike.x=900; for _ in 0..<90 { game.previous=ProcessInfo.processInfo.systemUptime-1/60; game.keys=[126]; game.tick() }
+        precondition(game.snapshotRep(scale:0.25) != nil,"An endless frame composes")
+        // A longer route: rodar libre at 3,000 m is procedural, has its own finish and its own record context.
+        game.lengthIndex=1; game.challengeKind = .free; game.start()
+        precondition(BikePhysics.procedural && !BikePhysics.endlessCourse && BikePhysics.finish == 3000 && game.bike.finishDistance == 3000 && game.runContext.contains(".len3000"),"Long route setup")
+        game.bike.x=2500; for _ in 0..<60 { game.previous=ProcessInfo.processInfo.systemUptime-1/60; game.keys=[126]; game.tick() }
+        precondition(game.snapshotRep(scale:0.25) != nil && !game.bike.finished,"A long-route frame composes")
+        // Other challenges keep the classic 1,200 m course whatever length is selected.
+        game.challengeKind = .timeTrial; game.start(); precondition(!BikePhysics.procedural && BikePhysics.finish == 1200,"Only rodar libre and carrera use long routes")
+        game.lengthIndex=0; game.challengeKind = .endless; game.start()
         game.bike.x = 1190; game.bike.speed=14; game.keys=[126]
         for _ in 0..<300 where game.mode == .riding { game.previous=ProcessInfo.processInfo.systemUptime-1/60; game.tick() }
         precondition(!game.bike.finished,"Endless never finishes")

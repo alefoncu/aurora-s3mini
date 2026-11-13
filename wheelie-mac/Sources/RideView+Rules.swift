@@ -25,7 +25,7 @@ extension RideView {
     }
     /// Weather at the player's place in the course; the city keeps its steady rain even when dynamic weather is off.
     func updateWeather() {
-        let lapX=BikePhysics.circuit || bike.endless ? bike.x.truncatingRemainder(dividingBy:1200) : bike.x
+        let lapX=BikePhysics.circuit ? bike.x.truncatingRemainder(dividingBy:1200) : bike.x
         if weatherOn { weather=RideWeather.state(route:bike.route,x:lapX,time:elapsed,seed:weatherSeed) }
         else { weather=WeatherState(); if bike.route == 4 { weather.rain=1 } }
         bike.wetness=weather.wetness
@@ -99,7 +99,7 @@ extension RideView {
             let jump=RideScore.jump(airTime:bike.lastAirTime,height:bike.lastAirHeight)
             if jump>0 { report.jumps+=1; report.airTime+=bike.lastAirTime; score.add(.jump,points:jump,label:String(format:"Salto %.1f s",bike.lastAirTime)) }
         }
-        if obstaclesOn { for world in obstacleList where !passedObstacles.contains(world) && !knockedCones.contains(world) && Double(world)<bike.x-1 {
+        if obstaclesOn { for world in BikePhysics.window(obstacleList,from:bike.x-80,to:bike.x) where !passedObstacles.contains(world) && !knockedCones.contains(world) && Double(world)<bike.x-1 {
             passedObstacles.insert(world); report.dodges+=1; score.add(.cone,points:RideScore.coneDodge,label:"Obstáculo esquivado")
         } }
         let airborne = !bike.frontContact && !bike.rearContact
@@ -125,13 +125,24 @@ extension RideView {
                 splitAge=0
             }
         } else {
+        if bike.endless {
+            // Endless: announce each new zone, and every 600 m a new level.
+            let zoneIndex=Int(max(0,bike.x)/BikePhysics.zoneLength)
+            if zoneIndex>lastStage {
+                lastStage=zoneIndex
+                let level=1+Int(bike.x/600)
+                splitText=(zoneIndex%2 == 0 ? "Nivel \(level) · " : "")+"Zona: \(BikePhysics.zone(zoneIndex).title)"
+                splitAge=0
+            }
+        } else {
         let stage=BikePhysics.difficultyStage(at:bike.x)
         if stage>lastStage {
             lastStage=stage
-            let delta=challenges.timeDelta(elapsed:elapsed,atDistance:Double(stage*300))
+            let delta=challenges.timeDelta(elapsed:elapsed,atDistance:Double(stage)*BikePhysics.finish/4)
             splitDeltas.append(delta)
             splitText=delta.map { String(format:"Tramo %d · %+.1f s vs fantasma",stage,$0) } ?? "Tramo \(stage) completado"
             splitAge=0
+        }
         }
         }
         splitAge+=dt

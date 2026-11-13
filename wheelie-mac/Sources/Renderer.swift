@@ -202,7 +202,11 @@ final class RideRenderer {
                 box(x-58,y-86,116,45,NSColor(hex:0xE6E4D8),3)
                 text("VUELTA \(Int(world/1200)+1)",x,y-82,10,ink,.bold,center:true)
                 text("Circuito",x,y-65,12,ink,.semibold,center:true)
-            } else if !BikePhysics.circuit && Int(world)%300 == 0 && world<limit {
+            } else if BikePhysics.endlessCourse && Int(world)%600 == 0 {
+                box(x-58,y-86,116,45,NSColor(hex:0xE6E4D8),3)
+                text("NIVEL \(Int(world)/600+1)",x,y-82,10,ink,.bold,center:true)
+                text(BikePhysics.zoneTitle(at:world+120),x,y-65,12,ink,.semibold,center:true)
+            } else if !BikePhysics.circuit && !BikePhysics.endlessCourse && Int(world)%Int(BikePhysics.finish/4) == 0 && world<limit {
                 box(x-58,y-86,116,45,NSColor(hex:0xE6E4D8),3)
                 text("TRAMO \(BikePhysics.difficultyStage(at:world)+1)",x,y-82,10,ink,.bold,center:true)
                 text(BikePhysics.stageTitle(at:world),x,y-65,12,ink,.semibold,center:true)

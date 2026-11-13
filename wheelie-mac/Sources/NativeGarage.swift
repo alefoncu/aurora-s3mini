@@ -154,7 +154,8 @@ final class GarageInspectorController: NSViewController {
     private let onChange: () -> Void
     /// Selects a vehicle (the sidebar list does the same on wide windows).
     var onVehicle: ((BikeKind) -> Void)?
-    private var vehiclePopup: NSPopUpButton!
+    private var vehiclePopup: NSPopUpButton!, lengthPopup: NSPopUpButton!, routeHint: NSTextField!
+    static let lengthTitles = ["Clásica · 1.200 m", "Larga · 3.000 m", "Maratón · 6.000 m"]
     /// The inspector is a list of collapsible sections: a header button and a body stack each.
     private struct SectionGroup { let title: String; let header: NSButton; let body: NSStackView }
     private var groups: [SectionGroup] = []
@@ -241,11 +242,15 @@ final class GarageInspectorController: NSViewController {
         addSection("RUTA", to: stack)
         routePopup = NSPopUpButton(frame: .zero, pullsDown: false)
         routePopup.addItems(withTitles: Self.routeTitles)
-        let progression = NSTextField(wrappingLabelWithString: "1.200 m · cuatro tramos de dificultad creciente. El relieve se vuelve más exigente cada 300 m; los conos opcionales aparecen con mayor frecuencia.")
-        progression.font = .systemFont(ofSize: 11); progression.textColor = .secondaryLabelColor
-        addFullWidth(progression, to: stack)
+        routeHint = NSTextField(wrappingLabelWithString: "")
+        routeHint.font = .systemFont(ofSize: 11); routeHint.textColor = .secondaryLabelColor
+        addFullWidth(routeHint, to: stack)
         routePopup.target = self; routePopup.action = #selector(routeChanged(_:)); routePopup.setAccessibilityLabel("Ruta")
         editableControls.append(routePopup); addFullWidth(routePopup, to: stack)
+        lengthPopup = NSPopUpButton(frame: .zero, pullsDown: false)
+        lengthPopup.addItems(withTitles: Self.lengthTitles)
+        lengthPopup.target = self; lengthPopup.action = #selector(lengthChanged(_:)); lengthPopup.setAccessibilityLabel("Longitud de la ruta")
+        editableControls.append(lengthPopup); addFullWidth(labeledRow("Longitud", control: lengthPopup), to: stack)
         nightSwitch = NSSwitch(); nightSwitch.target = self; nightSwitch.action = #selector(nightChanged(_:)); nightSwitch.setAccessibilityLabel("Noche")
         editableControls.append(nightSwitch); addFullWidth(labeledRow("Noche", control: nightSwitch), to: stack)
         addDivider(to: stack)
@@ -474,6 +479,13 @@ final class GarageInspectorController: NSViewController {
         dampingValue.stringValue = "\(Int((game.bike.suspensionDamping * 100).rounded())) %"
         challengePopup.selectItem(at: RideChallengeKind.allCases.firstIndex(of: game.challengeKind) ?? 0)
         challengeDetail.stringValue = game.challengeKind.detail
+        lengthPopup.selectItem(at: game.lengthIndex)
+        let longRoutes = game.challengeKind == .free || game.challengeKind == .race
+        lengthPopup.isEnabled = longRoutes && game.mode == .garage
+        routeHint.stringValue = game.challengeKind == .endless ? "Terreno generado sin fin: cambia de zona cada 240 m y se endurece con la distancia. Cada partida es distinta."
+            : game.challengeKind == .circuit ? "Circuito cerrado de 1.200 m: el terreno se repite cada vuelta."
+            : game.activeRouteLength > 1200 ? "\(Int(game.activeRouteLength)) m · terreno generado con zonas variadas (colinas, saltos, terreno roto, cuestas) y cuatro tramos de dificultad creciente."
+            : "1.200 m · cuatro tramos de dificultad creciente. El relieve se vuelve más exigente cada 300 m; los conos opcionales aparecen con mayor frecuencia."
         ghostCheckbox.state = game.ghostEnabled ? .on : .off
         rivalPopup.selectItem(at: game.rivalLevel.rawValue)
         difficultyPopup.selectItem(at: game.difficulty.rawValue); difficultyHint.stringValue = game.difficulty.detail
@@ -560,6 +572,11 @@ final class GarageInspectorController: NSViewController {
         guard !updating, game.mode == .garage, RideChallengeKind.allCases.indices.contains(sender.indexOfSelectedItem) else { return }
         game.challengeKind = RideChallengeKind.allCases[sender.indexOfSelectedItem]
         game.prefs.set(game.challengeKind.rawValue, forKey: "challenge"); onChange()
+    }
+    @objc private func lengthChanged(_ sender: NSPopUpButton) {
+        guard !updating, game.mode == .garage, sender.indexOfSelectedItem >= 0, sender.indexOfSelectedItem < BikePhysics.routeLengths.count else { return }
+        game.lengthIndex = sender.indexOfSelectedItem
+        game.prefs.set(game.lengthIndex, forKey: "routeLength"); game.loadRecords(); onChange()
     }
     @objc private func ghostChanged(_ sender: NSButton) {
         guard !updating, game.mode == .garage else { return }

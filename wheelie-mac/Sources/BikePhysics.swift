@@ -95,7 +95,8 @@ final class BikePhysics {
     static let routeNames=["Valle","Sierra","Dunas","Nieve","Ciudad lluvia"]
     static var routeCount:Int { routeNames.count }
     var coins=0
-    static let finish=1200.0
+    /// Finish distance of the current route: 1,200 m (classic), or a longer procedural route. Set once per run by the game.
+    static var finish:Double { routeLength }
     private static let h=1.0/480.0
     private var com=RideVector.zero, bodyV=0.0
     private var rearY=0.0,frontY=0.0,rearV=0.0,frontV=0.0
@@ -460,7 +461,8 @@ final class BikePhysics {
     static func difficultyStage(at distance:Double)->Int {
         guard distance.isFinite else { return 0 }
         if circuit { return 2 }   // a circuit keeps one steady, demanding difficulty
-        return max(0,min(3,Int(max(0,min(Self.finish,distance))/300)))
+        if endlessCourse { return max(0,min(3,Int(max(0,distance)/600))) }
+        return max(0,min(3,Int(max(0,min(Self.finish,distance))/(Self.finish/4))))
     }
     static func stageTitle(at distance:Double)->String {
         ["Iniciación", "Técnica", "Exigente", "Experto"][difficultyStage(at:distance)]
@@ -477,18 +479,16 @@ final class BikePhysics {
         }
     }
     /// Wet patches (centres, metres) that cut tyre grip while hazards are enabled.
-    static let puddlePositions:[Int] = [140,230,315,455,640,790,905,1055] + Array(stride(from:1230,through:12_000,by:140))
+    static let puddlePositions:[Int] = [140,230,315,455,640,790,905,1055] + Array(stride(from:1230,through:200_000,by:140))
     static let puddleHalfLength=4.0
     static func puddleFactor(_ x:Double)->Double {
         guard x.isFinite else { return 1 }
-        for p in puddlePositions where abs(x-Double(p))<puddleHalfLength {
+        for p in window(puddlePositions,from:x-puddleHalfLength,to:x+puddleHalfLength+1) where abs(x-Double(p))<puddleHalfLength {
             let edge=1-abs(x-Double(p))/puddleHalfLength
             return 1-0.45*min(1,edge*3)
         }
         return 1
     }
-    /// Endless mode keeps the densest sector going: an obstacle every 25 m after the finish line.
-    static let endlessObstaclePositions:[Int] = obstaclePositions + Array(stride(from:1200,through:12_000,by:25))
     static let obstaclePositions:[Int] = [85,180,275]
         + Array(stride(from:335,through:575,by:60))
         + Array(stride(from:625,through:865,by:40))
@@ -523,9 +523,113 @@ final class BikePhysics {
     static func circuitObstaclePositions(laps:Int)->[Int] {
         (0..<max(1,laps)).flatMap { lap in stride(from:140,through:1140,by:40).map { lap*1200+$0 } }
     }
+    // MARK: Procedural courses (long routes and the endless mode)
+    /// Global switches like `circuit`: the renderer, the game and the physics all read one terrain function.
+    /// `procedural` is on for the endless mode and for routes longer than 1,200 m; the classic course keeps its hand-tuned terrain.
+    static var procedural=false, endlessCourse=false
+    static var routeLength=1200.0
+    static let routeLengths:[Double]=[1200,3000,6000]
+    static var seed:UInt64=1 { didSet { zoneTable=[.hills] } }
+    static let zoneLength=240.0
+    /// Every 240 m the terrain changes character, blending smoothly with its neighbours.
+    enum Zone: Int {
+        case hills, jumps, rough, climb, rest
+        var title:String { ["Colinas","Saltos","Terreno roto","Cuestas","Respiro"][rawValue] }
+    }
+    private static var zoneTable:[Zone]=[.hills]
+    /// Deterministic hash in 0..<1 (splitmix64).
+    static func hash(_ n:Int,_ salt:UInt64)->Double {
+        var z=(UInt64(bitPattern:Int64(n))&+salt)&*0x9E3779B97F4A7C15
+        z=(z^(z>>30))&*0xBF58476D1CE4E5B9; z=(z^(z>>27))&*0x94D049BB133111EB; z=z^(z>>31)
+        return Double(z>>11)/9007199254740992.0
+    }
+    static func zone(_ i:Int)->Zone {
+        if i<=0 { return .hills }
+        while zoneTable.count<=i {
+            let n=zoneTable.count,prev=zoneTable[n-1]
+            // Breathers get rarer further on; two climbs or two breathers never follow each other.
+            let rest=0.16*(1-0.6*min(1,Double(n)/16)),t=hash(n,seed)*(0.86+rest)
+            var z:Zone = t<0.26 ? .hills : t<0.52 ? .jumps : t<0.70 ? .rough : t<0.86 ? .climb : .rest
+            if z == prev && (z == .climb || z == .rest) { z = .hills }
+            zoneTable.append(z)
+        }
+        return zoneTable[i]
+    }
+    static func zoneTitle(at x:Double)->String { zone(Int(max(0,x)/zoneLength)).title }
+    private static func zoneProfile(_ i:Int)->(hill:Double,rough:Double,ramp:Double,climb:Double) {
+        switch zone(i) {
+        case .hills: return (1.0,0.8,0.12,0)
+        case .jumps: return (0.55,0.7,1.0,0)
+        case .rough: return (0.7,1.05,0,0)
+        case .climb: return (0.5,0.8,0.2,(hash(i,seed&+0xC11B)<0.5 ? -16 : 16))
+        case .rest: return (0.35,0.35,0,0)
+        }
+    }
+    /// The zone amplitudes at a distance: each zone peaks at its centre and eases into the next one.
+    static func profile(at x:Double)->(hill:Double,rough:Double,ramp:Double,climb:Double) {
+        let u=x/zoneLength-0.5,s0=Int(floor(u)),t=u-Double(s0),w=t*t*(3-2*t)
+        let a=zoneProfile(s0),b=zoneProfile(s0+1)
+        return (a.hill+(b.hill-a.hill)*w,a.rough+(b.rough-a.rough)*w,a.ramp+(b.ramp-a.ramp)*w,a.climb+(b.climb-a.climb)*w)
+    }
+    /// Difficulty 0...: the classic ramp-up over a finite route, or an unbounded (but slowing) climb in the endless mode.
+    static func proceduralDifficulty(_ x:Double)->Double {
+        if endlessCourse { return 1.7*(1-exp(-1.5*max(0,(x-120)/2500))) }
+        let p=max(0,min(1,(x-120)/max(1,finish-200))); return p*p*(3-2*p)
+    }
+    private static let rampSlot=50.0
+    /// The ramp in slot `k` (centre and height), if it has one: slots keep ramps at least 36 m apart.
+    private static func ramp(inSlot k:Int,route:Int)->(centre:Double,height:Double)? {
+        let r1=hash(k,seed&+0xA1),r2=hash(k,seed&+0xB2),c=Double(k)*rampSlot+18+14*r2
+        guard c>=0,r1<min(1,profile(at:c).ramp*1.15) else { return nil }
+        let paved=route == 0 || route == 4
+        return (c,(paved ? 0.80 : route == 3 ? 0.75 : 0.90)*min(proceduralDifficulty(c),1.25)*(0.8+0.4*r2))
+    }
+    private static func proceduralRamps(_ x:Double,route:Int)->Double {
+        let k0=Int(floor(x/rampSlot)),half=(route == 0 || route == 4) ? 9.0 : 9.5
+        var h=0.0
+        for k in (k0-1)...(k0+1) {
+            guard let r=ramp(inSlot:k,route:route) else { continue }
+            let off=abs(x-r.centre)
+            if off<half { h+=(1+cos(off/half*Double.pi))*0.5*r.height }
+        }
+        return h
+    }
+    static func proceduralGround(_ x:Double,route:Int)->Double {
+        guard x.isFinite else { return 0 }
+        let t=max(0,min(1,(x-10)/25)),fade=t*t*(3-2*t)
+        let d=proceduralDifficulty(x),p=profile(at:x),roughness=1+min(d,1.0)*1.8
+        let low:Double,high:Double
+        switch route {
+        case 1: low=(1.3*sin((x-10)/24)+0.38*sin((x-10)/8))*(1+0.35*d); high=0.035*sin(x*1.8)+0.022*sin(x*3.1)
+        case 2: low=(0.7*sin((x-10)/34)+0.8*pow(sin((x-10)/17),4))*(1+0.45*d); high=0.028*sin(x*2.4)
+        case 3: low=(0.55*sin((x-10)/52)+0.30*sin((x-10)/21))*(1+0.3*d); high=0.02*sin(x*1.7)
+        case 4: low=0.14*sin((x-10)/44); high=0.016*sin(x*1.5)
+        default:low=0.20*sin((x-10)/50); high=0.018*sin(x*1.4)
+        }
+        return fade*(low*p.hill+high*roughness*p.rough+p.climb*sin(x/120)+proceduralRamps(x,route:route))
+    }
+    /// Obstacle positions for a procedural course: sparser early, denser with difficulty, none in breathers or on ramps.
+    static var proceduralObstacles:[Int]=[]
+    static func rebuildProceduralCourse() {
+        var out:[Int]=[],x=140.0,i=0
+        let end=endlessCourse ? 200_000.0 : finish-30
+        while x<end {
+            let route=0,p=Int(x.rounded()),slot=Int(floor(x/rampSlot))
+            let onRamp=(slot-1...slot+1).contains { k in ramp(inSlot:k,route:route).map { abs($0.centre-x)<13.5 } ?? false }
+            if zone(Int(x/zoneLength)) != .rest && !onRamp { out.append(p) }
+            x+=max(16,(95-72*min(proceduralDifficulty(x),1.3))*(0.75+0.5*hash(i,seed&+0x77))); i+=1
+        }
+        proceduralObstacles=out
+    }
+    /// The entries of a sorted list inside [a, b): lets the renderer and the rules touch only what is near the bike.
+    static func window(_ list:[Int],from a:Double,to b:Double)->ArraySlice<Int> {
+        func lower(_ v:Double)->Int { var lo=0,hi=list.count; while lo<hi { let m=(lo+hi)/2; if Double(list[m])<v { lo=m+1 } else { hi=m } }; return lo }
+        let i=lower(a),j=lower(b); return list[i..<max(i,j)]
+    }
     static func ground(_ x:Double,route:Int=0)->Double {
         guard x.isFinite else { return 0 }
         if circuit { return circuitGround(x,route:route) }
+        if procedural { return proceduralGround(x,route:route) }
         let t=max(0,min(1,(x-10)/25)),fade=t*t*(3-2*t)
         // Smooth envelopes avoid a height or slope discontinuity at sector signs.
         let progress=max(0,min(1,(x-120)/1000))

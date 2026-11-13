@@ -29,7 +29,7 @@ extension RideView {
             riderLift=max(0,min(1,riderLift+riderLiftVelocity*dt))
             if bike.kind == .bmx { pedalPhase=bike.pedalPhase }
             if obstaclesOn && !bike.finished && !bike.crashed {
-                for world in obstacleList where !knockedCones.contains(world) {
+                for world in BikePhysics.window(obstacleList,from:bike.x-6,to:bike.x+6) where !knockedCones.contains(world) {
                     if abs(Double(world)-bike.x)>4 { continue }
                     let ground=BikePhysics.ground(Double(world),route:bike.route),kind=BikePhysics.obstacleKind(at:world)
                     let weight=kind == .barrel ? 1.2 : kind == .log ? 0.8 : 1.0

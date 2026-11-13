@@ -1,4 +1,4 @@
-# Wheelie Ride 6.8 · macOS
+# Wheelie Ride 6.9 · macOS
 
 Juego independiente inspirado en la base de Wheelie Challenge: conducción lateral, caballitos, equilibrio, saltos, vehículos y piloto personalizables. Swift/AppKit nativo, sin navegador, red ni descargas en tiempo de ejecución.
 
@@ -22,10 +22,10 @@ Desde la versión 4 hay una geometría en metros compartida por la física, el v
 
 Es un modelo de conducción arcade lateral: las ruedas tienen recorrido vertical y el chasis tiene cabeceo; no modela la dirección lateral, deformación completa del neumático ni una moto tridimensional. Los controles de peso incluyen amortiguación para que los caballitos puedan corregirse.
 
-## Esta versión (6.8)
+## Esta versión (6.9)
 
 - **Diez vehículos:** Street 125, Enduro 250, Sport 600, BMX, Scooter 80, Scrambler 400, Trial 200, Hyper R 1000, Cruiser 750 y Volt E-8, con geometría, velocidad, aceleración y respuesta distintas.
-- **Cinco rutas:** Valle de asfalto, Sierra de tierra, Dunas al atardecer, Nieve y Ciudad bajo la lluvia, de 1.200 m en cuatro tramos de dificultad creciente, con modo nocturno y clima dinámico opcional.
+- **Cinco rutas:** Valle de asfalto, Sierra de tierra, Dunas al atardecer, Nieve y Ciudad bajo la lluvia, de 1.200 m (o de 3.000 y 6.000 m en rodar libre y carrera) en cuatro tramos de dificultad creciente, más un **modo infinito** sin meta, con modo nocturno y clima dinámico opcional.
 - **Trucos y puntuación:** caballito, invertido, saltos, volteretas, manos fuera, giro de 360° y superman, con cadenas y multiplicador.
 - **Retos:** tutorial guiado, contrarreloj, carrera contra rival, circuito cerrado de tres vueltas con tres rivales, modo infinito y fantasma de tu mejor vuelta.
 - **Progresión:** monedas, desbloqueos, estilos comprables de casco, chaqueta y moto, misiones diarias y semanal, estadísticas y logros, tres modos de dificultad.
@@ -283,4 +283,15 @@ Taller más corto: el panel de ajustes ya no es una columna de nueve secciones a
 - **Secciones plegables:** cada sección es una cabecera con triángulo que se despliega o se pliega, y el estado se recuerda entre sesiones. Al empezar solo están abiertas **Vehículo**, **Reto** (modo de juego y rival) y **Ruta** (con la casilla de noche); el resto está plegado y la cabecera de Monedas muestra el saldo.
 - **Orden nuevo:** Vehículo, Reto, Ruta, Opciones (casco, acompañante, obstáculos, ABS y clima), Conducción (cambio y suspensión), Apariencia, Estilo con monedas, Monedas, Misiones y Récord de la ruta. Lo que se toca en cada salida va arriba y lo que se ajusta una vez abajo. La antigua sección «Piloto y circuito» se llamaba así por error: contenía las opciones de partida.
 - Los controles plegados siguen funcionando igual (las pruebas de interfaz los manejan con sus acciones reales).
+
+### Actualización 6.9
+
+Modo infinito de verdad y rutas largas. Ambos comparten un generador de terreno procedural.
+
+- **Modo infinito:** sin meta y sin límite de 1.200 m. El terreno se genera mientras avanzas y cada partida es distinta. Cada 240 m cambia de **zona**, con transiciones suaves entre ellas: **Colinas**, **Saltos** (rampas de distinta altura y separación), **Terreno roto** (baches de alta frecuencia), **Cuestas** (subidas y bajadas largas) y **Respiro** (un tramo calmado, cada vez menos frecuente). La dificultad crece con la distancia hacia un tope (nivel nuevo cada 600 m): rampas más altas, terreno más rugoso y obstáculos cada vez más seguidos (de uno cada ~95 m a uno cada ~25 m). Hay cartel de nivel cada 600 m, aviso al entrar en cada zona y marcador «INFINITO · NIVEL n · ZONA». Los obstáculos nunca caen sobre una rampa ni en un respiro. Récord de distancia aparte.
+- **Rutas largas:** nuevo selector **Longitud** en la sección Ruta del taller: Clásica 1.200 m (el terreno de siempre), Larga 3.000 m y Maratón 6.000 m, para rodar libre y carrera. Las largas usan el mismo generador (con meta, tramos de un cuarto de la longitud y la misma subida de dificultad) con una semilla fija por ruta y longitud, así que los récords y el fantasma comparan lo mismo. Cada longitud tiene su propio récord. Contrarreloj, retos, tutorial y circuito siguen en el recorrido clásico.
+- **Dónde está:** «Modo infinito» y «Carrera contra rival» pasan a los primeros puestos de la lista de retos (justo tras Rodar libre).
+- **Verificación:** el terreno es continuo con pendiente acotada en las cinco rutas (12 km, paso de 5 cm), determinista, y las zonas varían sin repetir cuestas ni respiros seguidos. Un piloto prudente recorre 3.000 m en cuatro vehículos y cinco rutas, y llega a 4.000 m en el infinito. Al ajustar el generador se midió que el piloto automático se caía en «Terreno roto» de la Sierra (13 de 72 carreras con los tres vehículos peores); se suavizó esa zona y quedó en 0 de 72. En total, 0 caídas en 480 carreras de infinito en las otras cuatro rutas.
+- Solo se dibujan y comprueban los obstáculos cercanos a la moto (búsqueda binaria), porque un infinito tiene miles.
+- Pendiente de revisar a mano: sensación de las cuestas y del terreno roto con otras motos, ritmo de la dificultad pasados los 5.000 m y cómo se ve el fondo con rutas muy largas.
 

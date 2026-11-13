@@ -2,7 +2,8 @@ import Foundation
 
 /// Goals use physical contact measurements from the current run, never key presses.
 enum RideChallengeKind: String, CaseIterable {
-    case free, wheelie, stoppie, jump, timeTrial, race, tutorial, endless, circuit
+    /// Display order of the garage list: the open-ended modes first. Raw values are stable, so saved choices and ghosts survive.
+    case free, endless, race, circuit, timeTrial, wheelie, stoppie, jump, tutorial
     var title: String {
         switch self {
         case .free: return "Rodar libre"
@@ -26,7 +27,7 @@ enum RideChallengeKind: String, CaseIterable {
         case .race: return "Un rival con la misma física corre a tu lado. Llega antes que él, o aguanta si se cae."
         case .circuit: return "Un circuito cerrado de 1.200 m: tres vueltas contra tres rivales, con posiciones, adelantamientos, tiempo por vuelta y fantasma. Termina en el podio (1.º o 2.º) para completar el reto."
         case .tutorial: return "Seis pasos: acelerar, caballito, corregir, frenar, saltar y voltereta. Gana monedas la primera vez."
-        case .endless: return "Sin meta: el último tramo se repite con obstáculos cada vez más seguidos. Vuelve cada 1.200 m. Termina al caerte."
+        case .endless: return "Sin meta: un terreno generado sin fin que cambia de zona (colinas, saltos, terreno roto, cuestas y respiros) y se endurece con la distancia. Cada partida es distinta. Termina al caerte."
         }
     }
 }
@@ -109,6 +110,8 @@ struct RideGhostRun: Codable {
 final class RideChallengeSession {
     private let preferences: UserDefaults
     var selected: RideChallengeKind = .free
+    /// Metres to the finish line of the current route (set by the game; routes may be longer than 1,200 m).
+    var courseLength = 1_200.0
     private(set) var progress = 0.0
     private(set) var completed = false
     private(set) var previouslyCompleted = false
@@ -141,7 +144,7 @@ final class RideChallengeSession {
         case .stoppie: return String(format: "Invertido %.1f / 3 m", progress * 3)
         case .jump: return hasJumped ? "Salto: aterriza sin caer" : "Salto: supera 0,25 m"
         case .timeTrial: return String(format: "Contrarreloj %.0f / 240 s · %.0f m", observedTime, observedDistance)
-        case .race: return String(format: "Carrera · %.0f / 1.200 m", observedDistance)
+        case .race: return String(format: "Carrera · %.0f / %.0f m", observedDistance, courseLength)
         case .tutorial: return "Tutorial guiado"
         case .endless: return String(format: "Infinito · %.0f m", observedDistance)
         case .circuit: return String(format: "Circuito · vuelta %d/3", min(3, Int(observedDistance / 1_200) + 1))
@@ -192,7 +195,7 @@ final class RideChallengeSession {
                 progress = max(progress, min(0.9, max(0, jumpPeak / 0.25) * 0.9))
                 if wasAirborne && !airborne && hasJumped { progress = 1; completed = true }
             case .timeTrial: progress = max(0, min(1, distance / 1_200))
-            case .race: progress = max(0, min(1, distance / 1_200))
+            case .race: progress = max(0, min(1, distance / max(1, courseLength)))
             case .circuit: progress = max(0, min(1, distance / 3_600))
             case .tutorial, .endless: break
             }

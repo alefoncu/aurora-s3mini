@@ -89,8 +89,8 @@ extension RideView {
     func drawRide() {
         let ppm=art.metresToPixels,rig=bike.kind.rig,camY=cameraY+presentationOffset
         RideProfile.section("obstáculos") { if obstaclesOn {
-            for p in BikePhysics.puddlePositions { art.puddle(center:Double(p),halfLength:BikePhysics.puddleHalfLength,cameraX:bike.x,cameraY:camY,route:bike.route) }
-            for m in obstacleList {
+            for p in BikePhysics.window(BikePhysics.puddlePositions,from:bike.x-12,to:bike.x+sceneWidth/ppm+12) { art.puddle(center:Double(p),halfLength:BikePhysics.puddleHalfLength,cameraX:bike.x,cameraY:camY,route:bike.route) }
+            for m in BikePhysics.window(obstacleList,from:bike.x-12,to:bike.x+sceneWidth/ppm+12) {
                 let knocked=knockedCones.contains(m)
                 switch BikePhysics.obstacleKind(at:m) {
                 case .cone: art.cone(Double(m),cameraX:bike.x,cameraY:camY,route:bike.route,knocked:knocked)

@@ -26,6 +26,8 @@ final class RideView: NSView {
     var night = false, obstacles = false, sound = true
     var record = 0.0, best = 0.0, bestStoppie = 0.0, bestTime = 0.0
     var challengeKind:RideChallengeKind = .free
+    /// Route length for rodar libre and carrera: index into `BikePhysics.routeLengths` (1.200, 3.000 or 6.000 m).
+    var lengthIndex=0
     var ghostEnabled=true
     var absOn=false
     /// Dynamic weather: fog banks, storms and blizzards along the route (its own records when on).
@@ -69,7 +71,20 @@ final class RideView: NSView {
     var obstaclesOn:Bool { obstacles && challengeKind != .tutorial }
     lazy var circuitList=BikePhysics.circuitObstaclePositions(laps:3)
     var lapTimes:[Double]=[], lapStart=0.0
-    var obstacleList:[Int] { bike.endless ? BikePhysics.endlessObstaclePositions : BikePhysics.circuit ? circuitList : BikePhysics.obstaclePositions }
+    var obstacleList:[Int] { BikePhysics.circuit ? circuitList : BikePhysics.procedural ? BikePhysics.proceduralObstacles : BikePhysics.obstaclePositions }
+    /// The route length that applies to the selected challenge: only rodar libre and carrera use the longer routes.
+    var activeRouteLength:Double { challengeKind == .free || challengeKind == .race ? BikePhysics.routeLengths[lengthIndex] : 1200 }
+    /// Selects the terrain generator for the run about to start (classic, long procedural, or endless).
+    func configureCourse() {
+        BikePhysics.endlessCourse = challengeKind == .endless
+        BikePhysics.routeLength = BikePhysics.circuit ? 1200 : activeRouteLength
+        BikePhysics.procedural = !BikePhysics.circuit && (BikePhysics.endlessCourse || BikePhysics.routeLength>1200)
+        guard BikePhysics.procedural else { return }
+        // Endless runs are never the same twice; long routes are fixed so records and ghosts compare like with like.
+        BikePhysics.seed = BikePhysics.endlessCourse ? UInt64.random(in:1...UInt64.max/2) : UInt64(bike.route*7919+Int(BikePhysics.routeLength))
+        BikePhysics.rebuildProceduralCourse()
+    }
+    func resetCourse() { BikePhysics.procedural=false; BikePhysics.endlessCourse=false; BikePhysics.routeLength=1200 }
     lazy var challenges=RideChallengeSession(preferences:prefs)
     struct Dust { var x:Double; var y:Double; var vx:Double; var vy:Double; var life:Double; var maxLife:Double }
     var dust: [Dust] = [], dustClock = 0.0
@@ -90,6 +105,7 @@ final class RideView: NSView {
         bike.kind = BikeKind.allCases[max(0,min(BikeKind.allCases.count-1,prefs.integer(forKey:"vehicle")))]
         bike.route=max(0,min(BikePhysics.routeCount-1,prefs.integer(forKey:"route")))
         night=prefs.bool(forKey:"night"); obstacles=prefs.bool(forKey:"obstacles")
+        lengthIndex=max(0,min(BikePhysics.routeLengths.count-1,prefs.integer(forKey:"routeLength")))
         sound = prefs.object(forKey:"sound") == nil ? true : prefs.bool(forKey:"sound")
         art.helmetOn = prefs.object(forKey:"helmet") == nil ? true : prefs.bool(forKey:"helmet")
         art.passenger=prefs.bool(forKey:"passenger")
@@ -126,7 +142,7 @@ final class RideView: NSView {
         bike.reset()
     }
     var runContext:String {
-        "v6.\(bike.kind.rawValue).\(bike.route).\(obstacles ? "cones" : "clear").\(bike.transmission.automatic ? "auto" : "manual").\(Int((bike.suspensionStiffness*100).rounded())).\(Int((bike.suspensionDamping*100).rounded()))\(absOn ? ".abs" : "")\(weatherOn ? ".clima" : "")\(difficulty == .normal ? "" : ".\(difficulty.title.lowercased())")\(challengeKind == .endless ? ".endless" : "")\(challengeKind == .circuit ? ".circuit\(bike.laps)" : "")"
+        "v6.\(bike.kind.rawValue).\(bike.route).\(obstacles ? "cones" : "clear").\(bike.transmission.automatic ? "auto" : "manual").\(Int((bike.suspensionStiffness*100).rounded())).\(Int((bike.suspensionDamping*100).rounded()))\(absOn ? ".abs" : "")\(weatherOn ? ".clima" : "")\(difficulty == .normal ? "" : ".\(difficulty.title.lowercased())")\(challengeKind == .endless ? ".endless" : "")\(activeRouteLength>1200 && challengeKind != .endless ? ".len\(Int(activeRouteLength))" : "")\(challengeKind == .circuit ? ".circuit\(bike.laps)" : "")"
     }
     var recordKey:String { runContext }
     func ghostSnapshot()->RideGhostFrame {
@@ -179,8 +195,8 @@ final class RideView: NSView {
     @objc func deactivate() { clearInput(); if mode == .riding { mode = .paused }; audio.update(speed:0,throttle:false,vehicle:0,active:false); syncState() }
     func start() { guard window?.attachedSheet == nil else { return }
         guard cosmeticItems.allSatisfy({ progress.isUnlocked($0) }),progress.isUnlocked(.vehicle(bike.kind)),progress.isUnlocked(.route(bike.route)) else { audio.play(.denied); NSSound.beep(); return }
-        NSColorPanel.shared.orderOut(nil); preserveRun(); challenges.abandon(); bike.hazards=obstaclesOn; bike.absEnabled=absOn; bike.assist=difficulty; bike.endless=challengeKind == .endless; BikePhysics.circuit=challengeKind == .circuit; bike.laps=3; bike.reset(); resetRunState(); startRival(); art.metresToPixels=RideScene.metresToPixels; elapsed=0; crashTime=0; cameraY=0; riderLean=0; riderLift=0; riderLiftVelocity=0; pedalPhase=0; challenges.selected=challengeKind; challenges.start(contextKey:runContext,initialFrame:ghostSnapshot()); ragdoll=nil; passengerRagdoll=nil; knockedCones.removeAll(); dust.removeAll(); clearInput(); mode = .riding; previous=ProcessInfo.processInfo.systemUptime; window?.makeFirstResponder(self); syncState() }
-    func garage() { guard window?.attachedSheet == nil else { return }; preserveRun(); challenges.abandon(); clearInput(); mode = .garage; rivalRuns=[]; BikePhysics.circuit=false; bike.hazards=obstacles; bike.endless=false; bike.absEnabled=absOn; bike.assist=difficulty; bike.reset(); resetRunState(); art.metresToPixels=RideScene.metresToPixels; cameraY=0; ragdoll=nil; passengerRagdoll=nil; knockedCones.removeAll(); dust.removeAll(); audio.update(speed:0,throttle:false,vehicle:0,active:false); syncState() }
+        NSColorPanel.shared.orderOut(nil); preserveRun(); challenges.abandon(); bike.hazards=obstaclesOn; bike.absEnabled=absOn; bike.assist=difficulty; bike.endless=challengeKind == .endless; BikePhysics.circuit=challengeKind == .circuit; configureCourse(); challenges.courseLength=BikePhysics.finish; bike.laps=3; bike.reset(); resetRunState(); startRival(); art.metresToPixels=RideScene.metresToPixels; elapsed=0; crashTime=0; cameraY=0; riderLean=0; riderLift=0; riderLiftVelocity=0; pedalPhase=0; challenges.selected=challengeKind; challenges.start(contextKey:runContext,initialFrame:ghostSnapshot()); ragdoll=nil; passengerRagdoll=nil; knockedCones.removeAll(); dust.removeAll(); clearInput(); mode = .riding; previous=ProcessInfo.processInfo.systemUptime; window?.makeFirstResponder(self); syncState() }
+    func garage() { guard window?.attachedSheet == nil else { return }; preserveRun(); challenges.abandon(); clearInput(); mode = .garage; rivalRuns=[]; BikePhysics.circuit=false; resetCourse(); bike.hazards=obstacles; bike.endless=false; bike.absEnabled=absOn; bike.assist=difficulty; bike.reset(); resetRunState(); art.metresToPixels=RideScene.metresToPixels; cameraY=0; ragdoll=nil; passengerRagdoll=nil; knockedCones.removeAll(); dust.removeAll(); audio.update(speed:0,throttle:false,vehicle:0,active:false); syncState() }
     func pause() {
         guard window?.attachedSheet == nil, mode == .riding || mode == .paused else { return }
         clearInput(); mode = mode == .riding ? .paused : .riding; previous=ProcessInfo.processInfo.systemUptime

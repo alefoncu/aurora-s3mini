@@ -5,9 +5,12 @@ extension RideView {
     func hud() {
         let W=sceneWidth,cx=W/2
         art.text("\(Int(bike.distance)) m",28,24,23,.white,.semibold,mono:true)
-        art.text(bike.endless ? "Vuelta \(Int(bike.x/1200)+1) · infinito" : BikePhysics.circuit ? "de \(Int(bike.finishDistance)) m" : "de 1.200 m",29,54,11,NSColor.white.withAlphaComponent(0.72))
+        let finish=BikePhysics.finish,level=1+Int(max(0,bike.x)/600)
+        func km(_ metres:Double)->String { let m=Int(metres); return m>=1000 ? "\(m/1000).\(String(format:"%03d",m%1000)) m" : "\(m) m" }
+        art.text(bike.endless ? "INFINITO · NIVEL \(level)" : BikePhysics.circuit ? "de \(Int(bike.finishDistance)) m" : "de \(km(finish))",29,54,11,NSColor.white.withAlphaComponent(0.72))
         art.box(29,75,145,2,NSColor.white.withAlphaComponent(0.22),1)
-        art.box(29,75,145*((bike.endless || BikePhysics.circuit) ? bike.x.truncatingRemainder(dividingBy:1200) : bike.x)/1200,2,.white,1)
+        let barFraction = bike.endless ? bike.x.truncatingRemainder(dividingBy:600)/600 : BikePhysics.circuit ? bike.x.truncatingRemainder(dividingBy:1200)/1200 : bike.x/finish
+        art.box(29,75,145*max(0,min(1,barFraction)),2,.white,1)
         art.text(String(format:"%02d:%04.1f",Int(elapsed)/60,elapsed.truncatingRemainder(dividingBy:60)),(W-92),28,18,.white,.medium,center:true,mono:true)
         if bike.rearContact && !bike.frontContact && bike.wheelieDistance>0.2 {
             art.text("Caballito",cx,27,11,NSColor.white.withAlphaComponent(0.75),.medium,center:true)
@@ -71,18 +74,21 @@ extension RideView {
         if BikePhysics.circuit {
             art.text("CIRCUITO · VUELTA \(min(bike.laps,Int(bike.x/1200)+1))/\(bike.laps)",28,90,11,.white,.semibold)
             for (i,time) in lapTimes.enumerated() { art.text(String(format:"V%d %d:%04.1f",i+1,Int(time)/60,time.truncatingRemainder(dividingBy:60)),28,132+Double(i)*15,11,NSColor.white.withAlphaComponent(0.8),.medium,mono:true) }
+        } else if bike.endless {
+            art.text("ZONA · \(BikePhysics.zoneTitle(at:bike.x).uppercased())",28,90,11,.white,.semibold)
         } else {
         art.text("TRAMO \(stage+1)/4 · \(BikePhysics.stageTitle(at:bike.x))",28,90,11,.white,.semibold)
         for marker in 1...3 { art.box(29+145*Double(marker)/4,72,1,8,NSColor.white.withAlphaComponent(0.6)) }
         }
-        let toNext=Double((stage+1)*300)-bike.x
+        let quarter=finish/4
+        let toNext=Double(stage+1)*quarter-bike.x
         if BikePhysics.circuit || bike.endless { }
         else if stage<3 && toNext<65 {
-            art.text("Próximo tramo: \(BikePhysics.stageTitle(at:Double((stage+1)*300))) · \(max(0,Int(toNext))) m",cx,101,12,.white,.medium,center:true)
-        } else if stage>0 && bike.x-Double(stage*300)<35 {
+            art.text("Próximo tramo: \(BikePhysics.stageTitle(at:Double(stage+1)*quarter)) · \(max(0,Int(toNext))) m",cx,101,12,.white,.medium,center:true)
+        } else if stage>0 && bike.x-Double(stage)*quarter<35 {
             art.text(stage == 3 ? "Anticipa los cambios de pendiente y dosifica el gas" : "Terreno más irregular · controla los aterrizajes",cx,101,12,.white,.medium,center:true)
         }
-        if obstaclesOn, let next=obstacleList.first(where:{Double($0)>bike.x && !knockedCones.contains($0)}), Double(next)-bike.x<max(10,bike.speed*0.7) {
+        if obstaclesOn, let next=BikePhysics.window(obstacleList,from:bike.x,to:bike.x+max(10,bike.speed*0.7)+2).first(where:{Double($0)>bike.x && !knockedCones.contains($0)}), Double(next)-bike.x<max(10,bike.speed*0.7) {
             let name=BikePhysics.obstacleKind(at:next) == .cone ? "Cono" : BikePhysics.obstacleKind(at:next) == .barrel ? "Barril" : "Tronco"
             art.text("\(name) a \(max(1,Int(Double(next)-bike.x))) m",cx,124,12,.white,.medium,center:true)
         }

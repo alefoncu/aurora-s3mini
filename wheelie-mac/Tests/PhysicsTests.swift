@@ -122,7 +122,49 @@ import Foundation
             b.x=1190
             for _ in 0..<1200 {step(b,gas:true,back:b.angle < -0.25,forward:b.angle>0.25);if b.crashed {break}}
             check(!b.finished && (b.crashed || b.x>1210),"Endless mode must not finish at 1,200 m")
-            check(BikePhysics.endlessObstaclePositions.count>BikePhysics.obstaclePositions.count && BikePhysics.endlessObstaclePositions.last!>5000,"Endless obstacle field")
+        }
+        // Procedural courses (long routes and the endless mode): continuous, bounded and playable.
+        do {
+            func cautious(_ b:BikePhysics,_ route:Int,limit:Double) {
+                for _ in 0..<400_000 where !b.finished && !b.crashed && b.x<limit {
+                    let stage=Double(BikePhysics.difficultyStage(at:b.x))
+                    let target=min(b.kind.topSpeed*0.85,(route == 0 ? 16.0 : 12.0)-stage*1.2)
+                    step(b,gas:b.speed<target,back:b.angle < -0.25,forward:b.angle>0.25,brake:b.speed>target+0.6); finite(b)
+                }
+            }
+            BikePhysics.procedural=true
+            defer { BikePhysics.procedural=false; BikePhysics.endlessCourse=false; BikePhysics.routeLength=1200 }
+            for endless in [false,true] {
+                BikePhysics.endlessCourse=endless; BikePhysics.routeLength = endless ? 1200 : 3000
+                for route in 0..<BikePhysics.routeCount {
+                    BikePhysics.seed=UInt64(11+route*5)
+                    var previous=BikePhysics.ground(0,route:route),x=0.0,worstStep=0.0
+                    while x<12_000 { x+=0.05; let y=BikePhysics.ground(x,route:route); worstStep=max(worstStep,abs(y-previous)); previous=y }
+                    check(worstStep<0.06,"Procedural terrain must be continuous with bounded slope: route \(route), endless \(endless), step \(worstStep)")
+                    check(BikePhysics.ground(2345.6,route:route) == BikePhysics.ground(2345.6,route:route),"Procedural terrain is deterministic")
+                    let zones=(0..<50).map { BikePhysics.zone($0) }
+                    check(Set(zones.map(\.rawValue)).count>=4 && zones[0] == .hills,"The course varies and starts gently")
+                    check(zip(zones,zones.dropFirst()).allSatisfy { !($0 == $1 && ($0 == .climb || $0 == .rest)) },"No two climbs or breathers in a row")
+                    BikePhysics.rebuildProceduralCourse()
+                    let list=BikePhysics.proceduralObstacles
+                    check(list == list.sorted() && !list.isEmpty && list.allSatisfy { BikePhysics.zone(Int(Double($0)/BikePhysics.zoneLength)) != .rest },"Obstacles are sorted and absent from breathers")
+                    check(endless ? list.last!>150_000 : list.last!<=Int(BikePhysics.finish),"Obstacles cover exactly the course")
+                    check(BikePhysics.window(list,from:1000,to:1200).allSatisfy { $0>=1000 && $0<1200 },"The obstacle window is exact")
+                }
+            }
+            // The cautious rider crosses a long route and survives deep into the endless mode.
+            for kind in [BikeKind.sport,.commuter,.motocross,.cruiser] {
+                for route in 0..<BikePhysics.routeCount {
+                    BikePhysics.endlessCourse=false; BikePhysics.routeLength=3000; BikePhysics.seed=UInt64(route*7919+3000); BikePhysics.rebuildProceduralCourse()
+                    let b=BikePhysics();b.kind=kind;b.route=route;b.reset()
+                    cautious(b,route,limit:.infinity)
+                    check(b.finished && !b.crashed,"Long route failed: \(kind) route \(route) at x=\(b.x)")
+                    BikePhysics.endlessCourse=true; BikePhysics.routeLength=1200; BikePhysics.seed=UInt64(route+100); BikePhysics.rebuildProceduralCourse()
+                    let e=BikePhysics();e.kind=kind;e.route=route;e.endless=true;e.reset()
+                    cautious(e,route,limit:4000)
+                    check(!e.finished && (e.x>=4000 || (e.crashed && e.x>2000)),"Endless mode must be playable for a cautious rider: \(kind) route \(route) crashed at x=\(e.x)")
+                }
+            }
         }
         // Difficulty modes: assisted levels flips for landing and forgives tilt, realistic never levels
         // a flip for you; tyre wear scales 0.5x / 1x / 2x; coin multipliers rise with difficulty.

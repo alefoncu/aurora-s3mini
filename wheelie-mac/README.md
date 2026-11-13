@@ -1,4 +1,4 @@
-# Wheelie Ride 6.7 · macOS
+# Wheelie Ride 6.8 · macOS
 
 Juego independiente inspirado en la base de Wheelie Challenge: conducción lateral, caballitos, equilibrio, saltos, vehículos y piloto personalizables. Swift/AppKit nativo, sin navegador, red ni descargas en tiempo de ejecución.
 
@@ -22,7 +22,7 @@ Desde la versión 4 hay una geometría en metros compartida por la física, el v
 
 Es un modelo de conducción arcade lateral: las ruedas tienen recorrido vertical y el chasis tiene cabeceo; no modela la dirección lateral, deformación completa del neumático ni una moto tridimensional. Los controles de peso incluyen amortiguación para que los caballitos puedan corregirse.
 
-## Esta versión (6.7)
+## Esta versión (6.8)
 
 - **Diez vehículos:** Street 125, Enduro 250, Sport 600, BMX, Scooter 80, Scrambler 400, Trial 200, Hyper R 1000, Cruiser 750 y Volt E-8, con geometría, velocidad, aceleración y respuesta distintas.
 - **Cinco rutas:** Valle de asfalto, Sierra de tierra, Dunas al atardecer, Nieve y Ciudad bajo la lluvia, de 1.200 m en cuatro tramos de dificultad creciente, con modo nocturno y clima dinámico opcional.
@@ -275,4 +275,12 @@ La app es responsive: la partida y el taller se adaptan a cualquier tamaño de v
 - **Taller:** el tamaño mínimo de la ventana baja de 1000×620 a 760×520. Por debajo de 1060 puntos de ancho se oculta la lista lateral de vehículos y un selector **Vehículo** al principio del panel de ajustes la sustituye (también existe en ventanas anchas). La vista previa de la moto ya se escalaba al espacio disponible.
 - **Herramientas:** `--responsive <carpeta>` captura la partida a seis tamaños de ventana y el taller real (ancho y estrecho). No guarda esos tamaños como la posición de ventana del usuario, y el smoke test fija su propio tamaño sin guardarlo.
 - Pendiente de revisar a mano: ventanas muy estrechas (≈760 pt) con el marcador cargado en carrera con tres rivales, y pantalla completa en monitores ultrapanorámicos.
+
+### Actualización 6.8
+
+Taller más corto: el panel de ajustes ya no es una columna de nueve secciones abiertas.
+
+- **Secciones plegables:** cada sección es una cabecera con triángulo que se despliega o se pliega, y el estado se recuerda entre sesiones. Al empezar solo están abiertas **Vehículo**, **Reto** (modo de juego y rival) y **Ruta** (con la casilla de noche); el resto está plegado y la cabecera de Monedas muestra el saldo.
+- **Orden nuevo:** Vehículo, Reto, Ruta, Opciones (casco, acompañante, obstáculos, ABS y clima), Conducción (cambio y suspensión), Apariencia, Estilo con monedas, Monedas, Misiones y Récord de la ruta. Lo que se toca en cada salida va arriba y lo que se ajusta una vez abajo. La antigua sección «Piloto y circuito» se llamaba así por error: contenía las opciones de partida.
+- Los controles plegados siguen funcionando igual (las pruebas de interfaz los manejan con sus acciones reales).
 

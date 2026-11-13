@@ -155,6 +155,14 @@ final class GarageInspectorController: NSViewController {
     /// Selects a vehicle (the sidebar list does the same on wide windows).
     var onVehicle: ((BikeKind) -> Void)?
     private var vehiclePopup: NSPopUpButton!
+    /// The inspector is a list of collapsible sections: a header button and a body stack each.
+    private struct SectionGroup { let title: String; let header: NSButton; let body: NSStackView }
+    private var groups: [SectionGroup] = []
+    private var currentBody: NSStackView?
+    private weak var mainStack: NSStackView?
+    /// Top to bottom. Only the first three start open; what is open is remembered between launches.
+    private static let sectionOrder = ["VEHÍCULO", "RETO", "RUTA", "OPCIONES", "CONDUCCIÓN", "APARIENCIA", "ESTILO (CON MONEDAS)", "MONEDAS", "MISIONES", "RÉCORD EN ESTA RUTA"]
+    private static let openByDefault: Set<String> = ["VEHÍCULO", "RETO", "RUTA"]
     private var updating = false
     private var routePopup: NSPopUpButton!
     private var nightSwitch: NSSwitch!
@@ -313,7 +321,7 @@ final class GarageInspectorController: NSViewController {
         styleHint.font = .systemFont(ofSize: 11); styleHint.textColor = .secondaryLabelColor
         addFullWidth(styleHint, to: stack)
         addDivider(to: stack)
-        addSection("PILOTO Y CIRCUITO", to: stack)
+        addSection("OPCIONES", to: stack)
         outfitLabel = NSTextField(wrappingLabelWithString: game.bike.kind.outfitDescription)
         outfitLabel.font = .systemFont(ofSize: 11)
         outfitLabel.textColor = .secondaryLabelColor
@@ -333,6 +341,7 @@ final class GarageInspectorController: NSViewController {
         let hint = NSTextField(wrappingLabelWithString: "Los ajustes se guardan automáticamente.")
         hint.font = .systemFont(ofSize: 11); hint.textColor = .tertiaryLabelColor
         addFullWidth(hint, to: stack)
+        arrangeSections(in: stack)
         playButton = NSButton(title: "Rodar", target: self, action: #selector(play))
         playButton.bezelStyle = .rounded; playButton.controlSize = .large; playButton.keyEquivalent = "\r"
         playButton.bezelColor = .controlAccentColor
@@ -365,17 +374,47 @@ final class GarageInspectorController: NSViewController {
         return field
     }
     private func addSection(_ title: String, to stack: NSStackView) {
-        let label = NSTextField(labelWithString: title)
-        label.font = .systemFont(ofSize: 10, weight: .semibold); label.textColor = .secondaryLabelColor
-        addFullWidth(label, to: stack)
+        mainStack = stack
+        let header = NSButton(title: title, target: self, action: #selector(toggleSection(_:)))
+        header.isBordered = false; header.alignment = .left; header.imagePosition = .imageLeading; header.imageHugsTitle = true
+        header.font = .systemFont(ofSize: 10, weight: .semibold); header.contentTintColor = .secondaryLabelColor
+        header.identifier = NSUserInterfaceItemIdentifier(title); header.setAccessibilityLabel(title.capitalized)
+        let body = NSStackView(); body.orientation = .vertical; body.alignment = .leading; body.spacing = 12
+        for view in [header, body] {
+            view.translatesAutoresizingMaskIntoConstraints = false; stack.addArrangedSubview(view)
+            view.widthAnchor.constraint(equalTo: stack.widthAnchor).isActive = true
+        }
+        let group = SectionGroup(title: title, header: header, body: body)
+        groups.append(group); currentBody = body
+        setSection(group, open: UserDefaults.standard.object(forKey: "garage.open." + title) as? Bool ?? Self.openByDefault.contains(title))
     }
-    private func addDivider(to stack: NSStackView) {
-        let divider = NSBox(); divider.boxType = .separator
-        addFullWidth(divider, to: stack)
+    private func setSection(_ group: SectionGroup, open: Bool) {
+        group.body.isHidden = !open
+        group.header.image = NSImage(systemSymbolName: open ? "chevron.down" : "chevron.right", accessibilityDescription: open ? "Plegar" : "Desplegar")?
+            .withSymbolConfiguration(.init(pointSize: 8, weight: .bold))
+        group.header.setAccessibilityValue(open ? "desplegada" : "plegada")
     }
+    @objc private func toggleSection(_ sender: NSButton) {
+        guard let group = groups.first(where: { $0.header === sender }) else { return }
+        let open = group.body.isHidden
+        setSection(group, open: open)
+        UserDefaults.standard.set(open, forKey: "garage.open." + group.title)
+    }
+    /// Reorders the sections into `sectionOrder` and puts a hairline between them.
+    private func arrangeSections(in stack: NSStackView) {
+        currentBody = nil
+        for view in stack.arrangedSubviews { stack.removeArrangedSubview(view) }
+        let ordered = Self.sectionOrder.compactMap { title in groups.first { $0.title == title } }
+        for (i, group) in ordered.enumerated() {
+            if i > 0 { let divider = NSBox(); divider.boxType = .separator; addFullWidth(divider, to: stack) }
+            stack.addArrangedSubview(group.header); stack.addArrangedSubview(group.body)
+        }
+    }
+    private func addDivider(to stack: NSStackView) { currentBody = nil }   // sections are separated by their headers
     private func addFullWidth(_ child: NSView, to stack: NSStackView) {
-        child.translatesAutoresizingMaskIntoConstraints = false; stack.addArrangedSubview(child)
-        child.widthAnchor.constraint(equalTo: stack.widthAnchor).isActive = true
+        let target = currentBody ?? stack
+        child.translatesAutoresizingMaskIntoConstraints = false; target.addArrangedSubview(child)
+        child.widthAnchor.constraint(equalTo: target.widthAnchor).isActive = true
     }
     private func labeledRow(_ title: String, control: NSView) -> NSView {
         let row = NSView(); let label = NSTextField(labelWithString: title)
@@ -418,6 +457,7 @@ final class GarageInspectorController: NSViewController {
         helmetPopup.selectItem(at: game.art.helmetStyle.rawValue); jacketPopup.selectItem(at: game.art.jacketStyle.rawValue); liveryPopup.selectItem(at: game.art.livery.rawValue)
         let locked = lockedItems()
         walletLabel.stringValue = "\(game.progress.wallet) monedas"
+        groups.first { $0.title == "MONEDAS" }?.header.title = "MONEDAS · \(game.progress.wallet)"
         unlockButton.isHidden = locked.isEmpty; unlockHint.isHidden = locked.isEmpty
         if !locked.isEmpty {
             let cost = locked.reduce(0) { $0 + $1.cost }

@@ -1,4 +1,4 @@
-# Wheelie Ride 6.11 · macOS
+# Wheelie Ride 6.12 · macOS
 
 Juego independiente inspirado en la base de Wheelie Challenge: conducción lateral, caballitos, equilibrio, saltos, vehículos y piloto personalizables. Swift/AppKit nativo, sin navegador, red ni descargas en tiempo de ejecución.
 
@@ -22,7 +22,7 @@ Desde la versión 4 hay una geometría en metros compartida por la física, el v
 
 Es un modelo de conducción arcade lateral: las ruedas tienen recorrido vertical y el chasis tiene cabeceo; no modela la dirección lateral, deformación completa del neumático ni una moto tridimensional. Los controles de peso incluyen amortiguación para que los caballitos puedan corregirse.
 
-## Esta versión (6.11)
+## Esta versión (6.12)
 
 - **Diez vehículos:** Street 125, Enduro 250, Sport 600, BMX, Scooter 80, Scrambler 400, Trial 200, Hyper R 1000, Cruiser 750 y Volt E-8, con geometría, velocidad, aceleración y respuesta distintas.
 - **Cinco rutas:** Valle de asfalto, Sierra de tierra, Dunas al atardecer, Nieve y Ciudad bajo la lluvia, de 1.200 m (o de 3.000 y 6.000 m en rodar libre y carrera) en cuatro tramos de dificultad creciente, más un **modo infinito** sin meta, con modo nocturno y clima dinámico opcional.
@@ -308,4 +308,8 @@ Caída del piloto rehecha.
 
 - **Ruedas con desenfoque de giro:** a partir de unos 16 rad/s (≈ 18 km/h en una moto normal) los radios se atenúan y los sustituye un disco translúcido con estelas tenues, hasta un 85 % a toda velocidad. Se aplica a tu moto, a los rivales y al fantasma; la vista previa del taller sigue nítida.
 - Pendiente (sigue sin sentirse bien, según tu valoración): formas y proporciones de algunas motos, animación del conjunto moto-piloto en marcha y nivel de acabado. Para acertar necesito que me digas qué moto y qué momento (parada, aceleración, caballito, salto) ves peor.
+
+### Actualización 6.12
+
+Revisión del icono: la moto es un 8 % mayor y está más centrada; el sol es más grande y sus franjas ya no se salen del disco; el polvo y las rayas de la carretera quedan dentro de la esquina redondeada del icono en vez de recortados. Se lee igual a 128, 64 y 32 px sobre fondo claro y oscuro.
 

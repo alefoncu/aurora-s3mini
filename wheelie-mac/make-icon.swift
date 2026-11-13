@@ -23,14 +23,16 @@ import Cocoa
         for (x,y,r,a) in [(250.0,190.0,2.4,0.9),(420,160,1.8,0.7),(610,215,2.2,0.8),(760,175,1.9,0.7),(330,262,1.5,0.55),(700,285,1.6,0.5),(180,300,1.4,0.5),(860,260,2.0,0.7)] as [(Double,Double,Double,Double)] {
             NSColor.white.withAlphaComponent(a).setFill();NSBezierPath(ovalIn:NSRect(x:x-r,y:y-r,width:r*2,height:r*2)).fill()
         }
-        let horizon:Double=712,sun=NSPoint(x:690,y:horizon)
+        let horizon:Double=712,sun=NSPoint(x:700,y:horizon)
         // Glow and the half sun with retro slits.
         NSGradient(colors:[NSColor(hex:0xFFE9A0,alpha:0.75),NSColor(hex:0xFF8A4A,alpha:0.28),NSColor(hex:0xFF5A55,alpha:0)],atLocations:[0,0.45,1],colorSpace:.deviceRGB)?.draw(fromCenter:sun,radius:0,toCenter:sun,radius:470,options:[])
         NSGraphicsContext.saveGraphicsState()
         NSBezierPath(rect:NSRect(x:0,y:0,width:1024,height:horizon)).addClip()
-        let disc=NSBezierPath(ovalIn:NSRect(x:sun.x-205,y:sun.y-205,width:410,height:410))
+        let disc=NSBezierPath(ovalIn:NSRect(x:sun.x-225,y:sun.y-225,width:450,height:450))
         NSGradient(colors:[NSColor(hex:0xFFF0A8),NSColor(hex:0xFFB347),NSColor(hex:0xFF5E6C)],atLocations:[0,0.55,1],colorSpace:.deviceRGB)?.draw(in:disc,angle:90)
-        for i in 0..<6 { let y=horizon-150+Double(i)*26;let h=3.0+Double(i)*2.6; NSColor(hex:0xB93A78,alpha:0.85).setFill();NSBezierPath(rect:NSRect(x:sun.x-215,y:y,width:430,height:h)).fill() }
+        NSGraphicsContext.saveGraphicsState(); disc.addClip()
+        for i in 0..<6 { let y=horizon-150+Double(i)*26;let h=3.0+Double(i)*2.6; NSColor(hex:0xB93A78,alpha:0.85).setFill();NSBezierPath(rect:NSRect(x:sun.x-235,y:y,width:470,height:h)).fill() }
+        NSGraphicsContext.restoreGraphicsState()
         NSGraphicsContext.restoreGraphicsState()
         // Two layers of distant ridges.
         func ridge(_ pts:[(Double,Double)],_ color:NSColor) {
@@ -44,22 +46,22 @@ import Cocoa
         NSGradient(colors:[NSColor(hex:0x3A1D4A),NSColor(hex:0x1C1030)],atLocations:[0,1],colorSpace:.deviceRGB)?.draw(in:NSRect(x:0,y:horizon,width:1024,height:230),angle:90)
         NSColor(hex:0xFFB36B,alpha:0.9).setFill();NSBezierPath(rect:NSRect(x:0,y:horizon+36,width:1024,height:6)).fill()
         NSColor(hex:0xFF6A8A,alpha:0.35).setFill();NSBezierPath(rect:NSRect(x:0,y:horizon+42,width:1024,height:18)).fill()
-        for i in 0..<5 { NSColor(hex:0xFFE9B8,alpha:0.85).setFill();NSBezierPath(roundedRect:NSRect(x:70+Double(i)*210,y:872,width:120,height:12),xRadius:6,yRadius:6).fill() }
+        for i in 0..<4 { NSColor(hex:0xFFE9B8,alpha:0.85).setFill();NSBezierPath(roundedRect:NSRect(x:175+Double(i)*190,y:872,width:115,height:12),xRadius:6,yRadius:6).fill() }
 
         // The bike: sport model in a wheelie, rotated about its rear axle so the rear tyre stays on the road.
         let art=RideRenderer();art.body=NSColor(hex:0x12C8E8);art.jacket=NSColor(hex:0xF2F4F6);art.helmet=NSColor(hex:0xFFFFFF);art.livery = .none
-        let scale=3.75,rig=BikeKind.sport.rig,contact:Double=842
+        let scale=4.05,rig=BikeKind.sport.rig,contact:Double=834
         let axleY=contact-rig.wheelRadius*rig.drawingUnitsPerMetre*scale
-        art.shadow(x:400,y:contact+6,width:430,height:30,alpha:0.5)
+        art.shadow(x:410,y:contact+6,width:460,height:30,alpha:0.5)
         // Speed streaks and dust behind the rear wheel.
         for (i,(y,len)) in [(contact-55,170.0),(contact-95,230.0),(contact-135,130.0)].enumerated() {
             let g=NSGradient(colors:[NSColor.white.withAlphaComponent(0),NSColor.white.withAlphaComponent(0.55)])
             g?.draw(in:NSRect(x:215-len,y:y-2+Double(i),width:len,height:5),angle:0)
         }
-        for (dx,dy,r,a) in [(-40.0,-14.0,16.0,0.30),(-78,-24,22,0.22),(-125,-30,28,0.16),(-20,-30,11,0.28)] as [(Double,Double,Double,Double)] {
-            NSColor(hex:0xFFD9B0,alpha:a).setFill();NSBezierPath(ovalIn:NSRect(x:250+dx-r,y:contact+dy-r,width:r*2,height:r*2)).fill()
+        for (dx,dy,r,a) in [(-32.0,-12.0,15.0,0.30),(-64,-22,20,0.22),(-96,-28,24,0.15),(-14,-28,10,0.28)] as [(Double,Double,Double,Double)] {
+            NSColor(hex:0xFFD9B0,alpha:a).setFill();NSBezierPath(ovalIn:NSRect(x:268+dx-r,y:contact+dy-r,width:r*2,height:r*2)).fill()
         }
-        art.motorcycle(x:310,y:axleY,scale:scale,angle:0.44,kind:.sport,rotation:0.6,time:0,lean:-0.1,riderLift:0.4)
+        art.motorcycle(x:300,y:axleY,scale:scale,angle:0.44,kind:.sport,rotation:0.6,time:0,lean:-0.1,riderLift:0.4)
         NSGraphicsContext.restoreGraphicsState()
 
         // Glassy sheen and a fine rim.

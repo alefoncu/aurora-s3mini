@@ -1,4 +1,4 @@
-# Wheelie Ride 5 · macOS
+# Wheelie Ride 6.5 · macOS
 
 Juego independiente inspirado en la base de Wheelie Challenge: conducción lateral, caballitos, equilibrio, saltos, vehículos y piloto personalizables. Swift/AppKit nativo, sin navegador, red ni descargas en tiempo de ejecución.
 
@@ -10,7 +10,7 @@ Al jugar se retiran los paneles y los botones táctiles móviles. La escena ocup
 
 ## Mecánicas y personajes
 
-La versión 4 usa una geometría en metros compartida por la física, el vehículo dibujado y los anclajes del piloto. Ya no hay una escala distinta para las ruedas visibles y sus contactos.
+Desde la versión 4 hay una geometría en metros compartida por la física, el vehículo dibujado y los anclajes del piloto: no hay una escala distinta para las ruedas visibles y sus contactos.
 
 - Chasis con masa, movimiento vertical y cabeceo; dos masas de rueda con contacto independiente.
 - Muelles, amortiguadores, hundimiento por peso, topes de compresión y extensión. La horquilla cambia el solape de sus tubos y el basculante sigue el eje físico.
@@ -22,18 +22,20 @@ La versión 4 usa una geometría en metros compartida por la física, el vehícu
 
 Es un modelo de conducción arcade lateral: las ruedas tienen recorrido vertical y el chasis tiene cabeceo; no modela la dirección lateral, deformación completa del neumático ni una moto tridimensional. Los controles de peso incluyen amortiguación para que los caballitos puedan corregirse.
 
-## Esta versión
+## Esta versión (6.5)
 
-- Street 125, Enduro 250, Sport 600, BMX, Scooter 80, Scrambler 400, Trial 200 y Hyper R 1000: geometría, velocidad, aceleración y respuesta distintas.
-- Valle de asfalto, Sierra de tierra y Dunas al atardecer; 1.200 metros por ruta y modo nocturno.
-- Vehículos y muñecos redibujados con volúmenes, materiales, reflejos y detalles mecánicos; acompañante opcional, sombras y polvo.
-- Color libre de moto, chaqueta, casco y piel, usando los selectores de color de macOS.
-- Conos opcionales con contacto en ambas ruedas e impulso físico; saltos para evitarlos.
-- Sonido sintetizado de motor y rodadura; la BMX no suena como un motor.
-- Récords separados por vehículo y ruta. Las preferencias de la versión anterior se conservan; los nuevos récords usan un espacio separado (`v5`) porque la física ha cambiado. Los anteriores permanecen guardados.
-- Ventana Retina, pantalla completa, barra de herramientas personalizable, menús, atajos y paneles nativos.
+- **Diez vehículos:** Street 125, Enduro 250, Sport 600, BMX, Scooter 80, Scrambler 400, Trial 200, Hyper R 1000, Cruiser 750 y Volt E-8, con geometría, velocidad, aceleración y respuesta distintas.
+- **Cinco rutas:** Valle de asfalto, Sierra de tierra, Dunas al atardecer, Nieve y Ciudad bajo la lluvia, de 1.200 m en cuatro tramos de dificultad creciente, con modo nocturno y clima dinámico opcional.
+- **Trucos y puntuación:** caballito, invertido, saltos, volteretas, manos fuera, giro de 360° y superman, con cadenas y multiplicador.
+- **Retos:** tutorial guiado, contrarreloj, carrera contra rival, circuito cerrado de tres vueltas con tres rivales, modo infinito y fantasma de tu mejor vuelta.
+- **Progresión:** monedas, desbloqueos, estilos comprables de casco, chaqueta y moto, misiones diarias y semanal, estadísticas y logros, tres modos de dificultad.
+- **Presentación:** vehículos y muñecos con volúmenes y materiales propios, color libre de moto, chaqueta, casco y piel, sombras y polvo, fondo en capas de Core Animation a 60 fps, sonido sintetizado de motor, rodadura, ambiente e interfaz.
+- **Mac nativo:** ventana Retina, pantalla completa, barra de herramientas personalizable, menús, atajos y Touch Bar.
+- Récords separados por vehículo, ruta, dificultad y clima. Las preferencias de versiones anteriores se conservan; los récords nuevos usan un espacio separado (`v5`) porque la física cambió, y los anteriores permanecen guardados.
 
 No contiene todo el catálogo de vehículos ni las pistas del juego original. El código y el arte utilizado en la app son propios. Las referencias visuales consultadas no se incluyen en el paquete.
+
+Limitaciones conocidas: el modelo es plano (sin derrape lateral ni neumáticos deformables), no hay rutas con bifurcaciones, y el ajuste de equilibrio (precios, dificultad del rival, sensaciones de conducción) se hizo con pilotos simulados, no con sesiones de juego largas.
 
 ## Teclado y ratón
 
@@ -43,6 +45,7 @@ No contiene todo el catálogo de vehículos ni las pistas del juego original. El
 | Levantar | ← / A |
 | Corregir hacia delante | → / D |
 | Frenar | ↓ / S |
+| Invertido (sobre la rueda delantera) | Mantener E, o ↓ + → |
 | Saltar | Espacio |
 | Truco / voltereta | Mantener T al saltar y ← o → en el aire; soltar T pasada la media vuelta |
 | Manos fuera del manillar | Mantener H (sin peso ni freno delantero; el piloto levanta un brazo) |
@@ -97,7 +100,7 @@ Incluye:
 
 - Física a 30/120 fps; recorridos completos de todos los vehículos y rutas; contacto y no penetración; hundimiento estático; recorrido independiente; frenado y recuperación; impactos y aterrizajes; asentamiento tras caída.
 - 22.176 poses sobre cuatro geometrías: contactos de manos/pies y longitudes de huesos con error inferior a `1e-6` metros.
-- Caída del muñeco durante cinco segundos sobre los tres terrenos: gravedad, impulso, huesos, contacto y estabilidad entre frecuencias de imagen.
+- Caída del muñeco durante cinco segundos sobre los terrenos: gravedad, impulso, huesos, contacto y estabilidad entre frecuencias de imagen.
 - Touch Bar: controles deshabilitados en taller/pausa, parejas de pulsación/liberación, telemetría, cancelación de combinaciones y pérdida de foco.
 - Transmisión (marchas, embrague, limitador, BMX y CVT) y retos con fantasma: persistencia por contexto, interpolación, límites de grabación y rechazo de datos corruptos.
 - Puntuación (cadenas, multiplicador, pérdida al caer), monedas y desbloqueos, migración de jugadores existentes.
@@ -135,6 +138,10 @@ La app también acepta `--smoke-test` para probar su máquina de estados real co
 - `Sources/main.swift`: ventana dividida, barra de herramientas, menús y personalización.
 - `Assets/`: paisajes originales generados con la herramienta integrada de imágenes; ver `Assets/README.md`.
 
+## Historial de versiones
+
+Las descripciones de abajo son el diario de cada versión; el estado actual está en «Esta versión». Si una cifra difiere, vale la de la versión más reciente.
+
 ### Actualización 4.1
 
 El piloto cambia de equipo y postura con el vehículo: chaqueta textil y vaqueros en Street, equipación con gafas y botas en Enduro, mono de cuero en Sport y camiseta, rodilleras y casco abierto en BMX. El color elegido se conserva como acento del conjunto. El acompañante lleva ropa urbana.
@@ -145,7 +152,7 @@ Sigue siendo física arcade planar: no simula deslizamiento lateral, ABS ni neum
 
 ### Actualización 5.0
 
-Diez vehículos disponibles desde el taller (ocho originales más Cruiser 750 y Volt E-8). Scooter, Scrambler y Trial añaden siluetas, geometrías y ajustes propios; conservan sus índices los cuatro vehículos anteriores y se mantienen sus preferencias.
+Ocho vehículos disponibles desde el taller (Cruiser 750 y Volt E-8 llegaron en 6.5). Scooter, Scrambler y Trial añaden siluetas, geometrías y ajustes propios; conservan sus índices los cuatro vehículos anteriores y se mantienen sus preferencias.
 
 Las tres rutas tienen cuatro tramos de 300 m: iniciación, técnica, exigente y experto. El relieve aumenta progresivamente su dificultad sin saltos de altura en las transiciones. Los conos opcionales comparten una única distribución entre dibujo y colisión, con menor separación al avanzar. El HUD anuncia los cambios y los carteles del circuito marcan cada tramo. La progresión del terreno funciona también con los conos desactivados. Los récords anteriores quedan conservados bajo su clave previa; la nueva pista usa `v5`.
 

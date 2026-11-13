@@ -66,25 +66,65 @@ extension RideView {
         RideProfile.section("HUD") { hud(); drawControls() }
         NSGraphicsContext.restoreGraphicsState()
     }
+    /// The garage is a studio: a spotlight, a platform and the bike reflected in it, with its characteristics as bars.
     func drawGarage() {
-        NSColor.windowBackgroundColor.setFill(); bounds.fill()
-        art.gradient(bounds,NSColor.controlBackgroundColor.withAlphaComponent(0.6),NSColor.windowBackgroundColor)
-        let w=bounds.width,h=bounds.height,geo=art.geometry(bike.kind)
-        art.text(bike.kind.title,32,28,29,.labelColor,.bold)
-        art.text(bike.kind.garageDetail,33,67,12,.secondaryLabelColor,.medium)
-        art.text(bike.kind == .bmx ? "Cuadro rígido · pedales y neumáticos" : "Recorrido de suspensión  \(Int(bike.kind.rig.frontTravel*1000)) / \(Int(bike.kind.rig.rearTravel*1000)) mm",33,88,11,.tertiaryLabelColor)
-        art.text(bike.kind == .bmx ? "Pedaleo en llano  ·  ~35 km/h" : "Velocidad en recta  \(Int((bike.kind.topSpeed*3.6).rounded())) km/h",33,106,11,.secondaryLabelColor)
-        let floor=h*0.72, z=max(0.8,min(3.0,min((w-88)/(geo.front+65),(floor-120)/175)))
-        art.ellipse(w*0.15,floor-8,w*0.7,25,NSColor.separatorColor.withAlphaComponent(0.09))
-        art.shadow(x:w/2,y:floor+1,width:geo.front*z+80,height:18,alpha:0.14)
-        let rig=bike.kind.rig,ppm=z*rig.drawingUnitsPerMetre,c=cos(bike.pitch),s=sin(bike.pitch)
+        let w=bounds.width,h=bounds.height,geo=art.geometry(bike.kind),kind=bike.kind
+        let studio=NSColor(hex:0x10141C),glow=NSColor(hex:0x9DB6E6)
+        NSGradient(colors:[NSColor(hex:0x2C3446),NSColor(hex:0x161B26),studio],atLocations:[0,0.55,1],colorSpace:.deviceRGB)?.draw(in:bounds,angle:90)
+        let floor=h*0.70,z=max(0.8,min(3.0,min((w-120)/(geo.front+80),(floor-150)/175)))
+        let spot=NSPoint(x:w/2,y:floor-z*70)
+        NSGradient(colors:[glow.withAlphaComponent(0.30),glow.withAlphaComponent(0)],atLocations:[0,1],colorSpace:.deviceRGB)?.draw(fromCenter:spot,radius:0,toCenter:spot,radius:max(w,h)*0.7,options:[])
+        // Platform with a lit rim.
+        let pw=geo.front*z+260,platform=NSBezierPath(ovalIn:NSRect(x:w/2-pw/2,y:floor-16,width:pw,height:62))
+        NSGradient(colors:[NSColor(hex:0x3B4559),NSColor(hex:0x1A202C)],atLocations:[0,1],colorSpace:.deviceRGB)?.draw(in:platform,angle:90)
+        glow.withAlphaComponent(0.5).setStroke(); platform.lineWidth=1.6; platform.stroke()
+        let ring=NSBezierPath(ovalIn:NSRect(x:w/2-pw*0.42,y:floor-8,width:pw*0.84,height:46)); glow.withAlphaComponent(0.16).setStroke(); ring.lineWidth=1; ring.stroke()
+        let rig=kind.rig,ppm=z*rig.drawingUnitsPerMetre,c=cos(bike.pitch),s=sin(bike.pitch)
         func local(_ wheel:RideVector)->RideVector { let d=wheel-bike.chassisPosition;return RideVector(c*d.x+s*d.y,-s*d.x+c*d.y) }
         let midpoint=(bike.rearWheelPosition.x+bike.frontWheelPosition.x)*0.5
-        art.wheelBlur=0; art.motorcycle(x:w/2+(bike.chassisPosition.x-midpoint)*ppm,y:floor-bike.chassisPosition.y*ppm,scale:z,angle:bike.pitch,kind:bike.kind,rotation:0,time:0,rearWheelLocal:local(bike.rearWheelPosition),frontWheelLocal:local(bike.frontWheelPosition),frontCompression:bike.frontCompression,rearCompression:bike.rearCompression)
-        art.text("MEJOR CABALLITO",32,h-100,10,.secondaryLabelColor,.semibold)
-        art.text("\(Int(best)) m",32,h-80,25,.labelColor,.medium,mono:true)
-        art.text("RÉCORD DE RUTA",w-182,h-100,10,.secondaryLabelColor,.semibold)
-        art.text("\(Int(record)) m",w-182,h-80,25,.labelColor,.medium,mono:true)
+        func drawBike() {
+            art.wheelBlur=0
+            art.motorcycle(x:w/2+(bike.chassisPosition.x-midpoint)*ppm,y:floor-bike.chassisPosition.y*ppm,scale:z,angle:bike.pitch,kind:kind,rotation:0,time:0,rearWheelLocal:local(bike.rearWheelPosition),frontWheelLocal:local(bike.frontWheelPosition),frontCompression:bike.frontCompression,rearCompression:bike.rearCompression)
+        }
+        // Reflection: the bike mirrored about the floor, faded into the platform.
+        NSGraphicsContext.saveGraphicsState()
+        platform.addClip(); NSBezierPath(rect:NSRect(x:0,y:floor,width:w,height:h)).addClip()
+        let mirror=NSAffineTransform(); mirror.translateX(by:0,yBy:2*floor); mirror.scaleX(by:1,yBy:-1); mirror.concat()
+        drawBike()
+        NSGraphicsContext.restoreGraphicsState()
+        NSGraphicsContext.saveGraphicsState()
+        platform.addClip()
+        NSGradient(colors:[NSColor(hex:0x232B3B,alpha:0.50),NSColor(hex:0x1A202C,alpha:0.96)],atLocations:[0,1],colorSpace:.deviceRGB)?.draw(in:NSRect(x:0,y:floor,width:w,height:70),angle:90)
+        NSGraphicsContext.restoreGraphicsState()
+        art.shadow(x:w/2,y:floor+2,width:geo.front*z+90,height:20,alpha:0.5)
+        drawBike()
+        // Title, then the characteristics as bars.
+        let white=NSColor.white
+        art.text(kind.title,32,26,30,white,.bold)
+        art.text(kind.garageDetail,33,66,12,white.withAlphaComponent(0.62),.medium)
+        let rigData=kind.rig,kmh=kind.topSpeed*3.6
+        let stats:[(String,Double,String)]=[
+            ("VELOCIDAD",kmh/300,"\(Int(kmh.rounded())) km/h"),
+            ("ACELERACIÓN",kind.engineAcceleration/7.0,String(format:"%.1f m/s²",kind.engineAcceleration)),
+            ("SUSPENSIÓN",(rigData.frontTravel+rigData.rearTravel)/0.57,kind == .bmx ? "rígida" : "\(Int(rigData.frontTravel*1000)) / \(Int(rigData.rearTravel*1000)) mm"),
+            ("AGILIDAD",1-(rigData.sprungMass-82)/(290-82),"\(Int(rigData.sprungMass)) kg")]
+        for (i,stat) in stats.enumerated() {
+            let y=104+Double(i)*38
+            art.text(stat.0,33,y,9,white.withAlphaComponent(0.5),.semibold)
+            art.box(33,y+17,150,5,white.withAlphaComponent(0.12),2.5)
+            let fraction=max(0.04,min(1,stat.1))
+            art.box(33,y+17,150*fraction,5,NSColor(hex:0x5AC8FA),2.5)
+            art.text(stat.2,194,y+10,11,white.withAlphaComponent(0.85),.medium,mono:true)
+        }
+        // Coins, and the two records on glass chips.
+        art.box(w-170,24,138,30,white.withAlphaComponent(0.09),15)
+        art.text("\(progress.wallet) monedas",w-101,31,12,white,.semibold,center:true,mono:true)
+        for (i,item) in [("MEJOR CABALLITO",best),("RÉCORD DE RUTA",record)].enumerated() {
+            let x=i == 0 ? 32.0 : w-182
+            art.box(x-8,h-114,158,78,white.withAlphaComponent(0.07),12)
+            art.text(item.0,x+4,h-104,10,white.withAlphaComponent(0.55),.semibold)
+            art.text("\(Int(item.1)) m",x+4,h-84,25,white,.medium,mono:true)
+        }
     }
     func drawRide() {
         let ppm=art.metresToPixels,rig=bike.kind.rig,camY=cameraY+presentationOffset

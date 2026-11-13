@@ -98,12 +98,27 @@ extension RideRenderer {
     /// A painted panel: gradient from highlight to shadow, a glossy sheen on its upper edge and an outline.
     @discardableResult
     func vmPanel(_ path:NSBezierPath,_ paint:NSColor,gloss:Double=0.34,outline:Double=0.8,angle:Double=82)->NSBezierPath {
-        NSGradient(colors:[vmTone(paint,0.42),paint,vmTone(paint,-0.34)])?.draw(in:path,angle:angle)
+        // A soft cast shadow on whatever lies behind the panel separates the layers (engine under the tank, frame under the fairing).
+        NSGraphicsContext.saveGraphicsState()
+        let cast=NSShadow(); cast.shadowColor=NSColor.black.withAlphaComponent(0.45); cast.shadowBlurRadius=3.2; cast.shadowOffset=NSSize(width:0.6,height:-2.2); cast.set()
+        vmTone(paint,-0.4).setFill(); path.fill()
+        NSGraphicsContext.restoreGraphicsState()
+        // Automotive paint: a bright sky reflection on top, the base colour, a dark horizon line and a warm bounce from the road.
+        NSGradient(colors:[vmTone(paint,0.55),vmTone(paint,0.14),paint,vmTone(paint,-0.50),vmTone(paint,-0.16),vmTone(paint,0.06)],
+                   atLocations:[0,0.2,0.46,0.6,0.82,1],colorSpace:.deviceRGB)?.draw(in:path,angle:angle)
         NSGraphicsContext.saveGraphicsState(); path.addClip()
         let b=path.bounds
+        // Specular sheen over the upper third, and ambient occlusion along the underside.
         NSGradient(colors:[NSColor.white.withAlphaComponent(gloss),NSColor.white.withAlphaComponent(0)])?.draw(in:NSRect(x:b.minX,y:b.minY,width:b.width,height:b.height*0.38),angle:90)
+        NSGradient(colors:[NSColor.black.withAlphaComponent(0),NSColor.black.withAlphaComponent(0.26)])?.draw(in:NSRect(x:b.minX,y:b.maxY-b.height*0.3,width:b.width,height:b.height*0.3),angle:90)
+        // Bevel: a dark inner edge and a rim light where the surface turns towards the sky (the outline shifted down-right).
+        path.lineWidth=3.4; NSColor.black.withAlphaComponent(0.26).setStroke(); path.lineJoinStyle = .round; path.stroke()
+        if let lit=path.copy() as? NSBezierPath {
+            let t=AffineTransform(translationByX:0.8,byY:1.2); lit.transform(using:t)
+            lit.lineWidth=1.5; NSColor.white.withAlphaComponent(0.42).setStroke(); lit.lineJoinStyle = .round; lit.stroke()
+        }
         NSGraphicsContext.restoreGraphicsState()
-        if outline>0 { NSColor(hex:0x17232B,alpha:0.9).setStroke(); path.lineWidth=outline; path.lineJoinStyle = .round; path.stroke() }
+        if outline>0 { vmTone(paint,-0.78).withAlphaComponent(0.95).setStroke(); path.lineWidth=outline; path.lineJoinStyle = .round; path.stroke() }
         return path
     }
     func vmClip(_ path:NSBezierPath,_ draw:()->Void) {

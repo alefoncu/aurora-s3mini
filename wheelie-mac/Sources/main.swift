@@ -59,7 +59,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSToolbarDelegate, NST
         }
         let center=NSViewController(); center.view=game
         split=NSSplitViewController(); split.splitView.dividerStyle = .thin
-        sidebarItem=NSSplitViewItem(sidebarWithViewController:sidebar); sidebarItem.minimumThickness=200; sidebarItem.maximumThickness=250; sidebarItem.canCollapse=true
+        sidebarItem=NSSplitViewItem(sidebarWithViewController:sidebar); sidebarItem.minimumThickness=250; sidebarItem.maximumThickness=300; sidebarItem.canCollapse=true
         let middle=NSSplitViewItem(viewController:center); middle.minimumThickness=420
         inspectorItem=NSSplitViewItem(viewController:inspector); inspectorItem.minimumThickness=260; inspectorItem.maximumThickness=300; inspectorItem.canCollapse=true
         split.addSplitViewItem(sidebarItem); split.addSplitViewItem(middle); split.addSplitViewItem(inspectorItem)

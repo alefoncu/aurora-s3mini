@@ -91,7 +91,7 @@ final class GarageSidebarController: NSViewController, NSTableViewDataSource, NS
         let cell = (tableView.makeView(withIdentifier: identifier, owner: self) as? GarageVehicleCell) ?? GarageVehicleCell()
         cell.identifier = identifier
         let kind = BikeKind.allCases[row]
-        cell.configure(title: kind.title, subtitle: lockText(kind).map { "🔒 " + $0 } ?? kind.subtitle, symbol: kind == .bmx ? "bicycle" : "motorcycle")
+        cell.configure(title: kind.title, subtitle: lockText(kind).map { "🔒 " + $0 } ?? kind.subtitle, image: GarageThumbnails.image(for: kind))
         return cell
     }
     func tableViewSelectionDidChange(_ notification: Notification) {
@@ -117,10 +117,10 @@ private final class GarageVehicleCell: NSTableCellView {
         imageView = icon; textField = title
         for child in [icon, title, subtitle] { child.translatesAutoresizingMaskIntoConstraints = false; addSubview(child) }
         NSLayoutConstraint.activate([
-            icon.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 10),
+            icon.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 6),
             icon.centerYAnchor.constraint(equalTo: centerYAnchor),
-            icon.widthAnchor.constraint(equalToConstant: 25), icon.heightAnchor.constraint(equalToConstant: 25),
-            title.leadingAnchor.constraint(equalTo: icon.trailingAnchor, constant: 11),
+            icon.widthAnchor.constraint(equalToConstant: 70), icon.heightAnchor.constraint(equalToConstant: 42),
+            title.leadingAnchor.constraint(equalTo: icon.trailingAnchor, constant: 10),
             title.topAnchor.constraint(equalTo: topAnchor, constant: 12),
             title.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -9),
             subtitle.leadingAnchor.constraint(equalTo: title.leadingAnchor),
@@ -130,11 +130,10 @@ private final class GarageVehicleCell: NSTableCellView {
         updateColors()
     }
     required init?(coder: NSCoder) { nil }
-    func configure(title: String, subtitle: String, symbol: String) {
+    func configure(title: String, subtitle: String, image: NSImage) {
         textField?.stringValue = title
         self.subtitle.stringValue = subtitle
-        imageView?.image = NSImage(systemSymbolName: symbol, accessibilityDescription: title)
-            ?? NSImage(systemSymbolName: "bicycle", accessibilityDescription: title)
+        imageView?.image = image
         setAccessibilityLabel("\(title), \(subtitle)")
     }
     override var backgroundStyle: NSView.BackgroundStyle { didSet { updateColors() } }

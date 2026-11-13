@@ -1,4 +1,4 @@
-# Wheelie Ride 6.13 · macOS
+# Wheelie Ride 6.14 · macOS
 
 Juego independiente inspirado en la base de Wheelie Challenge: conducción lateral, caballitos, equilibrio, saltos, vehículos y piloto personalizables. Swift/AppKit nativo, sin navegador, red ni descargas en tiempo de ejecución.
 
@@ -22,7 +22,7 @@ Desde la versión 4 hay una geometría en metros compartida por la física, el v
 
 Es un modelo de conducción arcade lateral: las ruedas tienen recorrido vertical y el chasis tiene cabeceo; no modela la dirección lateral, deformación completa del neumático ni una moto tridimensional. Los controles de peso incluyen amortiguación para que los caballitos puedan corregirse.
 
-## Esta versión (6.13)
+## Esta versión (6.14)
 
 - **Diez vehículos:** Street 125, Enduro 250, Sport 600, BMX, Scooter 80, Scrambler 400, Trial 200, Hyper R 1000, Cruiser 750 y Volt E-8, con geometría, velocidad, aceleración y respuesta distintas.
 - **Cinco rutas:** Valle de asfalto, Sierra de tierra, Dunas al atardecer, Nieve y Ciudad bajo la lluvia, de 1.200 m (o de 3.000 y 6.000 m en rodar libre y carrera) en cuatro tramos de dificultad creciente, más un **modo infinito** sin meta, con modo nocturno y clima dinámico opcional.
@@ -318,6 +318,14 @@ Revisión del icono: la moto es un 8 % mayor y está más centrada; el sol es m�
 - **La moto es sólida para el piloto que cae:** mientras cae, el ragdoll choca contra las dos ruedas y el chasis de la moto caída (tres círculos que se actualizan cada fotograma). Una partícula solo choca después de haber salido una vez de la moto, porque el piloto empieza sentado dentro de ella. Nueva prueba: un piloto lanzado contra un sólido nunca lo atraviesa más de 16 cm y sus huesos siguen íntegros.
 - **BMX:** el manillar baja de 81 a 72 unidades de dibujo (de chopper a BMX); el solver del piloto sigue exacto con los 55.440 poses.
 - **Android:** la versión `wheelie/` queda documentada como congelada en la 1.1.
+
+### Actualización 6.14
+
+Pintura de las motos y taller nuevo.
+
+- **Pintura de coche en las motos:** todos los paneles (depósitos, carenados, colines, guardabarros) se pintan con un reflejo de cielo arriba, una línea de horizonte oscura y un rebote cálido de la carretera abajo, más un brillo especular, oclusión ambiental en la parte baja, un bisel (borde interior oscuro y luz de borde donde la superficie mira al cielo) y una **sombra proyectada** sobre lo que queda detrás, de modo que el depósito se separa del motor y el carenado del bastidor. El contorno toma el tono de la propia pintura en vez de negro, para que no se lea como polígonos pegados.
+- **Taller como estudio:** fondo oscuro con foco de luz, plataforma con borde iluminado y el vehículo **reflejado** en ella; título grande; barras de **velocidad, aceleración, suspensión y agilidad** con su valor real; saldo de monedas en una cápsula; y los récords en tarjetas de cristal. Se adapta a cualquier ancho de ventana.
+- **Lista de vehículos con miniaturas reales:** cada fila muestra la moto dibujada por el mismo código del juego (sin piloto), con una pintura distinta por vehículo, en lugar de un icono genérico. El panel lateral se ensancha (250 a 300 puntos) para que los nombres quepan.
 
 ## Estado final y límites conocidos
 

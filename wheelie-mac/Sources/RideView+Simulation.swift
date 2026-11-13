@@ -31,6 +31,7 @@ extension RideView {
             if obstaclesOn && !bike.finished && !bike.crashed {
                 for world in BikePhysics.window(obstacleList,from:bike.x-6,to:bike.x+6) where !knockedCones.contains(world) {
                     if abs(Double(world)-bike.x)>4 { continue }
+                    if bike.lane != 0 && BikePhysics.fork(containing:Double(world)) != nil { continue }   // under the elevated road
                     let ground=BikePhysics.ground(Double(world),route:bike.route),kind=BikePhysics.obstacleKind(at:world)
                     let weight=kind == .barrel ? 1.2 : kind == .log ? 0.8 : 1.0
                     if sweptWheelHit(previousFront,bike.frontWheelPosition,obstacle:RideVector(Double(world),ground),radius:bike.kind.rig.wheelRadius,shape:kind) {
@@ -62,9 +63,25 @@ extension RideView {
         } else if mode == .crashing {
             bike.update(dt,throttle:false,brake:false,leanBack:false,leanForward:false)
             let wheel=bike.kind.rig.wheelRadius*0.95
-            let solid:[(centre:RideVector,radius:Double)]=[(bike.rearWheelPosition,wheel),(bike.frontWheelPosition,wheel),(bike.chassisPosition,0.28)]
+            var solid:[(centre:RideVector,radius:Double)]=[(bike.rearWheelPosition,wheel),(bike.frontWheelPosition,wheel),(bike.chassisPosition,0.28)]
+            // Terrain obstacles near the tumbling rider are solid too (cones, barrels and logs as circles resting on the ground).
+            if obstaclesOn,let hip=ragdoll?.pose.hip {
+                for world in BikePhysics.window(obstacleList,from:hip.x-5,to:hip.x+5) where !knockedCones.contains(world) {
+                    if bike.lane != 0 && BikePhysics.fork(containing:Double(world)) != nil { continue }
+                    let radius:Double
+                    switch BikePhysics.obstacleKind(at:world) { case .cone: radius=0.2; case .barrel: radius=0.32; case .log: radius=0.17 }
+                    solid.append((RideVector(Double(world),BikePhysics.ground(Double(world),route:bike.route)+radius*0.9),radius))
+                }
+            }
+            ragdoll?.lane=bike.lane; passengerRagdoll?.lane=bike.lane
             ragdoll?.colliders=solid; passengerRagdoll?.colliders=solid
             ragdoll?.update(dt); passengerRagdoll?.update(dt)
+            // The camera follows the rider once they are well away from the bike.
+            if let hip=ragdoll?.pose.hip {
+                // Frame both: aim at the midpoint between the bike and the rider once they are apart.
+                let away=hip.x-bike.x,target=abs(away)>3 ? away*0.55 : 0
+                crashCamShift += (max(-20,min(30,target))-crashCamShift)*min(1,dt*6)
+            }
             updateCamera(dt)
             crashTime += dt
             if crashTime>1.8 { mode = .result; syncState() }
@@ -82,7 +99,7 @@ extension RideView {
         // Keep roughly 0.65 s of road ahead at high speed for every vehicle.
         let zoom=min(1,max(0.15,13/max(13,bike.speed)))
         art.metresToPixels += (RideScene.metresToPixels*zoom-art.metresToPixels)*(1-exp(-dt*2.5))
-        let target=(BikePhysics.ground(bike.x,route:bike.route)+max(0,bike.height-0.35)*0.35)*art.metresToPixels
+        let target=(BikePhysics.ground(bike.x,route:bike.route,lane:bike.lane)+max(0,bike.height-0.35)*0.35)*art.metresToPixels
         cameraY += (target-cameraY)*min(1,dt*5)
     }
     private func sweptWheelHit(_ a:RideVector,_ b:RideVector,obstacle:RideVector,radius:Double,shape:BikePhysics.ObstacleKind = .cone)->Bool {

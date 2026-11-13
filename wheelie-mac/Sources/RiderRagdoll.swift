@@ -24,6 +24,8 @@ final class RiderRagdoll {
     /// Knees and elbows hinge one way only: (root, middle, end, side of the template bend).
     private let hinges:[(Int,Int,Int,Double)]
     private let route:Int
+    /// The fork road the rider fell on (0 ground, 1 elevated).
+    var lane=0
     private static let step=1.0/240.0
 
     init(pose:RiderPose,origin:RideVector,pitch:Double,velocity:RideVector,angularVelocity:Double,route:Int) {
@@ -117,9 +119,9 @@ final class RiderRagdoll {
             }
             for i in particles.indices {
                 let p=particles[i].position
-                let slope=BikePhysics.slope(p.x,route:route)
+                let slope=BikePhysics.slope(p.x,route:route,lane:lane)
                 let normal=RideVector(-slope,1)/sqrt(1+slope*slope)
-                let gap=(p.y-BikePhysics.ground(p.x,route:route))*normal.y
+                let gap=(p.y-BikePhysics.ground(p.x,route:route,lane:lane))*normal.y
                 let penetration=particles[i].radius-gap
                 if penetration>0 {
                     particles[i].position += normal*penetration
@@ -130,7 +132,7 @@ final class RiderRagdoll {
         for i in particles.indices {
             var v=(particles[i].position-previous[i])/h
             if contacts[i] {
-                let slope=BikePhysics.slope(particles[i].position.x,route:route)
+                let slope=BikePhysics.slope(particles[i].position.x,route:route,lane:lane)
                 let normal=RideVector(-slope,1)/sqrt(1+slope*slope)
                 let tangent=RideVector(normal.y,-normal.x)
                 let originalNormal=Self.dot(incoming[i],normal)

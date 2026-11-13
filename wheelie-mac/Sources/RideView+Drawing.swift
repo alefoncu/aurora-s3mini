@@ -38,7 +38,7 @@ extension RideView {
             updateGeometry()
             let density=window?.backingScaleFactor ?? NSScreen.main?.backingScaleFactor ?? 2
             backdrop.configure(route:bike.route,night:night,width:backdropWidth,height:sceneHeight,backing:density)
-            backdrop.update(camera:bike.x*RideScene.metresToPixels)
+            backdrop.update(camera:camX*RideScene.metresToPixels)
             overlay.configure(width:backdropWidth,height:sceneHeight)
             backdrop.setFog(weather.fog*0.6)
             overlay.setWeather(fog:weather.fog*0.2,flash:weather.flash*0.55)
@@ -53,7 +53,8 @@ extension RideView {
         NSGraphicsContext.saveGraphicsState(); let transform=NSAffineTransform(); transform.translateX(by:origin.x,yBy:origin.y); transform.scale(by:viewportScale); transform.concat()
         NSBezierPath(rect:NSRect(x:0,y:0,width:sceneWidth,height:sceneHeight)).addClip()
         art.snowfall(route:bike.route,time:animationTime)
-        RideProfile.section("carretera y escenario") { art.scenery(cameraX:bike.x,cameraY:cameraY+presentationOffset,route:bike.route,night:night,limit:bike.endless ? .infinity : bike.finishDistance) }
+        RideProfile.section("carretera y escenario") { art.scenery(cameraX:camX,cameraY:cameraY+presentationOffset,route:bike.route,night:night,limit:bike.endless ? .infinity : bike.finishDistance) }
+        art.forkRoads(cameraX:camX,cameraY:cameraY+presentationOffset,route:bike.route,night:night)
         drawRide()
         NSGraphicsContext.restoreGraphicsState()
     }
@@ -129,30 +130,30 @@ extension RideView {
     func drawRide() {
         let ppm=art.metresToPixels,rig=bike.kind.rig,camY=cameraY+presentationOffset
         RideProfile.section("obstáculos") { if obstaclesOn {
-            for p in BikePhysics.window(BikePhysics.puddlePositions,from:bike.x-12,to:bike.x+sceneWidth/ppm+12) { art.puddle(center:Double(p),halfLength:BikePhysics.puddleHalfLength,cameraX:bike.x,cameraY:camY,route:bike.route) }
-            for m in BikePhysics.window(obstacleList,from:bike.x-12,to:bike.x+sceneWidth/ppm+12) {
+            for p in BikePhysics.window(BikePhysics.puddlePositions,from:camX-12,to:camX+sceneWidth/ppm+12) { art.puddle(center:Double(p),halfLength:BikePhysics.puddleHalfLength,cameraX:camX,cameraY:camY,route:bike.route) }
+            for m in BikePhysics.window(obstacleList,from:camX-12,to:camX+sceneWidth/ppm+12) {
                 let knocked=knockedCones.contains(m)
                 switch BikePhysics.obstacleKind(at:m) {
-                case .cone: art.cone(Double(m),cameraX:bike.x,cameraY:camY,route:bike.route,knocked:knocked)
-                case .barrel: art.barrel(Double(m),cameraX:bike.x,cameraY:camY,route:bike.route,knocked:knocked)
-                case .log: art.log(Double(m),cameraX:bike.x,cameraY:camY,route:bike.route,knocked:knocked)
+                case .cone: art.cone(Double(m),cameraX:camX,cameraY:camY,route:bike.route,knocked:knocked)
+                case .barrel: art.barrel(Double(m),cameraX:camX,cameraY:camY,route:bike.route,knocked:knocked)
+                case .log: art.log(Double(m),cameraX:camX,cameraY:camY,route:bike.route,knocked:knocked)
                 }
             }
         } }
         for p in dust {
-            let x=art.focusX+(p.x-bike.x)*ppm,y=art.ground(p.x,at:bike.x,cameraY:camY,route:bike.route)-p.y*ppm
+            let x=art.focusX+(p.x-camX)*ppm,y=art.ground(p.x,at:camX,cameraY:camY,route:bike.route)-p.y*ppm
             let size=2+(1-p.life/p.maxLife)*10
             art.ellipse(x-size,y-size,size*2,size,NSColor(hex:bike.route==0 ? 0xCFD0C7 : bike.route==3 ? 0xFFFFFF : bike.route==4 ? 0xB8C0C8 : 0xD6BD91,alpha:(p.life/p.maxLife)*0.17))
         }
         RideProfile.section("rival") { for (index,run) in rivalRuns.enumerated() { let r=run.bike
             // Rivals far off screen are not drawn (about 12 m are visible).
-            if abs(r.x-bike.x)>16 { continue }
+            if abs(r.x-camX)>16 { continue }
             let c=cos(r.pitch),s=sin(r.pitch),rrig=r.kind.rig
             func localRival(_ point:RideVector)->RideVector { let d=point-r.chassisPosition; return RideVector(c*d.x+s*d.y,-s*d.x+c*d.y) }
             let savedBody=art.body,savedJacket=art.jacket
             art.body=Self.rivalPalette[index%Self.rivalPalette.count]; art.jacket=NSColor.systemRed
             NSGraphicsContext.saveGraphicsState(); NSGraphicsContext.current?.cgContext.setAlpha(0.8)
-            art.wheelBlur=art.blur(speed:r.speed,radius:rrig.wheelRadius); art.motorcycle(x:art.focusX+(r.chassisPosition.x-bike.x)*ppm,y:art.groundY+camY-r.chassisPosition.y*ppm,scale:ppm/rrig.drawingUnitsPerMetre,angle:r.pitch,kind:r.kind,rotation:-r.rearWheelRotation,time:animationTime,showRider:!r.crashed,rearWheelLocal:localRival(r.rearWheelPosition),frontWheelLocal:localRival(r.frontWheelPosition),frontCompression:r.frontCompression,rearCompression:r.rearCompression,frontRotation:-r.frontWheelRotation,pedalPhase:r.pedalPhase)
+            art.wheelBlur=art.blur(speed:r.speed,radius:rrig.wheelRadius); art.motorcycle(x:art.focusX+(r.chassisPosition.x-camX)*ppm,y:art.groundY+camY-r.chassisPosition.y*ppm,scale:ppm/rrig.drawingUnitsPerMetre,angle:r.pitch,kind:r.kind,rotation:-r.rearWheelRotation,time:animationTime,showRider:!r.crashed,rearWheelLocal:localRival(r.rearWheelPosition),frontWheelLocal:localRival(r.frontWheelPosition),frontCompression:r.frontCompression,rearCompression:r.rearCompression,frontRotation:-r.frontWheelRotation,pedalPhase:r.pedalPhase)
             NSGraphicsContext.restoreGraphicsState()
             art.body=savedBody; art.jacket=savedJacket
         } }
@@ -164,18 +165,18 @@ extension RideView {
             }
             NSGraphicsContext.saveGraphicsState()
             NSGraphicsContext.current?.cgContext.setAlpha(0.28)
-            art.wheelBlur=art.blur(speed:bike.speed,radius:rig.wheelRadius); art.motorcycle(x:art.focusX+(ghost.x-bike.x)*ppm,y:art.groundY+camY-ghost.y*ppm,
+            art.wheelBlur=art.blur(speed:bike.speed,radius:rig.wheelRadius); art.motorcycle(x:art.focusX+(ghost.x-camX)*ppm,y:art.groundY+camY-ghost.y*ppm,
                 scale:ppm/rig.drawingUnitsPerMetre,angle:ghost.pitch,kind:bike.kind,
                 rotation:-ghost.wheelRotation,time:elapsed,showRider:true,
                 rearWheelLocal:localGhost(ghost.rearWheelX,ghost.rearWheelY),
                 frontWheelLocal:localGhost(ghost.frontWheelX,ghost.frontWheelY))
             NSGraphicsContext.restoreGraphicsState()
         }
-        let ground=art.ground(bike.x,at:bike.x,cameraY:camY,route:bike.route)
+        let ground=art.ground(bike.x,at:camX,cameraY:camY,route:bike.route,lane:bike.lane)
         art.shadow(x:art.focusX+rig.wheelbase*ppm*0.4,y:ground+4,width:rig.wheelbase*ppm+50,height:10,alpha:max(0.05,0.24-bike.height*0.045))
         let c=cos(bike.pitch),s=sin(bike.pitch)
         func local(_ point:RideVector)->RideVector { let d=point-bike.chassisPosition; return RideVector(c*d.x+s*d.y,-s*d.x+c*d.y) }
-        let bodyX=art.focusX+(bike.chassisPosition.x-bike.x)*ppm,bodyY=art.groundY+camY-bike.chassisPosition.y*ppm
+        let bodyX=art.focusX+(bike.chassisPosition.x-camX)*ppm,bodyY=art.groundY+camY-bike.chassisPosition.y*ppm
         if night { art.headlight(x:bodyX,y:bodyY,angle:bike.pitch,wheelbasePixels:rig.wheelbase*ppm) }
         // A 360 is shown as the bike turning about its vertical axis: a horizontal squash that
         // mirrors past 90 degrees, with fading afterimages either side to suggest the motion.
@@ -193,7 +194,7 @@ extension RideView {
         }
         RideProfile.section("moto y piloto") { drawBike(yaw:bike.spinYaw,alpha:1) }
         if ragdoll != nil {
-            NSGraphicsContext.saveGraphicsState(); let t=NSAffineTransform(); t.translateX(by:art.focusX-bike.x*ppm,yBy:art.groundY+camY); t.concat()
+            NSGraphicsContext.saveGraphicsState(); let t=NSAffineTransform(); t.translateX(by:art.focusX-camX*ppm,yBy:art.groundY+camY); t.concat()
             if let companion=passengerRagdoll { art.drawRider(companion.pose,units:ppm,kind:bike.kind,passenger:true,detached:true) }
             if let ragdoll { art.drawRider(ragdoll.pose,units:ppm,kind:bike.kind,detached:true) }
             NSGraphicsContext.restoreGraphicsState()

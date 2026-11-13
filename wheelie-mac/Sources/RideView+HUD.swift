@@ -69,6 +69,20 @@ extension RideView {
             art.text(String(format:"Neumáticos %d %%",Int((1-bike.tyreWear*0.3)*100)),28,sceneHeight-58,11,bike.tyreWear>0.6 ? .systemOrange : NSColor.white.withAlphaComponent(0.8),.medium,mono:true)
             art.text(String(format:"Amortiguadores %d %%",Int((1-bike.suspensionHeat*0.35)*100)),28,sceneHeight-40,11,bike.suspensionHeat>0.6 ? .systemOrange : NSColor.white.withAlphaComponent(0.8),.medium,mono:true)
         }
+        // Forks: a warning ahead of the split, then which road the bike is on.
+        if BikePhysics.forksEnabled,let f=BikePhysics.nextFork(after:bike.x) {
+            var message:String?
+            if bike.x<f.start && f.start-bike.x<260 {
+                message="BIFURCACIÓN en \(max(1,Int(f.start-bike.x))) m · C cambia de camino · elegido: "+(bike.lanePreference == 1 ? "ALTO (rampas)" : "NORMAL (obstáculos)")
+            } else if bike.x>=f.start && bike.x<=f.end {
+                message=bike.lane == 1 ? "CAMINO ALTO · rampas · +150 al completarlo" : "CAMINO NORMAL · obstáculos"
+            }
+            if let message {
+                let width=Double(message.count)*7.2+30
+                art.box(cx-width/2,170,width,26,NSColor.black.withAlphaComponent(0.38),13)
+                art.text(message,cx,176,12,bike.lane == 1 && bike.x>=f.start ? NSColor.systemYellow : .white,.semibold,center:true)
+            }
+        }
         if let label=weather.label { art.text(label.uppercased(),28,104,11,weather.storm ? NSColor.systemYellow : NSColor(hex:0xBFD4EA),.bold) }
         let stage=BikePhysics.difficultyStage(at:bike.x)
         if BikePhysics.circuit {
@@ -107,7 +121,7 @@ extension RideView {
         }
         if elapsed<7 {
             art.text("H sin manos   G giro 360° (en el aire)   V superman (en el aire)   T + ←/→ voltereta",cx,sceneHeight-134,12,NSColor.white.withAlphaComponent(0.7),.medium,center:true)
-            art.text("↑ acelerar   ← levantar   → peso delante   ↓ frenos   Z delante   X detrás   Q/F marchas   E invertido   Espacio saltar",cx,sceneHeight-116,12,NSColor.white.withAlphaComponent(0.78),.medium,center:true)
+            art.text("↑ acelerar   ← levantar   → peso delante   ↓ frenos   Z delante   X detrás   Q/F marchas   E invertido   C camino en bifurcaciones   Espacio saltar",cx,sceneHeight-116,12,NSColor.white.withAlphaComponent(0.78),.medium,center:true)
         }
     }
 }

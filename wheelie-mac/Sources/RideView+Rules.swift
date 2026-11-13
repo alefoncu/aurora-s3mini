@@ -21,6 +21,7 @@ extension RideView {
             let kind = rivalSameVehicle ? bike.kind : others[(stats.totals.runs*7+bike.route+i*3)%others.count]
             rivalRuns.append(RideRival(level:level,kind:kind,route:bike.route,hazards:obstaclesOn,seed:UInt64(stats.totals.runs+1+i*977)*2_654_435_761,laps:bike.laps))
         }
+        for (i,run) in rivalRuns.enumerated() { run.bike.lanePreference=(stats.totals.runs+i)%2 }   // rivals split between the two roads
         rivalFinishTimes=Array(repeating:nil,count:rivalRuns.count)
     }
     /// Weather at the player's place in the course; the city keeps its steady rain even when dynamic weather is off.
@@ -99,7 +100,7 @@ extension RideView {
             let jump=RideScore.jump(airTime:bike.lastAirTime,height:bike.lastAirHeight)
             if jump>0 { report.jumps+=1; report.airTime+=bike.lastAirTime; score.add(.jump,points:jump,label:String(format:"Salto %.1f s",bike.lastAirTime)) }
         }
-        if obstaclesOn { for world in BikePhysics.window(obstacleList,from:bike.x-80,to:bike.x) where !passedObstacles.contains(world) && !knockedCones.contains(world) && Double(world)<bike.x-1 {
+        if obstaclesOn { for world in BikePhysics.window(obstacleList,from:bike.x-80,to:bike.x) where !passedObstacles.contains(world) && !knockedCones.contains(world) && Double(world)<bike.x-1 && !(bike.lane != 0 && BikePhysics.fork(containing:Double(world)) != nil) {
             passedObstacles.insert(world); report.dodges+=1; score.add(.cone,points:RideScore.coneDodge,label:"Obstáculo esquivado")
         } }
         let airborne = !bike.frontContact && !bike.rearContact
@@ -144,6 +145,12 @@ extension RideView {
             splitAge=0
         }
         }
+        }
+        // Forks: remember that the elevated road was taken, and pay it out when the roads join again.
+        if let f=BikePhysics.fork(containing:bike.x) { forkEnd=f.end; if bike.lane == 1 { forkHigh=true } }
+        else if let end=forkEnd,bike.x>end {
+            if forkHigh { score.add(.jump,points:150,label:"Camino alto completado"); splitText="Camino alto completado · +150"; splitAge=0 }
+            forkEnd=nil; forkHigh=false
         }
         splitAge+=dt
         // Banking a chain pays out with a coin sound; each rise of the multiplier ticks higher.

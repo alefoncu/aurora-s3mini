@@ -24,6 +24,11 @@ final class RideView: NSView {
     var sceneHeight=720.0,sceneWidth=1280.0
     /// The rider's own momentum, a short low-pass of the bike's velocity: when the bike stops dead in a flip the rider keeps flying.
     var riderVelocity=RideVector.zero
+    /// While the rider tumbles away from the bike the camera follows them: metres added to the bike's x. Zero while riding.
+    var crashCamShift=0.0
+    var camX:Double { bike.x+crashCamShift }
+    /// The fork the bike is crossing, and whether it has been on the elevated road (paid out when the fork ends).
+    var forkEnd:Double?,forkHigh=false
     var presentationOffset:Double { min(0,sceneHeight-690) }
     var night = false, obstacles = false, sound = true
     var record = 0.0, best = 0.0, bestStoppie = 0.0, bestTime = 0.0
@@ -81,6 +86,7 @@ final class RideView: NSView {
         BikePhysics.endlessCourse = challengeKind == .endless
         BikePhysics.routeLength = BikePhysics.circuit ? 1200 : activeRouteLength
         BikePhysics.procedural = !BikePhysics.circuit && (BikePhysics.endlessCourse || BikePhysics.routeLength>1200)
+        bike.lanePreference=0; bike.lane=0; forkEnd=nil; forkHigh=false
         guard BikePhysics.procedural else { return }
         // Endless runs are never the same twice; long routes are fixed so records and ghosts compare like with like.
         BikePhysics.seed = BikePhysics.endlessCourse ? UInt64.random(in:1...UInt64.max/2) : UInt64(bike.route*7919+Int(BikePhysics.routeLength))
@@ -197,8 +203,8 @@ final class RideView: NSView {
     @objc func deactivate() { clearInput(); if mode == .riding { mode = .paused }; audio.update(speed:0,throttle:false,vehicle:0,active:false); syncState() }
     func start() { guard window?.attachedSheet == nil else { return }
         guard cosmeticItems.allSatisfy({ progress.isUnlocked($0) }),progress.isUnlocked(.vehicle(bike.kind)),progress.isUnlocked(.route(bike.route)) else { audio.play(.denied); NSSound.beep(); return }
-        NSColorPanel.shared.orderOut(nil); preserveRun(); challenges.abandon(); bike.hazards=obstaclesOn; bike.absEnabled=absOn; bike.assist=difficulty; bike.endless=challengeKind == .endless; BikePhysics.circuit=challengeKind == .circuit; configureCourse(); challenges.courseLength=BikePhysics.finish; bike.laps=3; bike.reset(); resetRunState(); startRival(); art.metresToPixels=RideScene.metresToPixels; elapsed=0; crashTime=0; cameraY=0; riderLean=0; riderLift=0; riderLiftVelocity=0; pedalPhase=0; challenges.selected=challengeKind; challenges.start(contextKey:runContext,initialFrame:ghostSnapshot()); ragdoll=nil; passengerRagdoll=nil; riderVelocity=RideVector.zero; knockedCones.removeAll(); dust.removeAll(); clearInput(); mode = .riding; previous=ProcessInfo.processInfo.systemUptime; window?.makeFirstResponder(self); syncState() }
-    func garage() { guard window?.attachedSheet == nil else { return }; preserveRun(); challenges.abandon(); clearInput(); mode = .garage; rivalRuns=[]; BikePhysics.circuit=false; resetCourse(); bike.hazards=obstacles; bike.endless=false; bike.absEnabled=absOn; bike.assist=difficulty; bike.reset(); resetRunState(); art.metresToPixels=RideScene.metresToPixels; cameraY=0; ragdoll=nil; passengerRagdoll=nil; knockedCones.removeAll(); dust.removeAll(); audio.update(speed:0,throttle:false,vehicle:0,active:false); syncState() }
+        NSColorPanel.shared.orderOut(nil); preserveRun(); challenges.abandon(); bike.hazards=obstaclesOn; bike.absEnabled=absOn; bike.assist=difficulty; bike.endless=challengeKind == .endless; BikePhysics.circuit=challengeKind == .circuit; configureCourse(); challenges.courseLength=BikePhysics.finish; bike.laps=3; bike.reset(); resetRunState(); startRival(); art.metresToPixels=RideScene.metresToPixels; elapsed=0; crashTime=0; cameraY=0; riderLean=0; riderLift=0; riderLiftVelocity=0; pedalPhase=0; challenges.selected=challengeKind; challenges.start(contextKey:runContext,initialFrame:ghostSnapshot()); ragdoll=nil; passengerRagdoll=nil; riderVelocity=RideVector.zero; crashCamShift=0; knockedCones.removeAll(); dust.removeAll(); clearInput(); mode = .riding; previous=ProcessInfo.processInfo.systemUptime; window?.makeFirstResponder(self); syncState() }
+    func garage() { guard window?.attachedSheet == nil else { return }; preserveRun(); challenges.abandon(); clearInput(); mode = .garage; rivalRuns=[]; BikePhysics.circuit=false; resetCourse(); bike.hazards=obstacles; bike.endless=false; bike.absEnabled=absOn; bike.assist=difficulty; bike.reset(); resetRunState(); art.metresToPixels=RideScene.metresToPixels; cameraY=0; ragdoll=nil; passengerRagdoll=nil; crashCamShift=0; knockedCones.removeAll(); dust.removeAll(); audio.update(speed:0,throttle:false,vehicle:0,active:false); syncState() }
     func pause() {
         guard window?.attachedSheet == nil, mode == .riding || mode == .paused else { return }
         clearInput(); mode = mode == .riding ? .paused : .riding; previous=ProcessInfo.processInfo.systemUptime
@@ -222,8 +228,16 @@ final class RideView: NSView {
         case 15: if mode != .garage { start() }
         case 12: shift(up:false)
         case 3: shift(up:true)
+        case 8: if mode == .riding { toggleLane() }
         default: if mode == .riding { keys.insert(event.keyCode) }
         }
+    }
+    /// C: choose the elevated or the ground road for the next fork (it takes effect where the roads part).
+    func toggleLane() {
+        guard BikePhysics.forksEnabled else { return }
+        bike.lanePreference = 1-bike.lanePreference
+        splitText = bike.lanePreference == 1 ? "Camino alto elegido · rampas y saltos" : "Camino normal elegido · obstáculos"; splitAge=0
+        audio.play(.coin)
     }
     override func keyUp(with event:NSEvent) { keys.remove(event.keyCode) }
     override func mouseDown(with event:NSEvent) { window?.makeFirstResponder(self) }

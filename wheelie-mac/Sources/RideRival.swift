@@ -50,7 +50,7 @@ final class RideRival {
         let g = 9.81, vy = bike.verticalVelocity, rig = bike.kind.rig
         var t = 0.3
         for _ in 0..<3 {
-            let floorY = BikePhysics.ground(bike.rearWheelPosition.x + bike.speed * t, route: bike.route) + rig.wheelRadius
+            let floorY = BikePhysics.ground(bike.rearWheelPosition.x + bike.speed * t, route: bike.route, lane: bike.lane) + rig.wheelRadius
             let h = max(0, bike.rearWheelPosition.y - floorY)
             t = max(0, (vy + (vy * vy + 2 * g * h).squareRoot()) / g)
         }
@@ -80,8 +80,8 @@ final class RideRival {
         if level.doesTricks && lapse <= 0 && flipRoutes.contains(bike.route) {
             // Jump off a rising ramp and flip: hold T until the half-turn, then release to land.
             // A genuine ramp rises at least half a metre within five metres; bumps on rough dirt do not count.
-            let rise = BikePhysics.ground(bike.x + 5, route: bike.route) - BikePhysics.ground(bike.x, route: bike.route)
-            let onRamp = !air && flipCooldown <= 0 && bike.speed > 7 && BikePhysics.slope(bike.x, route: bike.route) > 0.15 && rise > 0.3 && bike.x > 250
+            let rise = BikePhysics.ground(bike.x + 5, route: bike.route, lane: bike.lane) - BikePhysics.ground(bike.x, route: bike.route, lane: bike.lane)
+            let onRamp = !air && flipCooldown <= 0 && bike.speed > 7 && BikePhysics.slope(bike.x, route: bike.route, lane: bike.lane) > 0.15 && rise > 0.3 && bike.x > 250
             if onRamp && !rampSeen { rampSeen = true; wantsFlip = random() < Self.flipChance }
             if !onRamp && !air { rampSeen = false }
             if onRamp && wantsFlip { wantsFlip = false; flipCooldown = 6; jump = true; trick = true; flipRelease = false; flipPlanned = true }

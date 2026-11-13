@@ -150,15 +150,29 @@ import Foundation
                     check(list == list.sorted() && !list.isEmpty && list.allSatisfy { BikePhysics.zone(Int(Double($0)/BikePhysics.zoneLength)) != .rest },"Obstacles are sorted and absent from breathers")
                     check(endless ? list.last!>150_000 : list.last!<=Int(BikePhysics.finish),"Obstacles cover exactly the course")
                     check(BikePhysics.window(list,from:1000,to:1200).allSatisfy { $0>=1000 && $0<1200 },"The obstacle window is exact")
+                    // Forks: both roads are the same ground at both ends, the elevated road is clearly higher in the middle, and both are continuous.
+                    for slot in 0..<8 {
+                        guard let f=BikePhysics.fork(slot:slot) else { continue }
+                        check(f.start>=520 && abs(f.end-f.start-BikePhysics.forkLength)<1e-9,"Fork geometry")
+                        for edge in [f.start,f.end] { check(abs(BikePhysics.ground(edge,route:route,lane:1)-BikePhysics.ground(edge,route:route,lane:0))<1e-9,"Both roads must meet at the ends of a fork: route \(route) slot \(slot)") }
+                        let mid=(f.start+f.end)/2
+                        check(BikePhysics.ground(mid,route:route,lane:1)-BikePhysics.ground(mid,route:route,lane:0)>1.5,"The elevated road must be well above the ground road")
+                        var prev=BikePhysics.ground(f.start-20,route:route,lane:1),px=f.start-20,worst=0.0
+                        while px<f.end+20 { px+=0.05; let y=BikePhysics.ground(px,route:route,lane:1); worst=max(worst,abs(y-prev)); prev=y }
+                        check(worst<0.07,"The elevated road must be continuous with bounded slope: \(worst)")
+                    }
+                    check(BikePhysics.fork(containing:BikePhysics.fork(slot:2)!.start+50) != nil && BikePhysics.fork(containing:300) == nil,"Fork lookup")
                 }
             }
             // The cautious rider crosses a long route and survives deep into the endless mode.
             for kind in [BikeKind.sport,.commuter,.motocross,.cruiser] {
                 for route in 0..<BikePhysics.routeCount {
                     BikePhysics.endlessCourse=false; BikePhysics.routeLength=3000; BikePhysics.seed=UInt64(route*7919+3000); BikePhysics.rebuildProceduralCourse()
-                    let b=BikePhysics();b.kind=kind;b.route=route;b.reset()
-                    cautious(b,route,limit:.infinity)
-                    check(b.finished && !b.crashed,"Long route failed: \(kind) route \(route) at x=\(b.x)")
+                    for lane in 0...1 {
+                        let b=BikePhysics();b.kind=kind;b.route=route;b.lanePreference=lane;b.reset()
+                        cautious(b,route,limit:.infinity)
+                        check(b.finished && !b.crashed,"Long route failed: \(kind) route \(route) lane \(lane) at x=\(b.x)")
+                    }
                     BikePhysics.endlessCourse=true; BikePhysics.routeLength=1200; BikePhysics.seed=UInt64(route+100); BikePhysics.rebuildProceduralCourse()
                     let e=BikePhysics();e.kind=kind;e.route=route;e.endless=true;e.reset()
                     cautious(e,route,limit:4000)

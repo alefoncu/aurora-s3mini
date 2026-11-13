@@ -1,4 +1,4 @@
-# Wheelie Ride 6.14 · macOS
+# Wheelie Ride 6.15 · macOS
 
 Juego independiente inspirado en la base de Wheelie Challenge: conducción lateral, caballitos, equilibrio, saltos, vehículos y piloto personalizables. Swift/AppKit nativo, sin navegador, red ni descargas en tiempo de ejecución.
 
@@ -22,9 +22,10 @@ Desde la versión 4 hay una geometría en metros compartida por la física, el v
 
 Es un modelo de conducción arcade lateral: las ruedas tienen recorrido vertical y el chasis tiene cabeceo; no modela la dirección lateral, deformación completa del neumático ni una moto tridimensional. Los controles de peso incluyen amortiguación para que los caballitos puedan corregirse.
 
-## Esta versión (6.14)
+## Esta versión (6.15)
 
 - **Diez vehículos:** Street 125, Enduro 250, Sport 600, BMX, Scooter 80, Scrambler 400, Trial 200, Hyper R 1000, Cruiser 750 y Volt E-8, con geometría, velocidad, aceleración y respuesta distintas.
+- **Bifurcaciones:** en el modo infinito y en las rutas largas la carretera se parte cada ~1.100 m; eliges con la tecla **C** entre el camino normal y el alto.
 - **Cinco rutas:** Valle de asfalto, Sierra de tierra, Dunas al atardecer, Nieve y Ciudad bajo la lluvia, de 1.200 m (o de 3.000 y 6.000 m en rodar libre y carrera) en cuatro tramos de dificultad creciente, más un **modo infinito** sin meta, con modo nocturno y clima dinámico opcional.
 - **Trucos y puntuación:** caballito, invertido, saltos, volteretas, manos fuera, giro de 360° y superman, con cadenas y multiplicador.
 - **Retos:** tutorial guiado, contrarreloj, carrera contra rival, circuito cerrado de tres vueltas con tres rivales, modo infinito y fantasma de tu mejor vuelta.
@@ -46,6 +47,7 @@ Limitaciones conocidas: el modelo es plano (sin derrape lateral ni neumáticos d
 | Corregir hacia delante | → / D |
 | Frenar | ↓ / S |
 | Invertido (sobre la rueda delantera) | Mantener E, o ↓ + → |
+| Elegir camino en una bifurcación | C |
 | Saltar | Espacio |
 | Truco / voltereta | Mantener T al saltar y ← o → en el aire; soltar T pasada la media vuelta |
 | Manos fuera del manillar | Mantener H (sin peso ni freno delantero; el piloto levanta un brazo) |
@@ -327,6 +329,16 @@ Pintura de las motos y taller nuevo.
 - **Taller como estudio:** fondo oscuro con foco de luz, plataforma con borde iluminado y el vehículo **reflejado** en ella; título grande; barras de **velocidad, aceleración, suspensión y agilidad** con su valor real; saldo de monedas en una cápsula; y los récords en tarjetas de cristal. Se adapta a cualquier ancho de ventana.
 - **Lista de vehículos con miniaturas reales:** cada fila muestra la moto dibujada por el mismo código del juego (sin piloto), con una pintura distinta por vehículo, en lugar de un icono genérico. El panel lateral se ensancha (250 a 300 puntos) para que los nombres quepan.
 
+### Actualización 6.15
+
+Rutas con bifurcaciones y caída con colisiones y cámara.
+
+- **Bifurcaciones (modo infinito y rutas largas):** cada ~1.100 m aparece un tramo de 300 m en el que la carretera se parte en dos. El **camino normal** sigue en el suelo, con sus obstáculos; el **camino alto** es el mismo terreno elevado 3,2 m sobre pilares, sin obstáculos pero con un tren de rampas cada 42 m, y al completarlo pagan **+150 puntos**. Ambos caminos coinciden exactamente en los extremos (el terreno es continuo y se unen sin saltos), así que eliges con **C** antes de llegar (aviso en pantalla desde 260 m, con el camino elegido) y el cambio solo se aplica donde coinciden. Cada moto, incluidos los rivales (que se reparten entre los dos), tiene su propio carril; el suelo, la pendiente, el ragdoll, la cámara y el cálculo de obstáculos usan el carril de quien corre. Los obstáculos no se cuentan ni chocan con quien va por arriba. El clásico de 1.200 m, el circuito y los retos no tienen bifurcaciones.
+- **Verificación:** pruebas de que los dos caminos son idénticos en los extremos, de que el alto está claramente por encima (>1,5 m) y de que ambos son continuos con pendiente acotada en las cinco rutas; el piloto prudente cruza 3.000 m por cualquiera de los dos caminos con cuatro vehículos y cinco rutas; y el smoke test de la app real cruza una bifurcación por el camino alto con un piloto automático y comprueba el pago.
+- **Caída con obstáculos:** mientras cae, el piloto choca también con los conos, barriles y troncos cercanos (círculos apoyados en el suelo), además de con la moto.
+- **Cámara en la caída:** una vez que el piloto se aleja más de 3 m de la moto, la cámara apunta al punto medio entre ambos (y vuelve al volver a empezar), para que no se pierda fuera de la pantalla.
+- Pendiente de revisar jugando: el equilibrio del camino alto (3,2 m y rampas cada 42 m) y la lectura de las bifurcaciones a ventanas estrechas.
+
 ## Estado final y límites conocidos
 
 Lo que está verificado: 10 conjuntos de pruebas automáticas (física a 30/120 fps, 55.440 poses del piloto con huesos exactos, ragdoll, terreno procedural, puntuación, progreso, clima, Touch Bar lógica, audio), un smoke test de la app real con ventana efímera (taller, carrera, tutorial, infinito, ruta larga, caída, Touch Bar), medición de fotogramas (58 a 60 fps) y capturas de todos los vehículos, tamaños de ventana, zonas del infinito y caídas.
@@ -337,6 +349,5 @@ Lo que **no** se ha podido comprobar y conviene revisar jugando:
 - **Equilibrio:** precios, monedas y dificultad de los rivales no están calibrados con personas; el modo infinito se calibró con un piloto automático prudente (0 caídas en 480 carreras en cuatro rutas y 0 en 72 en la Sierra tras suavizar el terreno roto).
 - **Touch Bar:** la lógica está probada, pero no sobre hardware con Touch Bar.
 - **Ventanas muy estrechas** (≈ 760 pt) con el marcador cargado en carrera con tres rivales, y pantalla completa en monitores ultrapanorámicos.
-- **No existe:** modo de rutas con bifurcaciones (exige un modelo de terreno por carril, con cámara, obstáculos, rival y fantasma por carril).
-- **Caída del piloto:** no choca con los obstáculos del terreno, y la cámara no lo sigue si sale muy lejos.
+- **Bifurcaciones:** solo existen en el modo infinito y en las rutas largas; el fantasma de la mejor vuelta no distingue carriles.
 

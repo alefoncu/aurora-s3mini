@@ -171,7 +171,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSToolbarDelegate, NST
     }
     /// Developer aid: filmstrips of the rider's fall in three kinds of crash, one PNG each.
     func crashSequences(to directory:String) {
-        game.audio.enabled=false; game.progress.unlockEverything(); game.obstacles=false; game.bike.kind = .sport
+        game.audio.enabled=false; game.progress.unlockEverything(); game.obstacles=true; game.bike.kind = .sport
         try? FileManager.default.createDirectory(atPath:directory,withIntermediateDirectories:true)
         // key codes: 126 up (gas), 123 left (lift), 124 right (weight forward), 125 down (brake)
         let scenarios:[(String,BikeKind,Double,(Int)->[UInt16])]=[
@@ -250,6 +250,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSToolbarDelegate, NST
             shot("endless\(i)-\(BikePhysics.zoneTitle(at:game.bike.x).replacingOccurrences(of:" ",with:"_"))")
         }
         game.challengeKind = .free; game.bike.route=0
+        // A fork: the warning ahead, the elevated road and the ground road.
+        game.challengeKind = .endless; game.bike.kind = .sport; game.bike.route=0; game.night=false; game.start()
+        BikePhysics.seed=7; BikePhysics.rebuildProceduralCourse()
+        if let f=BikePhysics.nextFork(after:0) {
+            for (name,lane,x) in [("fork-ahead",0,f.start-120),("fork-high",1,f.start+150),("fork-low",0,f.start+150)] {
+                game.start(); BikePhysics.seed=7; BikePhysics.rebuildProceduralCourse(); game.bike.lanePreference=lane; game.bike.reset()
+                game.bike.x=x; game.bike.reset(); game.bike.x=x; game.bike.lane=lane; game.bike.speed=11
+                for _ in 0..<45 { game.previous=ProcessInfo.processInfo.systemUptime-1/60; game.keys=[126]; game.tick() }
+                shot(name)
+            }
+        }
         // The newest vehicles.
         for (name,kind) in [("vehicle-cruiser",BikeKind.cruiser),("vehicle-electric",.electric)] {
             game.challengeKind = .free; game.bike.kind=kind; game.bike.route=0; game.night=false; game.start(); game.bike.x=400; game.bike.speed=8
@@ -581,6 +592,22 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSToolbarDelegate, NST
         precondition(BikePhysics.procedural && BikePhysics.endlessCourse && !game.obstacleList.isEmpty && game.obstacleList == BikePhysics.proceduralObstacles,"Endless mode generates its own terrain and obstacles")
         game.bike.x=900; for _ in 0..<90 { game.previous=ProcessInfo.processInfo.systemUptime-1/60; game.keys=[126]; game.tick() }
         precondition(game.snapshotRep(scale:0.25) != nil,"An endless frame composes")
+        // A fork, through the real game loop: an automatic cautious rider takes the elevated road and is paid for it.
+        game.challengeKind = .endless; game.bike.kind = .sport; game.bike.route=0; game.start()
+        BikePhysics.seed=7; BikePhysics.rebuildProceduralCourse(); game.obstacles=false
+        guard let fork=BikePhysics.nextFork(after:0) else { preconditionFailure("The endless course must have forks") }
+        game.toggleLane(); precondition(game.bike.lanePreference == 1,"C chooses the elevated road")
+        var sawHigh=false
+        for _ in 0..<40_000 where game.mode == .riding && game.bike.x<fork.end+40 {
+            game.previous=ProcessInfo.processInfo.systemUptime-1/60
+            var held=Set<UInt16>(); if game.bike.speed<12 { held.insert(126) }; if game.bike.speed>12.6 { held.insert(125) }
+            if game.bike.angle < -0.25 { held.insert(123) }; if game.bike.angle>0.25 { held.insert(124) }
+            game.keys=held; game.tick()
+            if game.bike.lane == 1 && game.bike.x>fork.start+80 && game.bike.x<fork.end-80 { sawHigh=true; precondition(BikePhysics.ground(game.bike.x,route:0,lane:1)-BikePhysics.ground(game.bike.x,route:0,lane:0)>1.5) }
+        }
+        precondition(game.mode == .riding && !game.bike.crashed && game.bike.x>fork.end,"The rider must cross the fork on the elevated road")
+        precondition(sawHigh && game.score.total>=150 && game.forkEnd == nil,"The elevated road is paid out when the roads join")
+        game.obstacles=false
         // A longer route: rodar libre at 3,000 m is procedural, has its own finish and its own record context.
         game.lengthIndex=1; game.challengeKind = .free; game.start()
         precondition(BikePhysics.procedural && !BikePhysics.endlessCourse && BikePhysics.finish == 3000 && game.bike.finishDistance == 3000 && game.runContext.contains(".len3000"),"Long route setup")

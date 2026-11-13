@@ -136,8 +136,48 @@ final class RideRenderer {
         }
         drops.lineWidth=1; NSColor(hex:0xBFD4EA,alpha:0.30).setStroke(); drops.stroke()
     }
-    func ground(_ meters:Double,at cameraX:Double,cameraY:Double,route:Int)->Double {
-        groundY + cameraY - BikePhysics.ground(meters,route:route)*metresToPixels
+    func ground(_ meters:Double,at cameraX:Double,cameraY:Double,route:Int,lane:Int=0)->Double {
+        groundY + cameraY - BikePhysics.ground(meters,route:route,lane:lane)*metresToPixels
+    }
+    /// The elevated road of every visible fork: a deck on pillars above the ground road, merging into it at both ends.
+    func forkRoads(cameraX:Double,cameraY:Double,route:Int,night:Bool) {
+        guard BikePhysics.forksEnabled else { return }
+        let ppm=metresToPixels,left=cameraX-focusX/ppm-5,right=cameraX+(viewWidth-focusX)/ppm+5
+        let k0=Int(floor(left/BikePhysics.forkSpacing))
+        for slot in k0-1...k0+2 {
+            guard let f=BikePhysics.fork(slot:slot),f.end>left && f.start<right else { continue }
+            let from=max(f.start,left),to=min(f.end,right),step=2.0
+            var top:[NSPoint]=[],bottom:[NSPoint]=[]
+            var x=from
+            while x<=to+step {
+                let px=focusX+(x-cameraX)*ppm,gy=ground(x,at:cameraX,cameraY:cameraY,route:route,lane:1)
+                top.append(NSPoint(x:px,y:gy-26)); bottom.append(NSPoint(x:px,y:gy+20)); x+=step
+            }
+            // Pillars from the deck down to the ground road.
+            var p=ceil(from/30)*30
+            while p<=to { 
+                let px=focusX+(p-cameraX)*ppm,deck=ground(p,at:cameraX,cameraY:cameraY,route:route,lane:1)+20,base=ground(p,at:cameraX,cameraY:cameraY,route:route,lane:0)-26
+                if deck<base-6 { line(px,deck,px,base,7,NSColor(hex:night ? 0x2A323A : 0x7F8A90)); line(px-1.5,deck,px-1.5,base,1.5,NSColor.white.withAlphaComponent(0.25)) }
+                p+=30
+            }
+            path(top+bottom.reversed(),NSColor(hex:night ? 0x23282E : 0x4B5258),stroke:ink,width:1.2)
+            // The deck's lit surface, a dashed centre line and a rail along the front edge.
+            path(top+top.reversed().map { NSPoint(x:$0.x,y:$0.y+9) },NSColor(hex:night ? 0x39414B : 0x6A737A))
+            for i in stride(from:0,to:max(0,top.count-1),by:3) { let a=top[i],b=top[min(top.count-1,i+1)]; line(a.x,a.y+4.5,b.x,b.y+4.5,2,NSColor(hex:0xE9E2C6,alpha:0.8)) }
+            for p in stride(from:ceil(from/12)*12,through:to,by:12) {
+                let px=focusX+(p-cameraX)*ppm,gy=ground(p,at:cameraX,cameraY:cameraY,route:route,lane:1)
+                line(px,gy+18,px,gy+4,2.2,NSColor(hex:0xC9D0D4))
+            }
+            let rail=bottom.map { NSPoint(x:$0.x,y:$0.y-3) }
+            if let first=rail.first { let pth=NSBezierPath(); pth.move(to:first); for q in rail.dropFirst() { pth.line(to:q) }; pth.lineWidth=2.4; NSColor(hex:0xC9D0D4).setStroke(); pth.stroke() }
+            // Sign at the start of the fork.
+            let sx=focusX+(f.start-cameraX)*ppm
+            if sx > -80 && sx < viewWidth+80 {
+                let sy=ground(f.start,at:cameraX,cameraY:cameraY,route:route)-45
+                line(sx,sy,sx,sy-52,3,ink); box(sx-62,sy-100,124,48,NSColor(hex:0xE6E4D8),3)
+                text("BIFURCACIÓN",sx,sy-97,9,ink,.bold,center:true); text("C elige camino",sx,sy-79,11,ink,.semibold,center:true)
+            }
+        }
     }
     /// `limit` is how far the course extends: 1,200 m, laps x 1,200 m on a circuit, or infinite.
     func scenery(cameraX:Double,cameraY:Double,route:Int,night:Bool,limit:Double=1200) {

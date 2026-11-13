@@ -16,7 +16,7 @@ final class BikePhysics {
     }
     private(set) var chassisPosition=RideVector.zero
     private(set) var pitch=0.0
-    var angle:Double { pitch-atan(Self.slope(rearWheelPosition.x,route:route)) }
+    var angle:Double { pitch-atan(Self.slope(rearWheelPosition.x,route:route,lane:lane)) }
     var angularVelocity=0.0
     var distance=0.0, wheelieDistance=0.0, bestWheelie=0.0
     private(set) var stoppieDistance=0.0,bestStoppie=0.0
@@ -87,6 +87,8 @@ final class BikePhysics {
     var wetness = 0.0 { didSet { wetness = wetness.isFinite ? max(0, min(1, wetness)) : 0 } }
     /// Endless mode: no finish line; the last sector repeats until the rider crashes.
     var endless=false
+    /// Fork lane (0 = ground road, 1 = elevated road). `lanePreference` is what the rider chose; it only takes effect outside a fork, where both lanes coincide.
+    var lane=0,lanePreference=0
     /// Cumulative wear: 0 fresh ... 1 worn. Tyres lose up to 30 % grip; hot dampers lose up to 35 % damping.
     private(set) var tyreWear=0.0, suspensionHeat=0.0
     /// Yaw of an in-air 360 (radians) and the spins counted at the last landing.
@@ -141,9 +143,9 @@ final class BikePhysics {
         landingImpact=0; rearContact=true;frontContact=true
         rearWasContact=true;frontWasContact=true
         let sag=(rig.frontTravel+rig.rearTravel)*0.15
-        com=RideVector(rig.centerOfMass.x,Self.ground(0,route:route)+rig.wheelRadius-sag+rig.centerOfMass.y)
-        rearY=Self.ground(0,route:route)+rig.wheelRadius
-        frontY=Self.ground(rig.wheelbase,route:route)+rig.wheelRadius
+        com=RideVector(rig.centerOfMass.x,Self.ground(0,route:route,lane:lane)+rig.wheelRadius-sag+rig.centerOfMass.y)
+        rearY=Self.ground(0,route:route,lane:lane)+rig.wheelRadius
+        frontY=Self.ground(rig.wheelbase,route:route,lane:lane)+rig.wheelRadius
         rearV=0;frontV=0
         settling=true
         for _ in 0..<480 { integrate(Self.h,throttle:false,brake:false,back:false,forward:false) }
@@ -154,6 +156,8 @@ final class BikePhysics {
         publish()
     }
     func update(_ dt:Double,throttle:Bool,brake:Bool,leanBack:Bool,leanForward:Bool,jump:Bool=false,frontBrake:Bool=false,rearBrake:Bool=false,trick:Bool=false,spin:Bool=false,noHands:Bool=false) {
+        // Outside a fork both roads are the same ground, so the rider's choice applies there; inside one the lane is locked.
+        if Self.fork(containing:origin.x) == nil { lane=lanePreference }
         guard dt.isFinite,dt>0,!finished else { return }
         trickHeld=trick && !crashed;spinHeld=spin && !crashed
         // Hands off the bars: no weight shift and no front-lever braking, only throttle and rear brake remain.
@@ -263,7 +267,7 @@ final class BikePhysics {
         let drive=rearDriveForce/rig.sprungMass
         let availableBraking=(frontBrakeForce+rearBrakeForce+coastForce)/rig.sprungMass
         let supported=rearContact || frontContact
-        let slope=Self.slope(origin.x,route:route)
+        let slope=Self.slope(origin.x,route:route,lane:lane)
         // Per-vehicle aerodynamics; drag grows with the square of air speed.
         // Tyre contact and grip still bound propulsion and braking.
         let dragCoefficient=kind.aerodynamicDrag
@@ -314,12 +318,12 @@ final class BikePhysics {
         if snapping {
             // Level the bike with the ground where it will land (slope a fifth of a second ahead),
             // choosing the nearest equivalent attitude: a full extra turn or none.
-            let landing=atan(Self.slope(origin.x+max(0,speed)*0.2,route:route))
+            let landing=atan(Self.slope(origin.x+max(0,speed)*0.2,route:route,lane:lane))
             let d=landing-pitch,error=atan2(sin(d),cos(d))
             airTorque=assist == .assisted ? inertia*(110*error-14*angularVelocity) : inertia*(70*error-10*angularVelocity)
         } else if assist == .assisted && !trickHeld && !flipActive && !crashed && !rearContact && !frontContact && !settling && airTime>0.12 {
             // Assisted: a gentle levelling before landing, even after a plain jump or a ramp.
-            let landing=atan(Self.slope(origin.x+max(0,speed)*0.2,route:route))
+            let landing=atan(Self.slope(origin.x+max(0,speed)*0.2,route:route,lane:lane))
             let d=landing-pitch,error=atan2(sin(d),cos(d))
             airTorque=inertia*(26*error-7*angularVelocity)
         }
@@ -336,10 +340,10 @@ final class BikePhysics {
         projectGround(false,dt:dt); projectGround(true,dt:dt)
         if crashed { projectChassisGround() }
         let rearNow=nominal(false),frontNow=nominal(true)
-        let rearFloor=Self.ground(rearNow.x,route:route)+rig.wheelRadius
-        let frontFloor=Self.ground(frontNow.x,route:route)+rig.wheelRadius
-        rearContact=rearY-rearFloor<0.002 && rearV<=speed*Self.slope(rearNow.x,route:route)+0.08
-        frontContact=frontY-frontFloor<0.002 && frontV<=speed*Self.slope(frontNow.x,route:route)+0.08
+        let rearFloor=Self.ground(rearNow.x,route:route,lane:lane)+rig.wheelRadius
+        let frontFloor=Self.ground(frontNow.x,route:route,lane:lane)+rig.wheelRadius
+        rearContact=rearY-rearFloor<0.002 && rearV<=speed*Self.slope(rearNow.x,route:route,lane:lane)+0.08
+        frontContact=frontY-frontFloor<0.002 && frontV<=speed*Self.slope(frontNow.x,route:route,lane:lane)+0.08
         if !settling {
             let rollingRear=(rearNow.x-rearWheelPosition.x)/(rig.wheelRadius*dt)
             let rollingFront=(frontNow.x-frontWheelPosition.x)/(rig.wheelRadius*dt)
@@ -367,7 +371,7 @@ final class BikePhysics {
                     if spinHeld { spinYaw+=rate*dt }
                     else if spinYaw != 0 { spinYaw+=((spinYaw/(2*Double.pi)).rounded()*2*Double.pi-spinYaw)*min(1,dt*6) }
                 }
-                airPeak=max(airPeak,rearY-Self.ground(rearNow.x,route:route)-rig.wheelRadius)
+                airPeak=max(airPeak,rearY-Self.ground(rearNow.x,route:route,lane:lane)-rig.wheelRadius)
             } else if airTime>0 {
                 let turns=(spinYaw/(2*Double.pi)).rounded(),misalignment=abs(spinYaw-turns*2*Double.pi)
                 if !crashed && misalignment>1.1 { crashed=true;speed *= 0.35;angularVelocity *= 0.6 }
@@ -395,8 +399,8 @@ final class BikePhysics {
         return (k*compression+(c+k*dt)*relativeV)/(1+(c*dt+k*dt*dt)*inv)
     }
     private func projectGround(_ front:Bool,dt:Double) {
-        let n=nominal(front),floor=Self.ground(n.x,route:route)+rig.wheelRadius
-        let groundV=speed*Self.slope(n.x,route:route)
+        let n=nominal(front),floor=Self.ground(n.x,route:route,lane:lane)+rig.wheelRadius
+        let groundV=speed*Self.slope(n.x,route:route,lane:lane)
         let y=front ? frontY:rearY, v=front ? frontV:rearV
         if y<floor {
             if !(front ? frontWasContact:rearWasContact) { landingImpact=max(landingImpact,max(0,groundV-v)) }
@@ -413,7 +417,7 @@ final class BikePhysics {
         if compression>travel { error=compression-travel }
         else if compression<0 { error=compression }
         else { return }
-        let floor=Self.ground(n.x,route:route)+rig.wheelRadius
+        let floor=Self.ground(n.x,route:route,lane:lane)+rig.wheelRadius
         let onFloor=y-floor<0.002
         let invWheel=(error>0 && onFloor) ? 0 : 1/rig.wheelMass
         let l=lever(front),invBody=1/rig.sprungMass+l*l/inertia
@@ -431,7 +435,7 @@ final class BikePhysics {
     }
     private func projectChassisGround() {
         for point in [RideVector(0.18,0.20),RideVector(rig.wheelbase*0.55,0.55),RideVector(0.3,0.65)] {
-            let world=origin+rotated(point),floor=Self.ground(world.x,route:route)+0.06
+            let world=origin+rotated(point),floor=Self.ground(world.x,route:route,lane:lane)+0.06
             if world.y<floor {
                 com.y+=floor-world.y
                 if bodyV<0 { bodyV *= -0.08 }
@@ -445,7 +449,7 @@ final class BikePhysics {
         rearWheelPosition=RideVector(r.x,rearY);frontWheelPosition=RideVector(f.x,frontY)
         rearCompression=max(0,min(rig.rearTravel,rearY-r.y))
         frontCompression=max(0,min(rig.frontTravel,frontY-f.y))
-        height=max(0,rearY-Self.ground(r.x,route:route)-rig.wheelRadius)
+        height=max(0,rearY-Self.ground(r.x,route:route,lane:lane)-rig.wheelRadius)
     }
     /// A cone/low obstacle kicks the struck unsprung mass; the suspension and
     /// chassis then determine whether the rider absorbs the hit or topples.
@@ -626,10 +630,13 @@ final class BikePhysics {
         func lower(_ v:Double)->Int { var lo=0,hi=list.count; while lo<hi { let m=(lo+hi)/2; if Double(list[m])<v { lo=m+1 } else { hi=m } }; return lo }
         let i=lower(a),j=lower(b); return list[i..<max(i,j)]
     }
-    static func ground(_ x:Double,route:Int=0)->Double {
+    static func ground(_ x:Double,route:Int=0,lane:Int=0)->Double {
         guard x.isFinite else { return 0 }
         if circuit { return circuitGround(x,route:route) }
-        if procedural { return proceduralGround(x,route:route) }
+        if procedural {
+            let base=proceduralGround(x,route:route)
+            return lane == 1 ? elevatedGround(x,route:route,base:base) : base
+        }
         let t=max(0,min(1,(x-10)/25)),fade=t*t*(3-2*t)
         // Smooth envelopes avoid a height or slope discontinuity at sector signs.
         let progress=max(0,min(1,(x-120)/1000))
@@ -654,5 +661,43 @@ final class BikePhysics {
         let rampHeight=(paved ? 0.80 : route == 3 ? 0.75 : 0.90)*difficulty
         return fade*(base+ramp*rampHeight)
     }
-    static func slope(_ x:Double,route:Int=0)->Double { (ground(x+0.01,route:route)-ground(x-0.01,route:route))/0.02 }
+    static func slope(_ x:Double,route:Int=0,lane:Int=0)->Double { (ground(x+0.01,route:route,lane:lane)-ground(x-0.01,route:route,lane:lane))/0.02 }
+    // MARK: Forks (procedural courses only)
+    /// A fork is a stretch where the road splits: the ground road (obstacles, rough) and an elevated road (smoother, with ramps).
+    /// The two roads share the exact same ground at both ends, so lanes can be chosen freely before the fork and rejoin after it.
+    static let forkSpacing=1100.0,forkLength=300.0,forkBlend=70.0
+    static var forksEnabled:Bool { procedural && !circuit }
+    static func fork(slot k:Int)->(start:Double,end:Double)? {
+        guard k>=0 else { return nil }
+        let start=Double(k)*forkSpacing+520+280*hash(k,seed&+0xF0)
+        return (start,start+forkLength)
+    }
+    /// The fork that contains `x`, if any.
+    static func fork(containing x:Double)->(start:Double,end:Double)? {
+        guard forksEnabled,x.isFinite else { return nil }
+        let k=Int(floor(x/forkSpacing))
+        for slot in [k-1,k,k+1] { if let f=fork(slot:slot),x>=f.start && x<=f.end { return f } }
+        return nil
+    }
+    /// The first fork that has not ended yet at `x` (for the warning ahead of it).
+    static func nextFork(after x:Double)->(start:Double,end:Double)? {
+        guard forksEnabled,x.isFinite else { return nil }
+        let k=Int(floor(x/forkSpacing))
+        for slot in k-1...k+2 { if let f=fork(slot:slot),f.end>x { return f } }
+        return nil
+    }
+    /// 0 at the ends of a fork, 1 on its plateau.
+    static func forkEnvelope(_ x:Double,_ f:(start:Double,end:Double))->Double {
+        func smooth(_ t:Double)->Double { let c=max(0,min(1,t)); return c*c*(3-2*c) }
+        return smooth((x-f.start)/forkBlend)*smooth((f.end-x)/forkBlend)
+    }
+    static let elevatedHeight=3.2
+    /// The elevated road: the same terrain lifted 3.2 m above the ground road, with a train of jump ramps, so the gap is exact everywhere.
+    static func elevatedGround(_ x:Double,route:Int,base:Double)->Double {
+        guard let f=fork(containing:x) else { return base }
+        let e=forkEnvelope(x,f)
+        let period=42.0,phase=(x-f.start).truncatingRemainder(dividingBy:period),offset=abs(phase-period/2),half=8.0
+        let ramp=offset<half ? (1+cos(offset/half*Double.pi))*0.5*0.85 : 0
+        return base+(elevatedHeight+ramp)*e
+    }
 }

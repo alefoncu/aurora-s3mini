@@ -12,7 +12,7 @@ xcrun swiftc -O Sources/VehicleRig.swift Sources/Transmission.swift Tests/Transm
 build/TransmissionTests
 xcrun swiftc -O Sources/RideChallenges.swift Tests/ChallengeTests.swift -o build/ChallengeTests
 build/ChallengeTests
-xcrun swiftc -O Sources/VehicleRig.swift Sources/Transmission.swift Sources/BikePhysics.swift Sources/RideScore.swift Sources/RideProgress.swift Tests/ScoreTests.swift -o build/ScoreTests
+xcrun swiftc -O Sources/VehicleRig.swift Sources/Transmission.swift Sources/BikePhysics.swift Sources/RideScore.swift Sources/RideCosmetics.swift Sources/RideProgress.swift Tests/ScoreTests.swift -o build/ScoreTests
 build/ScoreTests
 xcrun swiftc -O Sources/VehicleRig.swift Sources/Transmission.swift Sources/BikePhysics.swift Sources/RideStats.swift Sources/RideMissions.swift Sources/RideTutorial.swift Sources/RideRival.swift Sources/RideRace.swift Tests/ProgressTests.swift -o build/ProgressTests
 build/ProgressTests

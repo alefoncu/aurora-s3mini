@@ -167,6 +167,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSToolbarDelegate, NST
             guard let rep=game.snapshotRep() else { return }
             try? rep.representation(using:.png,properties:[:])?.write(to:URL(fileURLWithPath:directory+"/"+name+".png"))
         }
+        // Purchased styles on three different vehicles.
+        for (name,kind,helmet,jacket,livery) in [("styled-sport",BikeKind.sport,HelmetStyle.flames,JacketStyle.reflective,Livery.number),("styled-street",.commuter,.stripe,.racing,.stripes),("styled-hyper",.hyperbike,.gold,.twoTone,.checker)] {
+            game.art.helmetStyle=helmet; game.art.jacketStyle=jacket; game.art.livery=livery
+            game.challengeKind = .free; game.bike.kind=kind; game.bike.route=0; game.night=false; game.start(); game.bike.x=400; game.bike.speed=8
+            for _ in 0..<30 { game.previous=ProcessInfo.processInfo.systemUptime-1/60; game.keys=[126]; game.tick() }
+            shot(name)
+        }
+        game.art.helmetStyle = .standard; game.art.jacketStyle = .standard; game.art.livery = .none; game.bike.kind = .sport
         // Night with headlight, the guided tutorial banner and a 360 in the air.
         game.bike.route=1; game.night=true; game.challengeKind = .free; game.start()
         game.bike.x=300; for _ in 0..<60 { game.previous=ProcessInfo.processInfo.systemUptime-1/60; game.keys=[126]; game.tick() }
@@ -385,6 +393,24 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSToolbarDelegate, NST
         inspector.uiSelectDifficulty(.normal); precondition(game.runContext == contextBefore,"Normal keeps the original record context")
         inspector.uiToggle("obstacles"); precondition(game.obstacles,"Obstacles checkbox")
         inspector.uiToggle("obstacles")
+        // Cosmetic styles must be owned before riding; buying them works through the same unlock button.
+        inspector.uiSelectRoute(originalRoute); game.bike.kind=originalKind; gui()
+        game.progress.earn(500)
+        inspector.uiSelectHelmet(.flames); gui()
+        precondition(game.art.helmetStyle == .flames && !inspector.uiPlayEnabled && inspector.uiUnlockVisible && inspector.uiUnlockTitle.contains("llamas"),"A locked helmet style blocks Play and offers purchase")
+        game.start(); precondition(game.mode == .garage,"A locked style must not start")
+        inspector.uiSelectJacket(.reflective); inspector.uiSelectLivery(.number); gui()
+        precondition(inspector.uiUnlockTitle.contains("chaqueta") && inspector.uiUnlockTitle.contains("decoración"),"Several locked styles are bought together")
+        let walletBeforeStyles=game.progress.wallet
+        inspector.uiUnlock(); gui()
+        precondition(game.progress.wallet == walletBeforeStyles-HelmetStyle.flames.cost-JacketStyle.reflective.cost-Livery.number.cost && inspector.uiPlayEnabled && !inspector.uiUnlockVisible,"Buying styles spends their prices and enables Play")
+        precondition(game.prefs.integer(forKey:"helmetStyle") == HelmetStyle.flames.rawValue && game.prefs.integer(forKey:"livery") == Livery.number.rawValue,"Styles are remembered")
+        // Every vehicle draws with every style combination.
+        for helmet in HelmetStyle.allCases { for jacket in JacketStyle.allCases { for livery in Livery.allCases {
+            game.art.helmetStyle=helmet; game.art.jacketStyle=jacket; game.art.livery=livery
+            for kind in BikeKind.allCases { game.bike.kind=kind; precondition(game.snapshotRep(scale:0.25) != nil,"Styled frame must render") }
+        } } }
+        inspector.uiSelectHelmet(.standard); inspector.uiSelectJacket(.standard); inspector.uiSelectLivery(.none)
         inspector.uiSelectRoute(originalRoute); game.bike.kind=originalKind; gui()
         game.progress.unlockEverything()
         func checkBar(_ expected:RideTouchBarMode) {

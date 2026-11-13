@@ -83,6 +83,15 @@ extension RideRenderer {
             circle(x,y,u*0.055,NSColor(hex:0xE5DED0))
             line(x-u*0.025,y,x+u*0.025,y,u*0.012,coat)
         }
+        switch jacketStyle {
+        case .reflective:
+            for f in [0.34,0.56] { let x=hip.x+dx*f,y=hip.y+dy*f; line(x-nx*u*0.12,y-ny*u*0.12,x+nx*u*0.12,y+ny*u*0.12,u*0.024,NSColor(hex:0xE9F0F4,alpha:0.95)) }
+        case .racing:
+            for side in [-1.0,1.0] { line(hip.x+nx*u*0.045*side,hip.y+ny*u*0.045*side,shoulder.x+nx*u*0.045*side,shoulder.y+ny*u*0.045*side,u*0.02,NSColor.white.withAlphaComponent(0.92)) }
+        case .twoTone:
+            line(hip.x+nx*u*0.055,hip.y+ny*u*0.055,shoulder.x+nx*u*0.055,shoulder.y+ny*u*0.055,u*0.11,raShade(coat,-0.35))
+        case .standard: break
+        }
         NSGraphicsContext.restoreGraphicsState()
         line(hip.x-nx*u*0.07,hip.y-ny*u*0.07,shoulder.x-nx*u*0.07,shoulder.y-ny*u*0.07,u*0.028,raShade(coat,0.35))
         line(hip.x+nx*u*0.065,hip.y+ny*u*0.065,shoulder.x+nx*u*0.07,shoulder.y+ny*u*0.07,u*0.008,raShade(coat,-0.35))
@@ -116,6 +125,28 @@ extension RideRenderer {
         let spine=pose.shoulder-pose.hip
         drawHead(center:head,units:u,kind:style,angle:atan2(spine.x,spine.y)*(detached ? 1 : 0.35))
     }
+    /// Purchased helmet details, clipped to the shell so they follow its shape.
+    private func drawHelmetStyle(shell:NSBezierPath,center h:NSPoint,units u:Double) {
+        guard helmetStyle != .standard else { return }
+        NSGraphicsContext.saveGraphicsState(); shell.addClip()
+        switch helmetStyle {
+        case .stripe:
+            line(h.x-0.17*u,h.y-0.06*u,h.x+0.15*u,h.y-0.15*u,u*0.036,NSColor.white.withAlphaComponent(0.92))
+            line(h.x-0.17*u,h.y-0.03*u,h.x+0.15*u,h.y-0.12*u,u*0.012,jacket)
+        case .flames:
+            for (i,c) in [0xF26A21,0xF7B32B,0xD9401B].enumerated() {
+                let k=Double(i)*0.045,flame=NSBezierPath()
+                flame.move(to:NSPoint(x:h.x-0.19*u,y:h.y+(0.075-k)*u)); flame.curve(to:NSPoint(x:h.x-0.01*u,y:h.y+(0.03-k*0.8)*u),controlPoint1:NSPoint(x:h.x-0.13*u,y:h.y+(0.02-k)*u),controlPoint2:NSPoint(x:h.x-0.07*u,y:h.y+(0.07-k)*u))
+                flame.curve(to:NSPoint(x:h.x-0.19*u,y:h.y+(0.11-k)*u),controlPoint1:NSPoint(x:h.x-0.06*u,y:h.y+(0.11-k)*u),controlPoint2:NSPoint(x:h.x-0.12*u,y:h.y+(0.115-k)*u)); flame.close()
+                NSColor(hex:c).setFill(); flame.fill()
+            }
+        case .gold:
+            line(h.x-0.17*u,h.y-0.06*u,h.x+0.15*u,h.y-0.15*u,u*0.016,NSColor(hex:0xE9B949))
+            NSColor(hex:0xE9B949,alpha:0.5).setFill(); NSBezierPath(rect:NSRect(x:h.x-0.02*u,y:h.y-0.095*u,width:0.2*u,height:0.07*u)).fill()
+        case .standard: break
+        }
+        NSGraphicsContext.restoreGraphicsState()
+    }
     private func drawHead(center h:NSPoint,units u:Double,kind:BikeKind,angle:Double) {
         NSGraphicsContext.saveGraphicsState()
         let orientation=NSAffineTransform(); orientation.translateX(by:h.x,yBy:h.y); orientation.rotate(byRadians:angle); orientation.translateX(by:-h.x,yBy:-h.y); orientation.concat()
@@ -126,6 +157,7 @@ extension RideRenderer {
             let shell=NSBezierPath();shell.move(to:NSPoint(x:h.x-u*0.13,y:h.y+u*0.01))
             shell.curve(to:NSPoint(x:h.x+u*0.13,y:h.y-u*0.035),controlPoint1:NSPoint(x:h.x-u*0.19,y:h.y-u*0.20),controlPoint2:NSPoint(x:h.x+u*0.14,y:h.y-u*0.19))
             shell.line(to:NSPoint(x:h.x+u*0.13,y:h.y-u*0.005));shell.line(to:NSPoint(x:h.x-u*0.13,y:h.y+u*0.035));shell.close();raFill(shell,helmet)
+            drawHelmetStyle(shell:shell,center:h,units:u)
             for i in 0..<3 { let x=h.x-u*0.075+Double(i)*u*0.055;line(x,h.y-u*0.095,x+u*0.022,h.y-u*0.105,u*0.013,NSColor(hex:0x28313B)) }
             line(h.x-u*0.08,h.y+u*0.015,h.x+u*0.01,h.y+u*0.105,u*0.012,ink)
             line(h.x+u*0.08,h.y,h.x+u*0.01,h.y+u*0.105,u*0.012,ink)
@@ -140,6 +172,7 @@ extension RideRenderer {
             shell.line(to:NSPoint(x:h.x+0.12*u,y:h.y+0.095*u))
             shell.curve(to:NSPoint(x:h.x-0.135*u,y:h.y+0.045*u),controlPoint1:NSPoint(x:h.x+0.025*u,y:h.y+0.16*u),controlPoint2:NSPoint(x:h.x-0.105*u,y:h.y+0.14*u)); shell.close()
             raFill(shell,helmet,angle:45)
+            drawHelmetStyle(shell:shell,center:h,units:u)
             // Visor follows the rounded shell and gains two reflected light bands.
             let visor=NSBezierPath(); visor.move(to:NSPoint(x:h.x+0.005*u,y:h.y-0.077*u)); visor.curve(to:NSPoint(x:h.x+0.143*u,y:h.y-0.065*u),controlPoint1:NSPoint(x:h.x+0.055*u,y:h.y-0.09*u),controlPoint2:NSPoint(x:h.x+0.11*u,y:h.y-0.085*u)); visor.line(to:NSPoint(x:h.x+0.165*u,y:h.y-0.006*u)); visor.curve(to:NSPoint(x:h.x+0.004*u,y:h.y+0.018*u),controlPoint1:NSPoint(x:h.x+0.11*u,y:h.y+0.025*u),controlPoint2:NSPoint(x:h.x+0.06*u,y:h.y+0.035*u)); visor.close(); raFill(visor,NSColor(hex:0x1B2C3E),angle:90)
             line(h.x+0.023*u,h.y-0.057*u,h.x+0.112*u,h.y-0.058*u,u*0.009,NSColor(hex:0x8CBBD1,alpha:0.8))

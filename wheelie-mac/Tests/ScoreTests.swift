@@ -49,6 +49,17 @@ import Foundation
         check(p.wallet == 85, "Rewards: \(p.wallet)")
         let again = RideProgress(preferences: prefs)
         check(again.wallet == 85 && again.isUnlocked(.vehicle(.sport)), "Progress persists")
+        // Cosmetic styles: free defaults, priced extras, bought once with coins and remembered.
+        check(RideUnlock.helmet(.standard).cost == 0 && RideUnlock.jacket(.standard).cost == 0 && RideUnlock.livery(.none).cost == 0, "Defaults are free")
+        check(HelmetStyle.allCases.dropFirst().allSatisfy { $0.cost > 0 } && JacketStyle.allCases.dropFirst().allSatisfy { $0.cost > 0 } && Livery.allCases.dropFirst().allSatisfy { $0.cost > 0 }, "Extras cost coins")
+        let keys = HelmetStyle.allCases.map { RideUnlock.helmet($0).key } + JacketStyle.allCases.map { RideUnlock.jacket($0).key } + Livery.allCases.map { RideUnlock.livery($0).key } + BikeKind.allCases.map { RideUnlock.vehicle($0).key }
+        check(Set(keys).count == keys.count, "Every unlock has its own key")
+        check(RideUnlock.helmet(.flames).title.contains("llamas") && RideUnlock.livery(.number).title.contains("dorsal"), "Readable unlock titles")
+        let before = p.wallet
+        check(p.isUnlocked(.helmet(.standard)) && !p.isUnlocked(.helmet(.flames)), "Extras start locked")
+        check(p.unlock(.helmet(.flames)) && p.wallet == before - HelmetStyle.flames.cost && p.isUnlocked(.helmet(.flames)), "Buying a helmet style spends its price")
+        check(RideProgress(preferences: prefs).isUnlocked(.helmet(.flames)) && !RideProgress(preferences: prefs).isUnlocked(.helmet(.gold)), "Styles persist and stay separate")
+        check(!p.unlock(.livery(.checker)) || p.wallet >= 0, "Wallet never goes negative")
         let vetSuite = "wheelie.veteran." + UUID().uuidString
         let vet = UserDefaults(suiteName: vetSuite)!; vet.set(120.0, forKey: "v5.hyperbike.2.distance")
         let old = RideProgress(preferences: vet)

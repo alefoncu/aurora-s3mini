@@ -3,9 +3,15 @@ import Foundation
 /// Coins earned while riding unlock vehicles and routes. Everything is stored in
 /// the app's own preferences; nothing leaves the Mac.
 enum RideUnlock: Hashable {
-    case vehicle(BikeKind), route(Int)
+    case vehicle(BikeKind), route(Int), helmet(HelmetStyle), jacket(JacketStyle), livery(Livery)
     var key: String {
-        switch self { case .vehicle(let k): return "vehicle." + k.rawValue; case .route(let r): return "route.\(r)" }
+        switch self {
+        case .vehicle(let k): return "vehicle." + k.rawValue
+        case .route(let r): return "route.\(r)"
+        case .helmet(let s): return "helmet.\(s.rawValue)"
+        case .jacket(let s): return "jacket.\(s.rawValue)"
+        case .livery(let s): return "livery.\(s.rawValue)"
+        }
     }
     var cost: Int {
         switch self {
@@ -13,10 +19,19 @@ enum RideUnlock: Hashable {
             switch k { case .commuter, .motocross, .bmx: return 0; case .scooter: return 40; case .sport, .scrambler: return 80; case .trials: return 100; case .hyperbike: return 220 }
         case .route(let r):
             switch r { case 0, 1: return 0; case 2: return 60; default: return 100 }
+        case .helmet(let s): return s.cost
+        case .jacket(let s): return s.cost
+        case .livery(let s): return s.cost
         }
     }
     var title: String {
-        switch self { case .vehicle(let k): return k.title; case .route(let r): return BikePhysics.routeNames[max(0, min(BikePhysics.routeCount - 1, r))] }
+        switch self {
+        case .vehicle(let k): return k.title
+        case .route(let r): return BikePhysics.routeNames[max(0, min(BikePhysics.routeCount - 1, r))]
+        case .helmet(let s): return "casco \(s.title.lowercased())"
+        case .jacket(let s): return "chaqueta \(s.title.lowercased())"
+        case .livery(let s): return "decoración «\(s.title.lowercased())»"
+        }
     }
 }
 

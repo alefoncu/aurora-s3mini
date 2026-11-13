@@ -28,6 +28,8 @@ final class RideView: NSView {
     var challengeKind:RideChallengeKind = .free
     var ghostEnabled=true
     var absOn=false
+    /// The styles currently selected, each of which must be owned before riding.
+    var cosmeticItems:[RideUnlock] { [.helmet(art.helmetStyle),.jacket(art.jacketStyle),.livery(art.livery)] }
     var difficulty=BikePhysics.Assist.normal
     var score=RideScore(), bestScore=0.0
     lazy var progress=RideProgress(preferences:prefs)
@@ -89,6 +91,9 @@ final class RideView: NSView {
         art.passenger=prefs.bool(forKey:"passenger")
         if let c=loadColor("body") { art.body=c }; if let c=loadColor("jacket") { art.jacket=c }; if let c=loadColor("helmetColor") { art.helmet=c }; if let c=loadColor("skin") { art.skin=c }
         challengeKind=RideChallengeKind(rawValue:prefs.string(forKey:"challenge") ?? "free") ?? .free
+        art.helmetStyle=HelmetStyle(rawValue:prefs.integer(forKey:"helmetStyle")) ?? .standard
+        art.jacketStyle=JacketStyle(rawValue:prefs.integer(forKey:"jacketStyle")) ?? .standard
+        art.livery=Livery(rawValue:prefs.integer(forKey:"livery")) ?? .none
         ghostEnabled=prefs.object(forKey:"ghost") == nil ? true : prefs.bool(forKey:"ghost")
         absOn=prefs.bool(forKey:"abs")
         difficulty=BikePhysics.Assist(rawValue:prefs.object(forKey:"difficulty") == nil ? 1 : prefs.integer(forKey:"difficulty")) ?? .normal
@@ -168,7 +173,7 @@ final class RideView: NSView {
     func updateTouchBar() { bar.update(mode:touchBarMode,speed:bike.speed,wheelie:bike.wheelieDistance,stoppie:bike.stoppieDistance,gear:bike.transmission.gear,rpm:bike.transmission.rpm,automatic:bike.transmission.automatic) }
     @objc func deactivate() { clearInput(); if mode == .riding { mode = .paused }; audio.update(speed:0,throttle:false,vehicle:0,active:false); syncState() }
     func start() { guard window?.attachedSheet == nil else { return }
-        guard progress.isUnlocked(.vehicle(bike.kind)),progress.isUnlocked(.route(bike.route)) else { audio.play(.denied); NSSound.beep(); return }
+        guard cosmeticItems.allSatisfy({ progress.isUnlocked($0) }),progress.isUnlocked(.vehicle(bike.kind)),progress.isUnlocked(.route(bike.route)) else { audio.play(.denied); NSSound.beep(); return }
         NSColorPanel.shared.orderOut(nil); preserveRun(); challenges.abandon(); bike.hazards=obstaclesOn; bike.absEnabled=absOn; bike.assist=difficulty; bike.endless=challengeKind == .endless; BikePhysics.circuit=challengeKind == .circuit; bike.laps=3; bike.reset(); resetRunState(); startRival(); art.metresToPixels=RideScene.metresToPixels; elapsed=0; crashTime=0; cameraY=0; riderLean=0; riderLift=0; riderLiftVelocity=0; pedalPhase=0; challenges.selected=challengeKind; challenges.start(contextKey:runContext,initialFrame:ghostSnapshot()); ragdoll=nil; passengerRagdoll=nil; knockedCones.removeAll(); dust.removeAll(); clearInput(); mode = .riding; previous=ProcessInfo.processInfo.systemUptime; window?.makeFirstResponder(self); syncState() }
     func garage() { guard window?.attachedSheet == nil else { return }; preserveRun(); challenges.abandon(); clearInput(); mode = .garage; rivalRuns=[]; BikePhysics.circuit=false; bike.hazards=obstacles; bike.endless=false; bike.absEnabled=absOn; bike.assist=difficulty; bike.reset(); resetRunState(); art.metresToPixels=RideScene.metresToPixels; cameraY=0; ragdoll=nil; passengerRagdoll=nil; knockedCones.removeAll(); dust.removeAll(); audio.update(speed:0,throttle:false,vehicle:0,active:false); syncState() }
     func pause() {

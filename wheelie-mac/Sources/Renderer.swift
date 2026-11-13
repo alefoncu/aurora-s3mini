@@ -14,6 +14,8 @@ final class RideRenderer {
     var body = NSColor(hex: 0xE9AD27), jacket = NSColor(hex: 0x2164A7), helmet = NSColor(hex: 0xE6E9EC)
     var skin = NSColor(hex: 0xDDA480)
     var helmetOn = true, passenger = false
+    var helmetStyle = HelmetStyle.standard, jacketStyle = JacketStyle.standard, livery = Livery.none
+    var raceNumber = 7
     var landscape: NSImage?, desert: NSImage?
     var asphaltTexture: NSImage?, dirtTexture: NSImage?
     private var treeTextures:[Int:NSImage]=[:]
@@ -353,6 +355,7 @@ final class RideRenderer {
         func p(_ v:RideVector)->NSPoint { NSPoint(x:v.x*u,y:-v.y*u) }
         NSGraphicsContext.saveGraphicsState(); let transform=NSAffineTransform(); transform.translateX(by:x,yBy:y); transform.scale(by:scale); transform.rotate(byRadians:-angle); transform.concat()
         drawVehicle(kind:kind,rearAxle:p(rearWheelLocal ?? rig.rearAxle),frontAxle:p(frontWheelLocal ?? rig.frontAxle),frontCompression:frontCompression,rearCompression:rearCompression,rotationRear:rotation,rotationFront:frontRotation ?? rotation,pedalPhase:pedalPhase,time:time)
+        drawLivery(kind:kind,units:u)
         if showRider {
             if passenger && kind.supportsPassenger {
                 let pose=RiderRig.solve(vehicle:rig,lean:lean*0.3,lift:riderLift,pedalPhase:pedalPhase,passenger:true)
@@ -362,6 +365,23 @@ final class RideRenderer {
             drawRider(pose,units:u,kind:kind,passenger:false)
         }
         NSGraphicsContext.restoreGraphicsState()
+    }
+    /// Purchased decorations on the tail section, placed from the vehicle's own seat point so every vehicle
+    /// gets them in a visible spot (the rider covers the tank).
+    func drawLivery(kind:BikeKind,units u:Double) {
+        guard livery != .none,kind != .bmx else { return }
+        let seat=NSPoint(x:kind.rig.seat.x*u,y:-kind.rig.seat.y*u)
+        switch livery {
+        case .number:
+            let c=NSPoint(x:seat.x-0.27*u,y:seat.y+0.075*u),plate=NSBezierPath(roundedRect:NSRect(x:c.x-0.085*u,y:c.y-0.06*u,width:0.17*u,height:0.12*u),xRadius:0.025*u,yRadius:0.025*u)
+            NSColor.white.setFill(); plate.fill(); ink.withAlphaComponent(0.6).setStroke(); plate.lineWidth=0.6; plate.stroke()
+            text("\(raceNumber)",c.x,c.y-0.055*u,0.1*u,ink,.heavy,center:true,mono:true)
+        case .stripes:
+            for k in [0.0,0.03] { line(seat.x-0.36*u,seat.y+(0.075+k)*u,seat.x-0.04*u,seat.y+(0.055+k)*u,0.016*u,NSColor.white.withAlphaComponent(0.92)) }
+        case .checker:
+            for i in 0..<6 { let x=seat.x-0.36*u+Double(i)*0.06*u; box(x,seat.y+0.06*u,0.03*u,0.03*u,i%2==0 ? .white : ink); box(x,seat.y+0.09*u,0.03*u,0.03*u,i%2==0 ? ink : .white) }
+        case .none: break
+        }
     }
     func shadow(x:Double,y:Double,width:Double,height:Double,alpha:Double=0.22) {
         for i in stride(from:5,through:1,by:-1) { let f=Double(i)/5; ellipse(x-width*f/2,y-height*f/2,width*f,height*f,NSColor.black.withAlphaComponent(alpha/5)) }

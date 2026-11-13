@@ -169,6 +169,7 @@ final class GarageInspectorController: NSViewController {
     private var missionLabels: [NSTextField] = []
     private var rivalPopup: NSPopUpButton!, rivalSameCheckbox: NSButton!
     private var difficultyPopup: NSPopUpButton!, difficultyHint: NSTextField!
+    private var helmetPopup: NSPopUpButton!, jacketPopup: NSPopUpButton!, liveryPopup: NSPopUpButton!
     private static let routeTitles = ["Valle · asfalto", "Sierra · tierra", "Dunas · atardecer", "Nieve · hielo y pinos", "Ciudad · lluvia"]
     private var playButton: NSButton!
     private var outfitLabel: NSTextField!
@@ -291,6 +292,18 @@ final class GarageInspectorController: NSViewController {
             addFullWidth(labeledRow(title, control: well), to: stack)
         }
         addDivider(to: stack)
+        addSection("ESTILO (CON MONEDAS)", to: stack)
+        helmetPopup = NSPopUpButton(frame: .zero, pullsDown: false); helmetPopup.addItems(withTitles: HelmetStyle.allCases.map(\.title))
+        jacketPopup = NSPopUpButton(frame: .zero, pullsDown: false); jacketPopup.addItems(withTitles: JacketStyle.allCases.map(\.title))
+        liveryPopup = NSPopUpButton(frame: .zero, pullsDown: false); liveryPopup.addItems(withTitles: Livery.allCases.map(\.title))
+        for (title, popup, action) in [("Casco", helmetPopup!, #selector(helmetChanged(_:))), ("Chaqueta", jacketPopup!, #selector(jacketChanged(_:))), ("Moto", liveryPopup!, #selector(liveryChanged(_:)))] {
+            popup.target = self; popup.action = action; popup.setAccessibilityLabel("Estilo de \(title.lowercased())")
+            editableControls.append(popup); addFullWidth(labeledRow(title, control: popup), to: stack)
+        }
+        let styleHint = NSTextField(wrappingLabelWithString: "Los colores base son gratis. Los estilos extra se compran con monedas y se ven en la vista previa; para rodar tienes que tener el estilo elegido.")
+        styleHint.font = .systemFont(ofSize: 11); styleHint.textColor = .secondaryLabelColor
+        addFullWidth(styleHint, to: stack)
+        addDivider(to: stack)
         addSection("PILOTO Y CIRCUITO", to: stack)
         outfitLabel = NSTextField(wrappingLabelWithString: game.bike.kind.outfitDescription)
         outfitLabel.font = .systemFont(ofSize: 11)
@@ -384,6 +397,11 @@ final class GarageInspectorController: NSViewController {
             routePopup.item(at: i)?.title = game.progress.isUnlocked(item) ? title : "\(title) · 🔒 \(item.cost)"
         }
         routePopup.selectItem(at: max(0, min(BikePhysics.routeCount - 1, game.bike.route)))
+        func lockText(_ item: RideUnlock, _ title: String) -> String { game.progress.isUnlocked(item) ? title : "\(title) · 🔒 \(item.cost)" }
+        for (i, style) in HelmetStyle.allCases.enumerated() { helmetPopup.item(at: i)?.title = lockText(.helmet(style), style.title) }
+        for (i, style) in JacketStyle.allCases.enumerated() { jacketPopup.item(at: i)?.title = lockText(.jacket(style), style.title) }
+        for (i, style) in Livery.allCases.enumerated() { liveryPopup.item(at: i)?.title = lockText(.livery(style), style.title) }
+        helmetPopup.selectItem(at: game.art.helmetStyle.rawValue); jacketPopup.selectItem(at: game.art.jacketStyle.rawValue); liveryPopup.selectItem(at: game.art.livery.rawValue)
         let locked = lockedItems()
         walletLabel.stringValue = "\(game.progress.wallet) monedas"
         unlockButton.isHidden = locked.isEmpty; unlockHint.isHidden = locked.isEmpty
@@ -446,7 +464,7 @@ final class GarageInspectorController: NSViewController {
     var uiMissionTexts: [String] { missionLabels.map(\.stringValue) }
     var uiRivalEnabled: Bool { rivalPopup.isEnabled && rivalSameCheckbox.isEnabled }
     private func lockedItems() -> [RideUnlock] {
-        [RideUnlock.vehicle(game.bike.kind), RideUnlock.route(game.bike.route)].filter { !game.progress.isUnlocked($0) }
+        ([RideUnlock.vehicle(game.bike.kind), RideUnlock.route(game.bike.route)] + game.cosmeticItems).filter { !game.progress.isUnlocked($0) }
     }
     @objc private func unlockSelection() {
         guard game.mode == .garage else { return }
@@ -489,6 +507,21 @@ final class GarageInspectorController: NSViewController {
         game.ghostEnabled = sender.state == .on
         game.prefs.set(game.ghostEnabled, forKey: "ghost"); onChange()
     }
+    @objc private func helmetChanged(_ sender: NSPopUpButton) {
+        guard !updating, game.mode == .garage, let style = HelmetStyle(rawValue: sender.indexOfSelectedItem) else { return }
+        game.art.helmetStyle = style; game.prefs.set(style.rawValue, forKey: "helmetStyle"); onChange()
+    }
+    @objc private func jacketChanged(_ sender: NSPopUpButton) {
+        guard !updating, game.mode == .garage, let style = JacketStyle(rawValue: sender.indexOfSelectedItem) else { return }
+        game.art.jacketStyle = style; game.prefs.set(style.rawValue, forKey: "jacketStyle"); onChange()
+    }
+    @objc private func liveryChanged(_ sender: NSPopUpButton) {
+        guard !updating, game.mode == .garage, let style = Livery(rawValue: sender.indexOfSelectedItem) else { return }
+        game.art.livery = style; game.prefs.set(style.rawValue, forKey: "livery"); onChange()
+    }
+    func uiSelectHelmet(_ style: HelmetStyle) { helmetPopup.selectItem(at: style.rawValue); helmetChanged(helmetPopup) }
+    func uiSelectJacket(_ style: JacketStyle) { jacketPopup.selectItem(at: style.rawValue); jacketChanged(jacketPopup) }
+    func uiSelectLivery(_ style: Livery) { liveryPopup.selectItem(at: style.rawValue); liveryChanged(liveryPopup) }
     @objc private func difficultyChanged(_ sender: NSPopUpButton) {
         guard !updating, game.mode == .garage, let level = BikePhysics.Assist(rawValue: sender.indexOfSelectedItem) else { return }
         game.difficulty = level; game.prefs.set(level.rawValue, forKey: "difficulty"); game.bike.assist = level; game.loadRecords(); onChange()

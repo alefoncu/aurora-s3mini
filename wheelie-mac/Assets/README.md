@@ -1,6 +1,6 @@
 # Arte de Wheelie Ride 2
 
-Los paisajes `valley.png` y `dunes.png` se generaron con la herramienta integrada `image_gen`, en modo de generación nueva (sin referencias copiadas), y se guardaron en esta carpeta para distribuirlos dentro de la app. Los vehículos, piloto, terreno, texturas de carretera, objetos y partículas se dibujan en código Swift. El icono actual se genera con `../make-icon.swift` usando el mismo dibujo del vehículo y el piloto que la app.
+Los paisajes `valley.png` y `dunes.png` se generaron con la herramienta integrada `image_gen`, en modo de generación nueva (sin referencias copiadas), y se guardaron en esta carpeta para distribuirlos dentro de la app. Los vehículos, piloto, terreno, texturas de carretera, objetos y partículas se dibujan en código Swift. El icono (la Sport y el piloto en un caballito sobre un atardecer, en la rejilla de iconos de macOS: placa de 824 pt dentro de un lienzo de 1024 pt, con sombra) se genera con `../make-icon.swift` usando el mismo dibujo del vehículo y el piloto que la app.
 
 ## Prompt: valley.png
 
@@ -15,7 +15,7 @@ Use case: stylized-concept. Asset type: panoramic backdrop for a 2D side-scrolli
 Desde `wheelie-mac/`:
 
 ```sh
-xcrun swiftc -O -parse-as-library -framework Cocoa Sources/VehicleRig.swift Sources/BikePhysics.swift Sources/RiderRig.swift Sources/Renderer.swift Sources/VehicleArtwork.swift Sources/RiderArtwork.swift make-icon.swift -o build/MakeIcon
+xcrun swiftc -O -parse-as-library -framework Cocoa Sources/VehicleRig.swift Sources/BikePhysics.swift Sources/Transmission.swift Sources/RiderRig.swift Sources/RideCosmetics.swift Sources/RideProfile.swift Sources/Renderer.swift Sources/VehicleArtwork.swift Sources/VehicleBodies.swift Sources/RiderArtwork.swift make-icon.swift -o build/MakeIcon
 build/MakeIcon build/AppIcon.iconset
 iconutil -c icns build/AppIcon.iconset -o Assets/AppIcon.icns
 ```

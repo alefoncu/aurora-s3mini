@@ -16,6 +16,9 @@ final class RideRenderer {
     var helmetOn = true, passenger = false
     var helmetStyle = HelmetStyle.standard, jacketStyle = JacketStyle.standard, livery = Livery.none
     var raceNumber = 7
+    /// 0...0.85: how much the wheels blur at speed (set per vehicle before drawing it); spokes fade into a translucent disc.
+    var wheelBlur = 0.0
+    func blur(speed:Double,radius:Double)->Double { max(0,min(0.85,(speed/max(0.2,radius)-16)/34)) }
     /// Logical scene layout, set by the view each frame: the bike's screen x, the ground line and the scene size.
     var focusX = 370.0, groundY = 458.0, viewWidth = 1280.0, viewHeight = 720.0
     var landscape: NSImage?, desert: NSImage?

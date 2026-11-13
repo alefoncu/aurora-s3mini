@@ -1,4 +1,4 @@
-# Wheelie Ride 6.10 · macOS
+# Wheelie Ride 6.11 · macOS
 
 Juego independiente inspirado en la base de Wheelie Challenge: conducción lateral, caballitos, equilibrio, saltos, vehículos y piloto personalizables. Swift/AppKit nativo, sin navegador, red ni descargas en tiempo de ejecución.
 
@@ -22,7 +22,7 @@ Desde la versión 4 hay una geometría en metros compartida por la física, el v
 
 Es un modelo de conducción arcade lateral: las ruedas tienen recorrido vertical y el chasis tiene cabeceo; no modela la dirección lateral, deformación completa del neumático ni una moto tridimensional. Los controles de peso incluyen amortiguación para que los caballitos puedan corregirse.
 
-## Esta versión (6.10)
+## Esta versión (6.11)
 
 - **Diez vehículos:** Street 125, Enduro 250, Sport 600, BMX, Scooter 80, Scrambler 400, Trial 200, Hyper R 1000, Cruiser 750 y Volt E-8, con geometría, velocidad, aceleración y respuesta distintas.
 - **Cinco rutas:** Valle de asfalto, Sierra de tierra, Dunas al atardecer, Nieve y Ciudad bajo la lluvia, de 1.200 m (o de 3.000 y 6.000 m en rodar libre y carrera) en cuatro tramos de dificultad creciente, más un **modo infinito** sin meta, con modo nocturno y clima dinámico opcional.
@@ -303,4 +303,9 @@ Caída del piloto rehecha.
 - **Articulaciones con sentido:** rodillas y codos solo doblan hacia su lado: si una articulación se doblaba al revés se refleja respecto a la línea entre sus vecinas (las longitudes de hueso se conservan).
 - **Herramienta:** `--crash <carpeta>` guarda tiras de tres caídas (looping de caballito, volteo sobre la rueda delantera y aterrizaje a alta velocidad) para revisarlas.
 - No he jugado a mano esta versión. Pendiente: el piloto no choca con la moto ni con los obstáculos mientras cae, y la cámara no lo sigue si sale muy lejos.
+
+### Actualización 6.11
+
+- **Ruedas con desenfoque de giro:** a partir de unos 16 rad/s (≈ 18 km/h en una moto normal) los radios se atenúan y los sustituye un disco translúcido con estelas tenues, hasta un 85 % a toda velocidad. Se aplica a tu moto, a los rivales y al fantasma; la vista previa del taller sigue nítida.
+- Pendiente (sigue sin sentirse bien, según tu valoración): formas y proporciones de algunas motos, animación del conjunto moto-piloto en marcha y nivel de acabado. Para acertar necesito que me digas qué moto y qué momento (parada, aceleración, caballito, salto) ves peor.
 

@@ -80,7 +80,7 @@ extension RideView {
         let rig=bike.kind.rig,ppm=z*rig.drawingUnitsPerMetre,c=cos(bike.pitch),s=sin(bike.pitch)
         func local(_ wheel:RideVector)->RideVector { let d=wheel-bike.chassisPosition;return RideVector(c*d.x+s*d.y,-s*d.x+c*d.y) }
         let midpoint=(bike.rearWheelPosition.x+bike.frontWheelPosition.x)*0.5
-        art.motorcycle(x:w/2+(bike.chassisPosition.x-midpoint)*ppm,y:floor-bike.chassisPosition.y*ppm,scale:z,angle:bike.pitch,kind:bike.kind,rotation:0,time:0,rearWheelLocal:local(bike.rearWheelPosition),frontWheelLocal:local(bike.frontWheelPosition),frontCompression:bike.frontCompression,rearCompression:bike.rearCompression)
+        art.wheelBlur=0; art.motorcycle(x:w/2+(bike.chassisPosition.x-midpoint)*ppm,y:floor-bike.chassisPosition.y*ppm,scale:z,angle:bike.pitch,kind:bike.kind,rotation:0,time:0,rearWheelLocal:local(bike.rearWheelPosition),frontWheelLocal:local(bike.frontWheelPosition),frontCompression:bike.frontCompression,rearCompression:bike.rearCompression)
         art.text("MEJOR CABALLITO",32,h-100,10,.secondaryLabelColor,.semibold)
         art.text("\(Int(best)) m",32,h-80,25,.labelColor,.medium,mono:true)
         art.text("RÉCORD DE RUTA",w-182,h-100,10,.secondaryLabelColor,.semibold)
@@ -112,7 +112,7 @@ extension RideView {
             let savedBody=art.body,savedJacket=art.jacket
             art.body=Self.rivalPalette[index%Self.rivalPalette.count]; art.jacket=NSColor.systemRed
             NSGraphicsContext.saveGraphicsState(); NSGraphicsContext.current?.cgContext.setAlpha(0.8)
-            art.motorcycle(x:art.focusX+(r.chassisPosition.x-bike.x)*ppm,y:art.groundY+camY-r.chassisPosition.y*ppm,scale:ppm/rrig.drawingUnitsPerMetre,angle:r.pitch,kind:r.kind,rotation:-r.rearWheelRotation,time:animationTime,showRider:!r.crashed,rearWheelLocal:localRival(r.rearWheelPosition),frontWheelLocal:localRival(r.frontWheelPosition),frontCompression:r.frontCompression,rearCompression:r.rearCompression,frontRotation:-r.frontWheelRotation,pedalPhase:r.pedalPhase)
+            art.wheelBlur=art.blur(speed:r.speed,radius:rrig.wheelRadius); art.motorcycle(x:art.focusX+(r.chassisPosition.x-bike.x)*ppm,y:art.groundY+camY-r.chassisPosition.y*ppm,scale:ppm/rrig.drawingUnitsPerMetre,angle:r.pitch,kind:r.kind,rotation:-r.rearWheelRotation,time:animationTime,showRider:!r.crashed,rearWheelLocal:localRival(r.rearWheelPosition),frontWheelLocal:localRival(r.frontWheelPosition),frontCompression:r.frontCompression,rearCompression:r.rearCompression,frontRotation:-r.frontWheelRotation,pedalPhase:r.pedalPhase)
             NSGraphicsContext.restoreGraphicsState()
             art.body=savedBody; art.jacket=savedJacket
         } }
@@ -124,7 +124,7 @@ extension RideView {
             }
             NSGraphicsContext.saveGraphicsState()
             NSGraphicsContext.current?.cgContext.setAlpha(0.28)
-            art.motorcycle(x:art.focusX+(ghost.x-bike.x)*ppm,y:art.groundY+camY-ghost.y*ppm,
+            art.wheelBlur=art.blur(speed:bike.speed,radius:rig.wheelRadius); art.motorcycle(x:art.focusX+(ghost.x-bike.x)*ppm,y:art.groundY+camY-ghost.y*ppm,
                 scale:ppm/rig.drawingUnitsPerMetre,angle:ghost.pitch,kind:bike.kind,
                 rotation:-ghost.wheelRotation,time:elapsed,showRider:true,
                 rearWheelLocal:localGhost(ghost.rearWheelX,ghost.rearWheelY),
@@ -144,7 +144,7 @@ extension RideView {
             NSGraphicsContext.saveGraphicsState()
             NSGraphicsContext.current?.cgContext.setAlpha(alpha)
             if scaleX != 1 { let t=NSAffineTransform(); t.translateX(by:bodyX,yBy:0); t.scaleX(by:scaleX,yBy:1); t.translateX(by:-bodyX,yBy:0); t.concat() }
-            art.motorcycle(x:bodyX,y:bodyY,scale:ppm/rig.drawingUnitsPerMetre,angle:bike.pitch,kind:bike.kind,rotation:-bike.rearWheelRotation,time:animationTime,lean:riderLean,stunt:held(.stunt),handsOff:riderHandsOff,superman:riderSuperman,showRider:ragdoll == nil,rearWheelLocal:local(bike.rearWheelPosition),frontWheelLocal:local(bike.frontWheelPosition),frontCompression:bike.frontCompression,rearCompression:bike.rearCompression,frontRotation:-bike.frontWheelRotation,pedalPhase:pedalPhase,riderLift:riderLift)
+            art.wheelBlur=art.blur(speed:bike.speed,radius:rig.wheelRadius); art.motorcycle(x:bodyX,y:bodyY,scale:ppm/rig.drawingUnitsPerMetre,angle:bike.pitch,kind:bike.kind,rotation:-bike.rearWheelRotation,time:animationTime,lean:riderLean,stunt:held(.stunt),handsOff:riderHandsOff,superman:riderSuperman,showRider:ragdoll == nil,rearWheelLocal:local(bike.rearWheelPosition),frontWheelLocal:local(bike.frontWheelPosition),frontCompression:bike.frontCompression,rearCompression:bike.rearCompression,frontRotation:-bike.frontWheelRotation,pedalPhase:pedalPhase,riderLift:riderLift)
             NSGraphicsContext.restoreGraphicsState()
         }
         if bike.spinYaw != 0 {

@@ -172,7 +172,7 @@ extension RideRenderer {
             let spokeCount=cycle ? 28 : 32
             for i in 0..<spokeCount {
                 let a=Double(i)*2*Double.pi/Double(spokeCount)+rotation, tw=(i%2==0) ? 0.55 : -0.55
-                line(x+cos(a+tw)*3.4,y+sin(a+tw)*3.4,x+cos(a)*(rimRadius-1.5),y+sin(a)*(rimRadius-1.5),cycle ? 0.45 : 0.5,NSColor(hex:0xC2CFD1,alpha:0.92))
+                line(x+cos(a+tw)*3.4,y+sin(a+tw)*3.4,x+cos(a)*(rimRadius-1.5),y+sin(a)*(rimRadius-1.5),cycle ? 0.45 : 0.5,NSColor(hex:0xC2CFD1,alpha:0.92*(1-wheelBlur)))
             }
         }
         if !cycle {
@@ -185,6 +185,15 @@ extension RideRenderer {
                 let a=Double(i)*2*Double.pi/18+rotation, rr=discRadius*0.84
                 circle(x+cos(a)*rr,y+sin(a)*rr,0.62,NSColor(hex:0x33424A))
                 if i%2==0 { circle(x+cos(a+0.17)*discRadius*0.74,y+sin(a+0.17)*discRadius*0.74,0.45,NSColor(hex:0x33424A)) }
+            }
+        }
+        if wheelBlur>0.05 {
+            // Motion blur: a soft translucent disc over the spokes, with a few faint streaks following the rotation.
+            circle(x,y,rimRadius-1.4,NSColor(hex:0x9AA7AB,alpha:0.5*wheelBlur))
+            for i in 0..<5 {
+                let a=Double(i)*2*Double.pi/5+rotation*0.15, rr=rimRadius*(0.42+0.1*Double(i%3))
+                let arc=NSBezierPath(); arc.appendArc(withCenter:axle,radius:rr,startAngle:a*180/Double.pi,endAngle:a*180/Double.pi+55,clockwise:false)
+                arc.lineWidth=1.0; NSColor(hex:0xDDE4E6,alpha:0.35*wheelBlur).setStroke(); arc.stroke()
             }
         }
         circle(x,y,cycle ? 3.4 : 4.8,NSColor(hex:0x4A5A62)); vmBolt(x,y,r:cycle ? 1.6 : 2.4)

@@ -36,7 +36,7 @@ Es un modelo de conducción arcade lateral: las ruedas tienen recorrido vertical
 
 No contiene todo el catálogo de vehículos ni las pistas del juego original. El código y el arte utilizado en la app son propios. Las referencias visuales consultadas no se incluyen en el paquete.
 
-Limitaciones conocidas: el modelo es plano (sin derrape lateral ni neumáticos deformables), no hay rutas con bifurcaciones, y el ajuste de equilibrio (precios, dificultad del rival, sensaciones de conducción) se hizo con pilotos simulados, no con sesiones de juego largas.
+Limitaciones conocidas: el modelo es plano (sin derrape lateral ni neumáticos deformables), las bifurcaciones solo existen en el infinito y en las rutas largas, y el ajuste de equilibrio (precios, dificultad del rival, sensaciones de conducción) se hizo con pilotos simulados, no con sesiones de juego largas.
 
 ## Teclado y ratón
 

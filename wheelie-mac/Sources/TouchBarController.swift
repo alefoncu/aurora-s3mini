@@ -2,7 +2,7 @@ import Cocoa
 
 /// Shared input vocabulary. A held action stays active until its matching release.
 enum RideAction: String, CaseIterable {
-    case throttle, brake, frontBrake, rearBrake, leanBack, leanForward, jump, stunt, stoppie
+    case throttle, brake, frontBrake, rearBrake, leanBack, leanForward, jump, stunt, stoppie, noHands, spin, superman
 }
 
 enum RideCommand {
@@ -21,6 +21,9 @@ private extension NSTouchBarItem.Identifier {
     static let rideJump = Self("com.scratch.wheelieride.touchbar.jump")
     static let rideStunt = Self("com.scratch.wheelieride.touchbar.stunt")
     static let rideStoppie = Self("com.scratch.wheelieride.touchbar.stoppie")
+    static let rideNoHands = Self("com.scratch.wheelieride.touchbar.noHands")
+    static let rideSpin = Self("com.scratch.wheelieride.touchbar.spin")
+    static let rideSuperman = Self("com.scratch.wheelieride.touchbar.superman")
     static let rideStatus = Self("com.scratch.wheelieride.touchbar.status")
     static let ridePause = Self("com.scratch.wheelieride.touchbar.pause")
     static let rideRestart = Self("com.scratch.wheelieride.touchbar.restart")
@@ -196,7 +199,7 @@ final class TouchBarController: NSObject, NSTouchBarDelegate {
                 bar.defaultItemIdentifiers = [.rideThrottle, .rideLeanBack, .rideLeanForward, .rideBrake,
                                               .flexibleSpace, .rideStatus, .ridePause, .rideRestart]
                 bar.customizationAllowedItemIdentifiers = [.rideThrottle, .rideLeanBack, .rideLeanForward,
-                    .rideBrake, .rideFrontBrake, .rideRearBrake, .rideShiftUp, .rideShiftDown, .rideJump, .rideStunt, .rideStoppie, .rideStatus, .ridePause, .rideRestart,
+                    .rideBrake, .rideFrontBrake, .rideRearBrake, .rideShiftUp, .rideShiftDown, .rideJump, .rideStunt, .rideStoppie, .rideNoHands, .rideSpin, .rideSuperman, .rideStatus, .ridePause, .rideRestart,
                     .rideGarage, .flexibleSpace, .fixedSpaceSmall]
                 bar.customizationRequiredItemIdentifiers = [.ridePause]
             } else {
@@ -293,12 +296,15 @@ final class TouchBarController: NSObject, NSTouchBarDelegate {
             .rideLeanForward: (.leanForward, "→", "BAJAR", .systemBlue),
             .rideJump: (.jump, "↥", "SALTO", .systemOrange),
             .rideStunt: (.stunt, "✦", "TRUCO", .systemPurple),
-            .rideStoppie: (.stoppie, "↘", "INVERTIDO", .systemOrange)
+            .rideStoppie: (.stoppie, "↘", "INVERTIDO", .systemOrange),
+            .rideNoHands: (.noHands, "✋", "SIN MANOS", .systemTeal),
+            .rideSpin: (.spin, "⟳", "GIRO 360", .systemPink),
+            .rideSuperman: (.superman, "✈︎", "SUPERMAN", .systemIndigo)
         ]
         if context == .riding, let (action, symbol, title, accent) = specifications[identifier] {
             let item = NSCustomTouchBarItem(identifier: identifier)
             let view = RideTouchKey(symbol: symbol, title: title, accent: accent,
-                                    width: action == .leanBack || action == .stoppie ? 95 : 79)
+                                    width: action == .leanBack || action == .stoppie || action == .noHands || action == .superman ? 95 : 79)
             view.enabled = mode == .riding
             view.onHold = { [weak self] held in self?.onHold(action, held) }
             keyViews[action]?.enabled = false

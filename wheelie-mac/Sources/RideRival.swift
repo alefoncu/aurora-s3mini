@@ -2,6 +2,10 @@ import Foundation
 
 enum RivalLevel: Int, CaseIterable {
     case easy, normal, expert
+    /// The field for a multi-rival race: three rivals around the chosen level.
+    func field() -> [RivalLevel] {
+        switch self { case .easy: return [.easy, .easy, .normal]; case .normal: return [.easy, .normal, .expert]; case .expert: return [.normal, .expert, .expert] }
+    }
     var title: String { ["Rival fácil", "Rival normal", "Rival experto"][rawValue] }
     func baseSpeed(paved: Bool) -> Double {
         switch self { case .easy: return paved ? 13.5 : 10.5; case .normal: return paved ? 16 : 12; case .expert: return paved ? 17.5 : 13 }

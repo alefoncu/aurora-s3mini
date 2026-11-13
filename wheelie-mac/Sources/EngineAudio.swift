@@ -50,6 +50,17 @@ final class EngineAudio {
         let level = Int64(max(0, min(255, ((speed.isFinite ? max(0, speed) : 0) / 40 * 255).rounded())))
         state.storeAmbient(flags | (level << 8) | (route == 3 ? 1 << 16 : 0))
     }
+    /// Short synthesised effects for the interface and tricks. They play whenever sound is enabled,
+    /// in the garage as well as while riding. `intensity` (0...1) shifts pitch or loudness.
+    enum SFX: Int { case chime = 1, coin, flip, landing, whoosh, combo, denied }
+    private var sfxSerial: UInt64 = 0
+    func play(_ effect: SFX, intensity: Double = 0) {
+        guard enabled else { return }
+        sfxSerial = (sfxSerial &+ 1) & 0xFFFF
+        let level = UInt64(max(0, min(255, (intensity.isFinite ? intensity : 0) * 255)).rounded())
+        state.storeSFX(Int64(bitPattern: UInt64(effect.rawValue) | (sfxSerial << 8) | (level << 24)))
+        startIfNeeded()
+    }
     func impact() {
         guard enabled else { return }
         impactSerial = (impactSerial &+ 1) & 0xFFFF
@@ -119,6 +130,10 @@ final class EngineAudio {
 private final class EngineRenderState {
     private let controls: UnsafeMutablePointer<Int64>
     private let ambientControls: UnsafeMutablePointer<Int64>
+    private let sfxControls: UnsafeMutablePointer<Int64>
+    private var voiceKind = [Int](repeating: 0, count: 6), voiceAge = [Double](repeating: 0, count: 6), voiceLevel = [Double](repeating: 0, count: 6)
+    private var previousSFX: UInt64 = 0
+    private var sfxNoiseLow = 0.0
     private var rainGain = 0.0, windGain = 0.0, cityGain = 0.0
     private var windLow = 0.0, hiLow = 0.0, cityLow = 0.0, gustPhase = 0.0, cityPhase = 0.0
     private var phase = 0.0
@@ -136,6 +151,13 @@ private final class EngineRenderState {
         controls.initialize(to: 0)
         ambientControls = .allocate(capacity: 1)
         ambientControls.initialize(to: 0)
+        sfxControls = .allocate(capacity: 1)
+        sfxControls.initialize(to: 0)
+    }
+
+    func storeSFX(_ value: Int64) {
+        var old = OSAtomicAdd64Barrier(0, sfxControls)
+        while !OSAtomicCompareAndSwap64Barrier(old, value, sfxControls) { old = OSAtomicAdd64Barrier(0, sfxControls) }
     }
 
     func storeAmbient(_ value: Int64) {
@@ -147,6 +169,35 @@ private final class EngineRenderState {
         var old = OSAtomicAdd64Barrier(0, controls)
         while !OSAtomicCompareAndSwap64Barrier(old, value, controls) {
             old = OSAtomicAdd64Barrier(0, controls)
+        }
+    }
+
+    /// One sample of an effect at `t` seconds. Every effect is a few decaying partials plus a touch of noise.
+    static func effectSample(kind: Int, t: Double, level: Double, noise: Double, low: Double) -> Double {
+        let tau = Double.pi * 2
+        func ping(_ f: Double, _ start: Double, decay: Double, gain: Double) -> Double {
+            guard t >= start else { return 0 }
+            let d = t - start
+            return (sin(tau * f * d) + 0.3 * sin(tau * 2 * f * d)) * exp(-d * decay) * min(1, d * 500) * gain
+        }
+        switch kind {
+        case 1:  // chime: rising arpeggio
+            return ping(1046.5, 0, decay: 9, gain: 0.16) + ping(1318.5, 0.09, decay: 9, gain: 0.16) + ping(1568, 0.18, decay: 9, gain: 0.16) + ping(2093, 0.27, decay: 7, gain: 0.18)
+        case 2:  // coin: two quick pings
+            return ping(1318.5, 0, decay: 14, gain: 0.18) + ping(1760, 0.07, decay: 8, gain: 0.2)
+        case 3:  // flip landed: thump with a rising sparkle
+            let thump = t < 0.4 ? sin(tau * 90 * t) * exp(-t * 18) * 0.5 + noise * exp(-t * 30) * 0.12 : 0
+            let sparkle = t < 0.6 ? sin(tau * (600 * t + 1800 * t * t)) * exp(-t * 6) * 0.1 : 0
+            return thump + sparkle
+        case 4:  // landing: soft thud
+            return t < 0.4 ? sin(tau * 68 * t) * exp(-t * 22) * 0.55 + low * exp(-t * 35) * 0.5 : 0
+        case 5:  // spin: a short whoosh
+            return t < 0.35 ? low * 3 * sin(Double.pi * t / 0.35) * 0.35 * (0.6 + 0.4 * sin(tau * (4 + 12 * t) * t)) : 0
+        case 6:  // combo tick, higher with the multiplier
+            return t < 0.12 ? sin(tau * 660 * (1 + level * 0.9) * t) * exp(-t * 40) * 0.16 * min(1, t * 800) : 0
+        default: // denied: two low buzzes
+            let buzz = t < 0.28 ? ((sin(tau * 150 * t) > 0 ? 1.0 : -1.0) * 0.07 + sin(tau * 110 * t) * 0.05) * (t < 0.12 || t > 0.16 ? 1 : 0) * exp(-t * 6) : 0
+            return buzz
         }
     }
 
@@ -197,6 +248,18 @@ private final class EngineRenderState {
         let targetRain = live && rainOn ? 0.040 : 0
         let targetWind = live && windOn ? (heavyWind ? 0.05 : 0.025) + windLevel * 0.05 : 0
         let targetCity = live && cityOn ? 0.016 : 0
+        let sfxWord = UInt64(bitPattern: OSAtomicAdd64Barrier(0, sfxControls))
+        if sfxWord != previousSFX {
+            previousSFX = sfxWord
+            let kind = Int(sfxWord & 0xFF)
+            if enabled && kind > 0 && kind <= 7 {
+                // Reuse a finished voice, otherwise steal the oldest one.
+                var slot = 0, oldest = -1.0
+                for i in 0..<6 { let free = voiceKind[i] == 0; if free { slot = i; oldest = .infinity; break }; if voiceAge[i] > oldest { oldest = voiceAge[i]; slot = i } }
+                voiceKind[slot] = kind; voiceAge[slot] = 0; voiceLevel[slot] = Double((sfxWord >> 24) & 0xFF) / 255
+            }
+        }
+        if !enabled { for i in 0..<6 { voiceKind[i] = 0 } }
         let list = UnsafeMutableAudioBufferListPointer(buffers)
         let tau = Double.pi * 2
         for frame in 0..<Int(frameCount) {
@@ -224,7 +287,13 @@ private final class EngineRenderState {
             let rain=(noise-hiLow)*rainGain*(0.85+0.15*sin(gustPhase*3))
             let wind=windLow*5.5*windGain*(0.65+0.35*sin(gustPhase))
             let city=(sin(cityPhase)*0.55+sin(cityPhase*2.01)*0.25+cityLow*6)*cityGain
-            let ambient=rain+wind+city
+            var effects = 0.0
+            for v in 0..<6 where voiceKind[v] != 0 {
+                let t = voiceAge[v]; voiceAge[v] += 1 / 48_000
+                effects += Self.effectSample(kind: voiceKind[v], t: t, level: voiceLevel[v], noise: noise, low: noiseLow)
+                if t > 1.6 { voiceKind[v] = 0 }
+            }
+            let ambient=rain+wind+city+effects
             let sample = Float(motor*gain+(noise-noiseLow)*roadGain+sin(slipPhase)*slipGain+impact+ambient)
             for buffer in list {
                 guard let data = buffer.mData else { continue }
@@ -242,5 +311,7 @@ private final class EngineRenderState {
         controls.deallocate()
         ambientControls.deinitialize(count: 1)
         ambientControls.deallocate()
+        sfxControls.deinitialize(count: 1)
+        sfxControls.deallocate()
     }
 }

@@ -451,8 +451,9 @@ final class GarageInspectorController: NSViewController {
     @objc private func unlockSelection() {
         guard game.mode == .garage else { return }
         let items = lockedItems(), cost = items.reduce(0) { $0 + $1.cost }
-        guard game.progress.wallet >= cost else { NSSound.beep(); return }
+        guard game.progress.wallet >= cost else { game.audio.play(.denied); NSSound.beep(); return }
         items.forEach { game.progress.unlock($0) }
+        game.audio.play(.coin)
         onChange()
     }
     @objc private func transmissionChanged(_ sender: NSPopUpButton) {

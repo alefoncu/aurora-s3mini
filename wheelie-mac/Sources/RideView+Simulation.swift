@@ -51,7 +51,7 @@ extension RideView {
                     passengerRagdoll=RiderRagdoll(pose:companion,origin:bike.chassisPosition,pitch:bike.pitch,velocity:velocity,angularVelocity:bike.angularVelocity,route:bike.route)
                 }
                 score.crash(); mode = .crashing; crashTime=0; clearInput(); audio.impact(); emitDust(count:16); saveRun(); syncState()
-            } else if bike.finished { score.finishRun(); challenges.raceWon = rival.map { !$0.finished } ?? false; mode = .result; clearInput(); saveRun(); syncState() }
+            } else if bike.finished { score.finishRun(); playerFinishTime=elapsed; racePosition=RideRace.position(player:playerEntry,rivals:rivalEntries); challenges.raceWon = !rivalRuns.isEmpty && racePosition<=(challengeKind == .circuit ? 2 : 1); mode = .result; clearInput(); saveRun(); syncState() }
         } else if mode == .crashing {
             bike.update(dt,throttle:false,brake:false,leanBack:false,leanForward:false)
             ragdoll?.update(dt); passengerRagdoll?.update(dt)

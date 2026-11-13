@@ -35,8 +35,17 @@ final class RideView: NSView {
     var lastWheelie=0.0, lastStoppie=0.0, lastLandingSerial=0, lastStage=0
     var passedObstacles=Set<Int>()
     var splitDeltas:[Double?]=[], splitText="", splitAge=99.0
-    var rivalRun:RideRival?
+    /// Rivals in the current race: one in a duel, three on the circuit.
+    var rivalRuns:[RideRival]=[]
+    var rivalRun:RideRival? { rivalRuns.first }
     var rival:BikePhysics? { rivalRun?.bike }
+    var rivalFinishTimes:[Double?]=[], playerFinishTime:Double?
+    var overtakeTracker=RideRace.OvertakeTracker()
+    var racePosition=1
+    static let rivalPalette:[NSColor]=[.systemTeal,.systemOrange,.systemPurple]
+    /// Standings entries for the player and every rival, for positions and prizes.
+    var playerEntry:RaceEntry { RaceEntry(distance:bike.distance,finishTime:playerFinishTime,crashed:bike.crashed) }
+    var rivalEntries:[RaceEntry] { rivalRuns.enumerated().map { i,r in RaceEntry(distance:r.bike.distance,finishTime:i<rivalFinishTimes.count ? rivalFinishTimes[i] : nil,crashed:r.crashed) } }
     var rivalLevel=RivalLevel.normal, rivalSameVehicle=true
     lazy var stats=RideStats(preferences:prefs)
     lazy var missions=RideMissions(preferences:prefs)
@@ -45,10 +54,11 @@ final class RideView: NSView {
     var riderHandsOff=0.0, riderSuperman=0.0
     struct Toast { let text:String; var age:Double }
     var toasts:[Toast]=[], toastedIDs=Set<String>(), toastClock=0.0
+    var lastBanked=0, lastMultiplier=1.0
     var supermanTime=0.0, lastSupermanTime=0.0, airborneWas=false
-    var noHandsHeld:Bool { keys.contains(4) }
-    var spinHeld:Bool { keys.contains(5) }
-    var supermanHeld:Bool { keys.contains(9) }
+    var noHandsHeld:Bool { held(.noHands) }
+    var spinHeld:Bool { held(.spin) }
+    var supermanHeld:Bool { held(.superman) }
     /// Obstacles and puddles are off in the tutorial so each step is about one skill.
     var obstaclesOn:Bool { obstacles && challengeKind != .tutorial }
     lazy var circuitList=BikePhysics.circuitObstaclePositions(laps:3)
@@ -137,6 +147,10 @@ final class RideView: NSView {
             report.raceWon=challengeKind == .race && challenges.completed
             for a in stats.record(report) { progress.earn(a.reward); lastReward+=a.reward; runNotes.append("Logro: \(a.title)"+(a.reward>0 ? " (+\(a.reward))" : "")) }
             for m in missions.record(report) { progress.earn(m.reward); lastReward+=m.reward; runNotes.append("Misión: \(m.title) (+\(m.reward))") }
+            if !rivalRuns.isEmpty {
+                let prize=bike.finished ? RideRace.prize(position:racePosition,fieldSize:rivalRuns.count+1) : 0
+                if prize>0 { progress.earn(prize); lastReward+=prize; runNotes.append("Premio de posición \(racePosition)º (+\(prize))") }
+            }
             stats.addCoinsEarned(lastReward)
         }
         prefs.set(bestStoppie,forKey:recordKey+".stoppie"); prefs.set(record,forKey:recordKey+".distance"); prefs.set(best,forKey:recordKey+".wheelie")
@@ -154,9 +168,9 @@ final class RideView: NSView {
     func updateTouchBar() { bar.update(mode:touchBarMode,speed:bike.speed,wheelie:bike.wheelieDistance,stoppie:bike.stoppieDistance,gear:bike.transmission.gear,rpm:bike.transmission.rpm,automatic:bike.transmission.automatic) }
     @objc func deactivate() { clearInput(); if mode == .riding { mode = .paused }; audio.update(speed:0,throttle:false,vehicle:0,active:false); syncState() }
     func start() { guard window?.attachedSheet == nil else { return }
-        guard progress.isUnlocked(.vehicle(bike.kind)),progress.isUnlocked(.route(bike.route)) else { NSSound.beep(); return }
+        guard progress.isUnlocked(.vehicle(bike.kind)),progress.isUnlocked(.route(bike.route)) else { audio.play(.denied); NSSound.beep(); return }
         NSColorPanel.shared.orderOut(nil); preserveRun(); challenges.abandon(); bike.hazards=obstaclesOn; bike.absEnabled=absOn; bike.assist=difficulty; bike.endless=challengeKind == .endless; BikePhysics.circuit=challengeKind == .circuit; bike.laps=3; bike.reset(); resetRunState(); startRival(); art.metresToPixels=RideScene.metresToPixels; elapsed=0; crashTime=0; cameraY=0; riderLean=0; riderLift=0; riderLiftVelocity=0; pedalPhase=0; challenges.selected=challengeKind; challenges.start(contextKey:runContext,initialFrame:ghostSnapshot()); ragdoll=nil; passengerRagdoll=nil; knockedCones.removeAll(); dust.removeAll(); clearInput(); mode = .riding; previous=ProcessInfo.processInfo.systemUptime; window?.makeFirstResponder(self); syncState() }
-    func garage() { guard window?.attachedSheet == nil else { return }; preserveRun(); challenges.abandon(); clearInput(); mode = .garage; rivalRun=nil; BikePhysics.circuit=false; bike.hazards=obstacles; bike.endless=false; bike.absEnabled=absOn; bike.assist=difficulty; bike.reset(); resetRunState(); art.metresToPixels=RideScene.metresToPixels; cameraY=0; ragdoll=nil; passengerRagdoll=nil; knockedCones.removeAll(); dust.removeAll(); audio.update(speed:0,throttle:false,vehicle:0,active:false); syncState() }
+    func garage() { guard window?.attachedSheet == nil else { return }; preserveRun(); challenges.abandon(); clearInput(); mode = .garage; rivalRuns=[]; BikePhysics.circuit=false; bike.hazards=obstacles; bike.endless=false; bike.absEnabled=absOn; bike.assist=difficulty; bike.reset(); resetRunState(); art.metresToPixels=RideScene.metresToPixels; cameraY=0; ragdoll=nil; passengerRagdoll=nil; knockedCones.removeAll(); dust.removeAll(); audio.update(speed:0,throttle:false,vehicle:0,active:false); syncState() }
     func pause() {
         guard window?.attachedSheet == nil, mode == .riding || mode == .paused else { return }
         clearInput(); mode = mode == .riding ? .paused : .riding; previous=ProcessInfo.processInfo.systemUptime
@@ -169,7 +183,7 @@ final class RideView: NSView {
     }
     func held(_ action:RideAction)->Bool {
         if (action == .brake || action == .leanForward) && (touchHeld.contains(.stoppie) || keys.contains(14)) { return true }
-        let codes:[RideAction:[UInt16]]=[.throttle:[13,126],.brake:[1,125],.leanBack:[0,123],.leanForward:[2,124],.jump:[49],.stunt:[17],.stoppie:[14],.frontBrake:[6],.rearBrake:[7]]
+        let codes:[RideAction:[UInt16]]=[.throttle:[13,126],.brake:[1,125],.leanBack:[0,123],.leanForward:[2,124],.jump:[49],.stunt:[17],.stoppie:[14],.frontBrake:[6],.rearBrake:[7],.noHands:[4],.spin:[5],.superman:[9]]
         return touchHeld.contains(action) || (codes[action] ?? []).contains(where:keys.contains)
     }
     override func keyDown(with event:NSEvent) {

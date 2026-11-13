@@ -4,7 +4,7 @@ import Foundation
 /// "pending" while the rider keeps tricking; once the chain ends cleanly they
 /// are banked, but a crash while a chain is open loses them.
 struct RideScore {
-    enum Trick: Int, CaseIterable { case wheelie, stoppie, jump, flip, cone, noHands, spin, superman }
+    enum Trick: Int, CaseIterable { case wheelie, stoppie, jump, flip, cone, noHands, spin, superman, overtake }
     struct Popup { let text: String; let points: Int; var age: Double }
 
     static let chainWindow = 2.5
@@ -67,6 +67,7 @@ struct RideScore {
     static func jump(airTime: Double, height: Double) -> Double { airTime >= 0.35 ? airTime * 80 + max(0, height) * 120 : 0 }
     static func flips(_ count: Int) -> Double { Double(max(0, count)) * 400 }
     static let coneDodge = 30.0
+    static let overtake = 80.0
     static func noHands(seconds: Double) -> Double { max(0, seconds) * 40 }
     static func spins(_ count: Int) -> Double { Double(max(0, count)) * 350 }
     static func superman(seconds: Double) -> Double { seconds >= 0.4 ? 200 + 80 * seconds : 0 }

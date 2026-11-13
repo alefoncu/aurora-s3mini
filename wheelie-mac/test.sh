@@ -14,7 +14,7 @@ xcrun swiftc -O Sources/RideChallenges.swift Tests/ChallengeTests.swift -o build
 build/ChallengeTests
 xcrun swiftc -O Sources/VehicleRig.swift Sources/Transmission.swift Sources/BikePhysics.swift Sources/RideScore.swift Sources/RideProgress.swift Tests/ScoreTests.swift -o build/ScoreTests
 build/ScoreTests
-xcrun swiftc -O Sources/VehicleRig.swift Sources/Transmission.swift Sources/BikePhysics.swift Sources/RideStats.swift Sources/RideMissions.swift Sources/RideTutorial.swift Sources/RideRival.swift Tests/ProgressTests.swift -o build/ProgressTests
+xcrun swiftc -O Sources/VehicleRig.swift Sources/Transmission.swift Sources/BikePhysics.swift Sources/RideStats.swift Sources/RideMissions.swift Sources/RideTutorial.swift Sources/RideRival.swift Sources/RideRace.swift Tests/ProgressTests.swift -o build/ProgressTests
 build/ProgressTests
 xcrun swiftc -target "$(uname -m)-apple-macos13.0" Sources/TouchBarController.swift Tests/TouchBarTests.swift -o build/TouchBarTests
 build/TouchBarTests

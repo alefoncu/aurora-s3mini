@@ -24,7 +24,7 @@ enum RideChallengeKind: String, CaseIterable {
         case .jump: return "Supera 0,25 m de altura y aterriza sin caer."
         case .timeTrial: return "Completa los 1.200 metros en 4 minutos o menos."
         case .race: return "Un rival con la misma física corre a tu lado. Llega antes que él, o aguanta si se cae."
-        case .circuit: return "Un circuito cerrado de 1.200 m con el terreno repetido: tres vueltas seguidas, con tiempo por vuelta y fantasma."
+        case .circuit: return "Un circuito cerrado de 1.200 m: tres vueltas contra tres rivales, con posiciones, adelantamientos, tiempo por vuelta y fantasma. Termina en el podio (1.º o 2.º) para completar el reto."
         case .tutorial: return "Seis pasos: acelerar, caballito, corregir, frenar, saltar y voltereta. Gana monedas la primera vez."
         case .endless: return "Sin meta: el último tramo se repite con obstáculos cada vez más seguidos. Vuelve cada 1.200 m. Termina al caerte."
         }
@@ -205,7 +205,7 @@ final class RideChallengeSession {
     func finish(routeCompleted: Bool, elapsed: Double) {
         guard active, elapsed.isFinite, elapsed > 0, abs(elapsed - observedTime) < 0.001 else { return }
         active = false
-        if runChallenge == .race { completed = routeCompleted && raceWon; if completed { progress = 1 } }
+        if runChallenge == .race || runChallenge == .circuit { completed = routeCompleted && raceWon; if completed { progress = 1 } }
         if runChallenge == .timeTrial {
             completed = routeCompleted && elapsed.isFinite && elapsed > 0 && elapsed <= 240
             if completed { progress = 1 }

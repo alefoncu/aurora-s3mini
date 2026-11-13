@@ -26,9 +26,15 @@ extension RideView {
                 art.text(String(format:"Fantasma %+.1f s",delta),1185,62,11,delta<=0 ? NSColor.systemGreen : NSColor.systemOrange,.semibold,center:true,mono:true)
             } else { art.text(String(format:"Fantasma %+.0f m",ghost.x-bike.x),1185,62,11,NSColor.white.withAlphaComponent(0.8),center:true,mono:true) }
         }
-        if let r=rival {
-            let gap=bike.x-r.x
-            art.text(r.crashed ? "\(rivalLevel.title) caído" : r.finished ? "Rival ha llegado" : String(format:"Rival %+.0f m",gap),1185,80,11,r.crashed || gap>=0 ? NSColor.systemGreen : NSColor.systemOrange,.semibold,center:true,mono:true)
+        if !rivalRuns.isEmpty {
+            // Position, and the gap to the nearest rival still racing ahead (or behind when leading).
+            let field=rivalRuns.count+1
+            art.text("POSICIÓN \(racePosition)/\(field)",1185,76,12,racePosition == 1 ? NSColor.systemGreen : .white,.bold,center:true,mono:true)
+            let racing=rivalRuns.filter { !$0.crashed && !$0.finished }
+            if let nearest=racing.min(by:{ abs($0.bike.x-bike.x)<abs($1.bike.x-bike.x) }) {
+                let gap=bike.x-nearest.bike.x
+                art.text(String(format:gap>=0 ? "a %.0f m del siguiente" : "a %.0f m del de delante",abs(gap)),1185,91,10,gap>=0 ? NSColor.systemGreen : NSColor.systemOrange,.medium,center:true,mono:true)
+            } else if rivalRuns.allSatisfy({ $0.crashed }) { art.text("Rivales caídos",1185,91,10,NSColor.systemGreen,.medium,center:true) }
         }
         art.box(1112,94,152,(score.pending>0 || !score.popups.isEmpty) ? 128 : 52,NSColor.black.withAlphaComponent(0.22),8)
         art.text("PUNTOS",1188,100,10,NSColor.white.withAlphaComponent(0.7),.semibold,center:true)

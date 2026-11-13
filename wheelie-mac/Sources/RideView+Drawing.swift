@@ -92,11 +92,13 @@ extension RideView {
             let size=2+(1-p.life/p.maxLife)*10
             art.ellipse(x-size,y-size,size*2,size,NSColor(hex:bike.route==0 ? 0xCFD0C7 : bike.route==3 ? 0xFFFFFF : bike.route==4 ? 0xB8C0C8 : 0xD6BD91,alpha:(p.life/p.maxLife)*0.17))
         }
-        RideProfile.section("rival") { if let r=rival {
+        RideProfile.section("rival") { for (index,run) in rivalRuns.enumerated() { let r=run.bike
+            // Rivals far off screen are not drawn (about 12 m are visible).
+            if abs(r.x-bike.x)>16 { continue }
             let c=cos(r.pitch),s=sin(r.pitch),rrig=r.kind.rig
             func localRival(_ point:RideVector)->RideVector { let d=point-r.chassisPosition; return RideVector(c*d.x+s*d.y,-s*d.x+c*d.y) }
             let savedBody=art.body,savedJacket=art.jacket
-            art.body=NSColor.systemTeal; art.jacket=NSColor.systemRed
+            art.body=Self.rivalPalette[index%Self.rivalPalette.count]; art.jacket=NSColor.systemRed
             NSGraphicsContext.saveGraphicsState(); NSGraphicsContext.current?.cgContext.setAlpha(0.8)
             art.motorcycle(x:370+(r.chassisPosition.x-bike.x)*ppm,y:458+camY-r.chassisPosition.y*ppm,scale:ppm/rrig.drawingUnitsPerMetre,angle:r.pitch,kind:r.kind,rotation:-r.rearWheelRotation,time:animationTime,showRider:!r.crashed,rearWheelLocal:localRival(r.rearWheelPosition),frontWheelLocal:localRival(r.frontWheelPosition),frontCompression:r.frontCompression,rearCompression:r.rearCompression,frontRotation:-r.frontWheelRotation,pedalPhase:r.pedalPhase)
             NSGraphicsContext.restoreGraphicsState()

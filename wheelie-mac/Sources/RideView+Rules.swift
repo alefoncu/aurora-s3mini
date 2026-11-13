@@ -7,20 +7,36 @@ extension RideView {
         passedObstacles.removeAll(); splitDeltas.removeAll(); splitText=""; splitAge=99
         report=RunReport(); reported=false; runNotes.removeAll(); riderHandsOff=0; riderSuperman=0; supermanTime=0; lastSupermanTime=0; airborneWas=false
         tutorial=RideTutorial(); tutorialToast=""; tutorialToastAge=99; lapTimes.removeAll(); lapStart=0
-        toasts.removeAll(); toastedIDs.removeAll(); toastClock=0
+        toasts.removeAll(); toastedIDs.removeAll(); toastClock=0; lastBanked=0; lastMultiplier=1
     }
+    /// One rival in a duel, three on the circuit (around the chosen level), each with its own vehicle and seed.
     func startRival() {
-        rivalRun=nil
-        guard challengeKind == .race else { return }
-        var kind=bike.kind
-        if !rivalSameVehicle {
-            // A different vehicle each run, chosen from a seed that changes with the run count.
-            let others=BikeKind.allCases.filter { $0 != bike.kind }
-            kind=others[(stats.totals.runs*7+bike.route)%others.count]
+        rivalRuns=[]; rivalFinishTimes=[]; playerFinishTime=nil; overtakeTracker.reset(); racePosition=1
+        guard challengeKind == .race || challengeKind == .circuit else { return }
+        let levels = challengeKind == .circuit ? rivalLevel.field() : [rivalLevel]
+        let others=BikeKind.allCases.filter { $0 != bike.kind }
+        for (i,level) in levels.enumerated() {
+            // Same vehicle as the player unless asked otherwise; then a different one per rival, changing each run.
+            let kind = rivalSameVehicle ? bike.kind : others[(stats.totals.runs*7+bike.route+i*3)%others.count]
+            rivalRuns.append(RideRival(level:level,kind:kind,route:bike.route,hazards:obstaclesOn,seed:UInt64(stats.totals.runs+1+i*977)*2_654_435_761,laps:bike.laps))
         }
-        rivalRun=RideRival(level:rivalLevel,kind:kind,route:bike.route,hazards:obstaclesOn,seed:UInt64(stats.totals.runs+1)*2_654_435_761,laps:bike.laps)
+        rivalFinishTimes=Array(repeating:nil,count:rivalRuns.count)
     }
-    func updateRival(_ dt:Double) { rivalRun?.update(dt) }
+    func updateRival(_ dt:Double) {
+        for (i,r) in rivalRuns.enumerated() {
+            r.update(dt)
+            if r.finished && rivalFinishTimes[i] == nil { rivalFinishTimes[i]=elapsed }
+        }
+        guard !rivalRuns.isEmpty else { return }
+        racePosition=RideRace.position(player:playerEntry,rivals:rivalEntries)
+        for event in overtakeTracker.update(player:bike.distance,rivals:rivalEntries) {
+            if event.playerPassed {
+                score.add(.overtake,points:RideScore.overtake,label:"Adelantamiento")
+                toasts.append(Toast(text:"Adelantas al rival \(event.rival+1) · vas \(racePosition)º",age:0)); audio.play(.combo,intensity:0.6)
+            } else { toasts.append(Toast(text:"El rival \(event.rival+1) te adelanta · vas \(racePosition)º",age:0)) }
+            if toasts.count>3 { toasts.removeFirst(toasts.count-3) }
+        }
+    }
     /// The run as it stands now, for previewing rewards before it ends.
     var liveReport:RunReport {
         var r=report
@@ -37,10 +53,10 @@ extension RideView {
         toastClock=0
         let live=liveReport
         for a in stats.preview(live) where !toastedIDs.contains("a."+a.id) {
-            toastedIDs.insert("a."+a.id); toasts.append(Toast(text:"Logro: \(a.title)"+(a.reward>0 ? " (+\(a.reward))" : ""),age:0))
+            toastedIDs.insert("a."+a.id); toasts.append(Toast(text:"Logro: \(a.title)"+(a.reward>0 ? " (+\(a.reward))" : ""),age:0)); audio.play(.chime)
         }
         for m in missions.preview(live) where !toastedIDs.contains("m."+m.title) {
-            toastedIDs.insert("m."+m.title); toasts.append(Toast(text:"Misión cumplida: \(m.title) (+\(m.reward))",age:0))
+            toastedIDs.insert("m."+m.title); toasts.append(Toast(text:"Misión cumplida: \(m.title) (+\(m.reward))",age:0)); audio.play(.chime)
         }
         if toasts.count>3 { toasts.removeFirst(toasts.count-3) }
     }
@@ -65,6 +81,9 @@ extension RideView {
             if spins>0 { report.spins+=spins; score.add(.spin,points:RideScore.spins(spins),label:spins == 1 ? "Giro 360°" : "\(spins) giros 360°") }
             if lastSupermanTime>=0.4 { report.supermans+=1; score.add(.superman,points:RideScore.superman(seconds:lastSupermanTime),label:"Superman") }
             lastSupermanTime=0
+            if flips>0 { audio.play(.flip) }
+            else if spins>0 { audio.play(.whoosh) }
+            else if bike.lastAirTime>=0.35 { audio.play(.landing) }
             if flips>0 { report.flips+=flips; score.add(.flip,points:RideScore.flips(flips),label:flips == 1 ? "Voltereta" : "\(flips) volteretas") }
             let jump=RideScore.jump(airTime:bike.lastAirTime,height:bike.lastAirHeight)
             if jump>0 { report.jumps+=1; report.airTime+=bike.lastAirTime; score.add(.jump,points:jump,label:String(format:"Salto %.1f s",bike.lastAirTime)) }
@@ -79,7 +98,7 @@ extension RideView {
             var o=TutorialObservation(); o.speed=bike.speed; o.wheelieDistance=bike.wheelieDistance; o.rearContact=bike.rearContact; o.frontContact=bike.frontContact
             o.brakeHeld=held(.brake); o.crashed=bike.crashed; o.landingSerial=bike.landingSerial; o.lastAirTime=bike.lastAirTime; o.lastFlips=bike.lastFlips; o.dt=dt
             if tutorial.update(o) {
-                tutorialToast=tutorial.finished ? "¡Tutorial completado!" : "Paso \(tutorial.stepNumber-1) conseguido"; tutorialToastAge=0
+                tutorialToast=tutorial.finished ? "¡Tutorial completado!" : "Paso \(tutorial.stepNumber-1) conseguido"; tutorialToastAge=0; audio.play(tutorial.finished ? .chime : .coin)
                 if tutorial.finished && !stats.totals.tutorialDone { progress.earn(40); lastReward+=40; runNotes.append("Tutorial completado (+40)"); for a in stats.markTutorialDone() where a.reward>0 { progress.earn(a.reward) } }
             }
         }
@@ -105,5 +124,10 @@ extension RideView {
         }
         }
         splitAge+=dt
+        // Banking a chain pays out with a coin sound; each rise of the multiplier ticks higher.
+        if score.banked>lastBanked { audio.play(.coin) }
+        lastBanked=score.banked
+        if score.multiplier>lastMultiplier+0.01 { audio.play(.combo,intensity:min(1,(score.multiplier-1)/2)) }
+        lastMultiplier=score.multiplier
     }
 }

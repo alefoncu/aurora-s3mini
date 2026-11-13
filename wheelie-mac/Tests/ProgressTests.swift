@@ -5,8 +5,8 @@ import Foundation
     static func suite() -> UserDefaults { UserDefaults(suiteName: "wheelie.progress.tests." + UUID().uuidString)! }
 
     static func main() {
-        stats(); missions(); tutorial(); rivals()
-        print("ProgressTests passed: lifetime stats and achievements, daily/weekly missions, guided tutorial, rival levels, mistakes and ramp flips on every route.")
+        stats(); missions(); tutorial(); rivals(); racing()
+        print("ProgressTests passed: lifetime stats and achievements, daily/weekly missions, guided tutorial, rival levels, mistakes and ramp flips on every route, race standings, overtakes and prizes.")
     }
 
     static func stats() {
@@ -101,6 +101,30 @@ import Foundation
         o.landingSerial = 8; o.lastAirTime = 0.9; o.lastFlips = 0; check(!t.update(o), "Landing without flipping does not finish")
         o.landingSerial = 9; o.lastFlips = 1; check(t.update(o) && t.finished && t.title.contains("completado"), "A flip finishes the tutorial")
         check(!t.update(o) && RideTutorial.stepCount == 6, "Finished tutorial is inert")
+    }
+
+    static func racing() {
+        func e(_ d: Double, _ t: Double? = nil, crashed: Bool = false) -> RaceEntry { RaceEntry(distance: d, finishTime: t, crashed: crashed) }
+        check(RideRace.isAhead(e(100), of: e(50)) && !RideRace.isAhead(e(50), of: e(100)) && !RideRace.isAhead(e(70), of: e(70)), "Further along is ahead; a tie is nobody's")
+        check(RideRace.isAhead(e(1_200, 90), of: e(1_199)) && !RideRace.isAhead(e(1_199), of: e(1_200, 90)), "A finisher beats anyone still riding")
+        check(RideRace.isAhead(e(1_200, 80), of: e(1_200, 90)) && !RideRace.isAhead(e(1_200, 95), of: e(1_200, 90)), "Finishers rank by time")
+        check(RideRace.position(player: e(500), rivals: [e(600), e(400), e(700)]) == 3, "Two rivals ahead: third")
+        check(RideRace.position(player: e(500), rivals: []) == 1 && RideRace.position(player: e(500), rivals: [e(10, crashed: true)]) == 1, "Leading, and a crashed rival behind does not count")
+        check(RideRace.position(player: e(500, crashed: true), rivals: [e(600), e(400)]) == 2, "A crashed player keeps the distance reached")
+        check(RideRace.position(player: e(1_200, 100), rivals: [e(1_200, 90), e(1_200, 110), e(900)]) == 2, "Finish times decide among finishers")
+        check(RideRace.prize(position: 1, fieldSize: 2) == 25 && RideRace.prize(position: 2, fieldSize: 2) == 0, "Duel prize")
+        check([1, 2, 3, 4].map { RideRace.prize(position: $0, fieldSize: 4) } == [40, 20, 8, 0] && RideRace.prize(position: 0, fieldSize: 4) == 0 && RideRace.prize(position: 1, fieldSize: 1) == 0, "Field prizes")
+        var tracker = RideRace.OvertakeTracker()
+        check(tracker.update(player: 0, rivals: [e(0), e(20)]).isEmpty, "Nothing happens at the start")
+        check(tracker.update(player: 10, rivals: [e(0), e(20)]).isEmpty, "The first sighting is a baseline, not a pass")
+        check(tracker.update(player: 25, rivals: [e(0), e(20)]) == [RideRace.OvertakeTracker.Event(rival: 1, playerPassed: true)], "Passing a rival is reported once")
+        check(tracker.update(player: 26, rivals: [e(0), e(20)]).isEmpty, "...and not repeated")
+        check(tracker.update(player: 26, rivals: [e(0), e(24)]).isEmpty, "Side by side (within the margin) is not a pass")
+        check(tracker.update(player: 26, rivals: [e(0), e(40)]) == [RideRace.OvertakeTracker.Event(rival: 1, playerPassed: false)], "Being passed is reported")
+        let afterCrash = tracker.update(player: 500, rivals: [e(0, crashed: true), e(40)])
+        check(afterCrash == [RideRace.OvertakeTracker.Event(rival: 1, playerPassed: true)], "Only live rivals are reported (crashed rivals are ignored): \(afterCrash)")
+        check(tracker.update(player: .nan, rivals: [e(0)]).isEmpty, "Invalid distances are ignored")
+        check(Set(RivalLevel.allCases.map { $0.field().count }) == [3] && RivalLevel.expert.field().contains(.expert) && !RivalLevel.easy.field().contains(.expert), "Fields around the chosen level")
     }
 
     static func rivals() {

@@ -29,9 +29,14 @@ extension RideView {
             let splits=splitDeltas.enumerated().compactMap { i,d in d.map { String(format:"T%d %+.1f s",i+1,$0) } }
             if !splits.isEmpty { stateDetail.stringValue += "\nTramos vs fantasma: "+splits.joined(separator:" · ") }
             if !runNotes.isEmpty { stateDetail.stringValue += "\n"+runNotes.joined(separator:"\n") }
-            if challengeKind == .race { stateDetail.stringValue += challenges.completed ? "\n¡Ganaste a tu rival!" : "\nEl rival ha ganado o te has caído" }
+            if !rivalRuns.isEmpty {
+                let field=rivalRuns.count+1
+                stateDetail.stringValue += bike.finished ? "\nPosición \(racePosition)/\(field)" : "\nTe caíste en la posición \(racePosition)/\(field)"
+                if challengeKind == .race { stateDetail.stringValue += challenges.completed ? " · ¡Ganaste a tu rival!" : " · el rival ha ganado o te has caído" }
+                else if challengeKind == .circuit { stateDetail.stringValue += challenges.completed ? " · ¡podio!" : "" }
+            }
         }
-        if mode == .result && challengeKind != .free && challengeKind != .race && challengeKind != .tutorial && challengeKind != .endless { stateDetail.stringValue += "\n"+challenges.progressText }
+        if mode == .result && challengeKind != .free && challengeKind != .race && challengeKind != .circuit && challengeKind != .tutorial && challengeKind != .endless { stateDetail.stringValue += "\n"+challenges.progressText }
         retryButton.title = mode == .paused ? "Reiniciar ruta" : "Volver a salir"
         retryButton.keyEquivalent = mode == .result ? "\r" : ""
     }

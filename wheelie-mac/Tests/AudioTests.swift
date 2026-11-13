@@ -167,7 +167,37 @@ func controlWord(_ bits: UInt64...) -> Int64 { Int64(bitPattern: bits.reduce(0, 
         precondition(ambientStats(flags: 7, main: packedBits(3 << 20, 1 << 18)).peak < 0.000001, "Muted ambient leaked")
         precondition(ambientStats(flags: 7, main: packedBits(3 << 20, 1 << 19)).peak < 0.000001, "Ambient played without an active ride")
         precondition(ambientStats(flags: 0).peak < 0.000001, "No ambient flag, no ambient sound")
-        print("AudioTests passed: finite bounded stereo motor, mute, impact decay, BMX idle/rolling, eight voices, RPM firing rate, load and clutch cut, rain/wind/city ambience. No audio device opened.")
+        // Effects: every one is audible, bounded, finite, decays to silence, and never plays when muted.
+        func effect(_ kind: Int, level: Int64 = 128, main: UInt64 = packedBits(3 << 20, 1 << 19)) -> (peak: Float, tail: Float) {
+            let state = EngineRenderState()
+            state.store(Int64(bitPattern: main))
+            state.storeSFX(Int64(kind) | (1 << 8) | (level << 24))
+            state.render(frameCount: 48_000, buffers: buffer.mutableAudioBufferList)
+            var peak: Float = 0
+            for i in 0..<48_000 { precondition(channels[0][i].isFinite && channels[0][i] == channels[1][i], "Effect produced a bad sample"); peak = max(peak, abs(channels[0][i])) }
+            state.render(frameCount: 48_000, buffers: buffer.mutableAudioBufferList)
+            state.render(frameCount: 48_000, buffers: buffer.mutableAudioBufferList)
+            var tail: Float = 0
+            for i in 40_000..<48_000 { tail = max(tail, abs(channels[0][i])) }
+            return (peak, tail)
+        }
+        for kind in 1...7 {
+            let result = effect(kind)
+            precondition(result.peak > 0.02 && result.peak < 0.9, "Effect \(kind) is silent or too loud: \(result.peak)")
+            precondition(result.tail < 0.000001, "Effect \(kind) did not decay to silence")
+            precondition(effect(kind, main: packedBits(3 << 20)).peak < 0.000001, "Effect \(kind) played while muted")
+        }
+        precondition(effect(6, level: 255).peak > 0 && effect(0).peak < 0.000001 && effect(99).peak < 0.000001, "Unknown effect ids must stay silent")
+        // Several effects at once stay bounded (voices are mixed, never stacked without limit).
+        do {
+            let state = EngineRenderState(); state.store(Int64(bitPattern: packedBits(3 << 20, 1 << 19, 1 << 18)))
+            for (i, kind) in [1, 2, 3, 4, 5, 6, 7, 1, 2].enumerated() { state.storeSFX(Int64(kind) | (Int64(i + 1) << 8)); state.render(frameCount: 480, buffers: buffer.mutableAudioBufferList) }
+            state.render(frameCount: 24_000, buffers: buffer.mutableAudioBufferList)
+            var peak: Float = 0
+            for i in 0..<24_000 { precondition(channels[0][i].isFinite); peak = max(peak, abs(channels[0][i])) }
+            precondition(peak < 1.2, "Overlapping effects clipped: \(peak)")
+        }
+        print("AudioTests passed: finite bounded stereo motor, mute, impact decay, BMX idle/rolling, eight voices, RPM firing rate, load and clutch cut, rain/wind/city ambience, seven interface and trick effects. No audio device opened.")
     }
 }
 """#

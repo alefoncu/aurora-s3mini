@@ -110,6 +110,15 @@ struct TouchBarTests {
         precondition(controller.touchBar === garage && play.isEnabled)
         controller.update(riding:true,paused:true,speed:0,wheelie:0)
         precondition(controller.touchBar === paused,"Compatibility API maps paused correctly")
+        // The trick buttons exist in the customisation palette, hold while pressed and release on pause.
+        controller.update(mode:.riding,speed:12,wheelie:0,stoppie:0)
+        for (name,action) in [("noHands",RideAction.noHands),("spin",.spin),("superman",.superman)] {
+            let key=item(riding,name).view
+            precondition(key.accessibilityPerformPress() && holds.last==Hold(action:action,down:true),"\(name) must hold while pressed")
+            controller.update(mode:.paused,speed:12,wheelie:0,stoppie:0)
+            precondition(holds.last==Hold(action:action,down:false),"Pausing must release \(name)")
+            controller.update(mode:.riding,speed:12,wheelie:0,stoppie:0)
+        }
         controller.update(mode:.riding,speed:8,wheelie:0,stoppie:3.4)
         let invertido=item(riding,"stoppie").view
         precondition(invertido.accessibilityPerformPress() && holds.last==Hold(action:.stoppie,down:true))

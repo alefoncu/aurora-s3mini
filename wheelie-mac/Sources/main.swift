@@ -463,10 +463,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSToolbarDelegate, NST
         for _ in 0..<240 where game.mode == .riding { game.previous=ProcessInfo.processInfo.systemUptime-1/60; game.tick() }
         precondition(game.lapTimes.count == 1 || game.bike.crashed,"Crossing 1,200 m records a lap time")
         game.garage(); precondition(!BikePhysics.circuit,"Leaving the circuit restores the normal terrain")
-        game.bike.route=0; game.challengeKind = .circuit; game.start()
+        game.bike.route=0; game.challengeKind = .circuit; game.rivalLevel = .normal; game.start()
+        precondition(game.rivalRuns.count == 3 && game.rivalRuns.allSatisfy { $0.bike.laps == 3 },"The circuit field has three rivals")
+        for _ in 0..<150 { game.previous=ProcessInfo.processInfo.systemUptime-1/60; game.keys=[126]; game.tick() }
+        precondition(game.racePosition>=1 && game.racePosition<=4 && game.rivalRuns.allSatisfy { $0.bike.x>0 },"Rivals ride and standings update")
+        game.garage(); game.challengeKind = .circuit; game.start()
         game.bike.x = 3596; game.bike.speed=14; game.keys=[126]
         for _ in 0..<240 where game.mode == .riding { game.previous=ProcessInfo.processInfo.systemUptime-1/60; game.tick() }
         precondition(game.mode == .result && game.bike.finished && abs(game.bike.distance-3600)<0.01,"The circuit finishes after three laps")
+        precondition(game.racePosition == 1 && game.challenges.completed && game.stateDetail.stringValue.contains("Posición 1/4") && game.runNotes.contains { $0.contains("Premio de posición 1") },"Finishing first on the circuit gives the podium, the prize and the standings text")
         game.garage(); game.bike.route=originalRoute; game.challengeKind = .free
         // Performance guard: even the heaviest scene (rain, night, obstacles, rival) must stay far from a
         // visible stutter. The bound is deliberately generous so a slow CI machine does not flake.

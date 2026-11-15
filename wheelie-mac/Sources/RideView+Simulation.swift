@@ -4,6 +4,13 @@ import Cocoa
 extension RideView {
     func tick() {
         let now=ProcessInfo.processInfo.systemUptime,dt=min(0.05,max(0,now-previous)); previous=now
+        advanceFrame(dt)
+    }
+    /// The same frame loop with an explicit step, so diagnostics are independent of CPU scheduling.
+    /// Interactive play continues to use the wall clock through tick().
+    func advanceFrame(_ step:Double) {
+        guard step.isFinite,step>=0 else { return }
+        let dt=min(0.05,step)
         if mode == .riding || mode == .crashing { animationTime += dt }
         if mode == .riding {
             let previousFront=bike.frontWheelPosition,previousRear=bike.rearWheelPosition,previousSpeed=bike.speed,previousVertical=bike.verticalVelocity

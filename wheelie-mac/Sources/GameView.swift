@@ -35,6 +35,8 @@ final class RideView: NSView {
     var challengeKind:RideChallengeKind = .free
     /// Route length for rodar libre and carrera: index into `BikePhysics.routeLengths` (1.200, 3.000 or 6.000 m).
     var lengthIndex=0
+    /// Developer diagnostics can replay one procedural course; ordinary runs keep fresh seeds.
+    var diagnosticCourseSeed:UInt64?
     var ghostEnabled=true
     var absOn=false
     /// Dynamic weather: fog banks, storms and blizzards along the route (its own records when on).
@@ -91,7 +93,7 @@ final class RideView: NSView {
         bike.lanePreference=0; bike.lane=0; forkEnd=nil; forkHigh=false
         guard BikePhysics.procedural else { return }
         // Endless runs are never the same twice; long routes are fixed so records and ghosts compare like with like.
-        BikePhysics.seed = BikePhysics.endlessCourse ? UInt64.random(in:1...UInt64.max/2) : UInt64(bike.route*7919+Int(BikePhysics.routeLength))
+        BikePhysics.seed = BikePhysics.endlessCourse ? (diagnosticCourseSeed ?? UInt64.random(in:1...UInt64.max/2)) : UInt64(bike.route*7919+Int(BikePhysics.routeLength))
         BikePhysics.rebuildProceduralCourse()
     }
     func resetCourse() { BikePhysics.procedural=false; BikePhysics.endlessCourse=false; BikePhysics.routeLength=1200 }

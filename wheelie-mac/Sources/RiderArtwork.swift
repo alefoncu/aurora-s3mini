@@ -151,9 +151,9 @@ extension RideRenderer {
             let ankle=NSPoint(x:footP.x-0.012*u,y:footP.y-0.085*u)
             let sx=kneeP.x-ankle.x,sy=kneeP.y-ankle.y,sl=max(0.001,hypot(sx,sy))
             self.raBoot(footP,shin:NSPoint(x:sx/sl,y:sy/sl),u:u,style:style,far:dim != 0)
-            self.raLimb(kneeP,ankle,0.118*u,0.078*u,bulge:0.026*u,at:0.28,color:c)
-            self.raLimb(hipP,kneeP,0.205*u,0.125*u,bulge:0.022*u,at:0.22,color:c)
-            self.circle(kneeP.x,kneeP.y,0.058*u,c)
+            self.raLimb(kneeP,ankle,0.098*u,0.064*u,bulge:0.026*u,at:0.30,color:c)
+            self.raLimb(hipP,kneeP,0.178*u,0.102*u,bulge:0.020*u,at:0.20,color:c)
+            self.circle(kneeP.x,kneeP.y,0.047*u,c)
             if dim == 0 {
                 self.raStripe(hipP,kneeP,from:0.15,to:0.95,side:-1,offset:0.045*u,width:u*0.008,NSColor.white.withAlphaComponent(leather ? 0.16 : 0.18))
                 if style == .commuter || style == .bmx {
@@ -175,10 +175,10 @@ extension RideRenderer {
         let dx=shoulder.x-hip.x,dy=shoulder.y-hip.y,l=max(0.001,hypot(dx,dy)),nx = -dy/l,ny=dx/l
         func T(_ s:Double,_ n:Double)->NSPoint { NSPoint(x:hip.x+dx*s+nx*n*u,y:hip.y+dy*s+ny*n*u) }
         let humpy = style == .sport || style == .motocross
-        var torsoPts:[NSPoint]=[T(-0.02,-0.095),T(0.2,-0.098),T(0.45,-0.112),T(0.72,-0.13+(humpy ? -0.02 : 0)),T(0.93,-0.115),T(1.05,-0.05),T(1.06,0.03),T(0.96,0.105),T(0.78,0.145),T(0.55,0.128),T(0.32,0.112),T(0.08,0.12),T(-0.04,0.045)]
-        if humpy { torsoPts.insert(T(0.88,-0.165),at:5) }
+        var torsoPts:[NSPoint]=[T(-0.03,-0.085),T(0.2,-0.088),T(0.45,-0.10),T(0.72,-0.115+(humpy ? -0.02 : 0)),T(0.92,-0.105),T(1.04,-0.05),T(1.06,0.03),T(0.97,0.095),T(0.78,0.128),T(0.55,0.112),T(0.32,0.098),T(0.08,0.105),T(-0.04,0.04)]
+        if humpy { torsoPts.insert(T(0.86,-0.128),at:5) }
         let torso=raSpline(torsoPts)
-        raFill(torso,leather ? NSColor(hex:0x242B33) : coat,angle:70)
+        raFill(torso,coat,angle:70)
         NSGraphicsContext.saveGraphicsState();torso.addClip()
         switch style {
         case .sport:
@@ -220,20 +220,21 @@ extension RideRenderer {
         // Neck, collar and head.
         let spine=pose.shoulder-pose.hip
         raLimb(neck,NSPoint(x:head.x+nx*u*0.0,y:head.y+u*0.075),0.1*u,0.088*u,color:raShade(skin,-0.06))
-        if style != .bmx {
-            let collar=raSpline([T(1.0,-0.07),T(1.1,-0.06),T(1.13,0.0),T(1.1,0.07),T(1.0,0.085),T(0.96,0.0)])
-            raFill(collar,style == .sport ? raShade(coat,-0.1) : raShade(coat,-0.14))
+        if style != .bmx && style != .sport {
+            let collar=raSpline([T(1.0,-0.06),T(1.07,-0.05),T(1.09,0.0),T(1.07,0.06),T(1.0,0.075),T(0.96,0.0)])
+            raFill(collar,raShade(coat,-0.14))
         }
         // Arm: deltoid, sleeve with elbow volume, forearm and glove.
         let sleeve = style == .bmx ? skin : coat
         let cuffColor = style == .sport ? NSColor(hex:0x242B33) : style == .motocross ? raShade(coat,-0.3) : coat
-        raLimb(shoulder,elbow,0.112*u,0.088*u,bulge:0.014*u,at:0.3,color:style == .sport ? NSColor(hex:0x242B33) : sleeve)
+        circle(shoulder.x,shoulder.y,0.062*u,style == .bmx ? coat : coat); ink.withAlphaComponent(0.0).setFill()
+        raLimb(shoulder,elbow,0.098*u,0.078*u,bulge:0.014*u,at:0.3,color:sleeve)
         if style == .bmx {
             let cut=NSPoint(x:shoulder.x+(elbow.x-shoulder.x)*0.5,y:shoulder.y+(elbow.y-shoulder.y)*0.5)
             raLimb(shoulder,cut,0.13*u,0.115*u,color:coat)
         }
-        raLimb(elbow,hand,0.092*u,0.064*u,bulge:0.016*u,at:0.25,color:style == .bmx ? skin : (style == .sport ? NSColor(hex:0x242B33) : cuffColor == coat ? coat : coat))
-        circle(elbow.x,elbow.y,0.047*u,style == .bmx ? skin : style == .sport ? NSColor(hex:0x242B33) : coat)
+        raLimb(elbow,hand,0.080*u,0.058*u,bulge:0.016*u,at:0.25,color:style == .bmx ? skin : coat)
+        circle(elbow.x,elbow.y,0.040*u,style == .bmx ? skin : coat)
         if style == .sport || style == .motocross {
             raStripe(shoulder,elbow,from:0.12,to:0.9,side:1,offset:0.03*u,width:u*0.012,accent)
             let guardA=NSPoint(x:elbow.x-0.012*u,y:elbow.y-0.014*u)

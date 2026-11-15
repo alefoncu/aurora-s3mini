@@ -41,7 +41,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSToolbarDelegate, NST
     var colorWells:[String:NSColorWell]=[:]
     var smokePreferences:String?
     var diagnosticMode:Bool {
-        let flags:Set<String>=["--smoke-test","--snapshot","--responsive","--crash","--ragdoll","--bench","--fps","--screenshot"]
+        let flags:Set<String>=["--smoke-test","--snapshot","--responsive","--crash","--ragdoll","--bench","--fps","--screenshot","--bikesheet"]
         return !flags.isDisjoint(with:CommandLine.arguments)
     }
     func applicationDidFinishLaunching(_ notification:Notification) {
@@ -91,6 +91,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSToolbarDelegate, NST
         if let i=CommandLine.arguments.firstIndex(of:"--responsive"),i+1<CommandLine.arguments.count { responsiveSnapshots(to:CommandLine.arguments[i+1]) }
         if let i=CommandLine.arguments.firstIndex(of:"--crash"),i+1<CommandLine.arguments.count { crashSequences(to:CommandLine.arguments[i+1]) }
         if let i=CommandLine.arguments.firstIndex(of:"--ragdoll"),i+1<CommandLine.arguments.count { ragdollSheets(to:CommandLine.arguments[i+1]) }
+        if let i=CommandLine.arguments.firstIndex(of:"--bikesheet"),i+1<CommandLine.arguments.count { bikeSheets(to:CommandLine.arguments[i+1]) }
         if CommandLine.arguments.contains("--bench") { runBenchmark() }
         if CommandLine.arguments.contains("--fps") { measureLiveFrameRate() }
         if let i=CommandLine.arguments.firstIndex(of:"--screenshot"),i+1<CommandLine.arguments.count { windowScreenshots(to:CommandLine.arguments[i+1]) }
@@ -312,6 +313,28 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSToolbarDelegate, NST
         for kind in [BikeKind.sport,.bmx] {
             game.bike.kind=kind; game.challengeKind = .free; syncWindow(); pump(0.3)
             if let image=inspector.uiFullImage(),let tiff=image.tiffRepresentation,let rep=NSBitmapImageRep(data:tiff) { try? rep.representation(using:.png,properties:[:])?.write(to:URL(fileURLWithPath:directory+"/inspector-\(kind.rawValue).png")) }
+        }
+        NSApp.terminate(nil)
+    }
+    /// Developer aid: every vehicle (with rider) large on a plain backdrop, `bike-<kind>.png`, for artwork review.
+    func bikeSheets(to directory:String) {
+        try? FileManager.default.createDirectory(atPath:directory,withIntermediateDirectories:true)
+        let only=CommandLine.arguments.firstIndex(of:"--only").flatMap { $0+1<CommandLine.arguments.count ? CommandLine.arguments[$0+1] : nil }
+        let width=1100,height=900
+        for kind in BikeKind.allCases where only == nil || only == kind.rawValue {
+            guard let rep=NSBitmapImageRep(bitmapDataPlanes:nil,pixelsWide:width,pixelsHigh:height,bitsPerSample:8,samplesPerPixel:4,hasAlpha:true,isPlanar:false,colorSpaceName:.deviceRGB,bytesPerRow:0,bitsPerPixel:0),
+                  let g=NSGraphicsContext(bitmapImageRep:rep) else { continue }
+            let cg=g.cgContext
+            NSGraphicsContext.saveGraphicsState()
+            cg.translateBy(x:0,y:CGFloat(height)); cg.scaleBy(x:1,y:-1)
+            NSGraphicsContext.current=NSGraphicsContext(cgContext:cg,flipped:true)
+            let art=RideRenderer()
+            NSGradient(colors:[NSColor(hex:0xCFE0EA),NSColor(hex:0xEEF3F2)])?.draw(in:NSRect(x:0,y:0,width:Double(width),height:Double(height)),angle:90)
+            let k=kind.rig,u=k.drawingUnitsPerMetre,scale=5.4,ground=800.0
+            NSColor(hex:0x7C8A8D).setFill(); NSBezierPath(rect:NSRect(x:0,y:ground,width:Double(width),height:Double(height)-ground)).fill()
+            art.motorcycle(x:150,y:ground-k.wheelRadius*u*scale,scale:scale,angle:0,kind:kind,rotation:0.4,time:0,frontRotation:0.4)
+            NSGraphicsContext.restoreGraphicsState()
+            try? rep.representation(using:.png,properties:[:])?.write(to:URL(fileURLWithPath:directory+"/bike-"+kind.rawValue+".png"))
         }
         NSApp.terminate(nil)
     }

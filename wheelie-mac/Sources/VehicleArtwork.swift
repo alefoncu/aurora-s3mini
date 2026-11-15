@@ -16,6 +16,22 @@ extension RideRenderer {
         let sporty=(kind == .sport || kind == .hyperbike)
         vmWheel(at:rearAxle,radius:radius,rotation:rotationRear,kind:kind,front:false)
         vmWheel(at:frontAxle,radius:radius,rotation:rotationFront,kind:kind,front:true)
+        if kind == .sport || kind == .hyperbike {
+            drawSportBike(rig:rig,rearAxle:rearAxle,frontAxle:frontAxle,rotationRear:rotationRear,rotationFront:rotationFront,time:time,hyper:kind == .hyperbike)
+            return
+        }
+        if kind == .commuter || kind == .scrambler || kind == .electric {
+            drawStandardBike(kind:kind,rig:rig,rearAxle:rearAxle,frontAxle:frontAxle,rotationRear:rotationRear)
+            return
+        }
+        if kind == .motocross || kind == .trials {
+            drawOffroadBike(kind:kind,rig:rig,rearAxle:rearAxle,frontAxle:frontAxle,rotationRear:rotationRear)
+            return
+        }
+        if kind == .cruiser {
+            drawCruiserBike(rig:rig,rearAxle:rearAxle,frontAxle:frontAxle,rotationRear:rotationRear)
+            return
+        }
         if kind == .bmx {
             vmBicycle(rig:rig,rear:rearAxle,front:frontAxle,pedalPhase:pedalPhase)
             return
@@ -156,7 +172,7 @@ extension RideRenderer {
     }
 
     // MARK: Wheels and brakes
-    private func vmWheel(at axle:NSPoint,radius r:Double,rotation:Double,kind:BikeKind,front:Bool) {
+    func vmWheel(at axle:NSPoint,radius r:Double,rotation:Double,kind:BikeKind,front:Bool) {
         let x=axle.x,y=axle.y,cycle=kind == .bmx,offroad=(kind == .motocross || kind == .trials || kind == .scrambler)
         let cast=(kind == .sport || kind == .hyperbike || kind == .electric)
         let tyre=NSBezierPath(ovalIn:NSRect(x:x-r,y:y-r,width:r*2,height:r*2))
@@ -222,7 +238,7 @@ extension RideRenderer {
         shine.lineWidth=0.85;NSColor(hex:0xB3BDC1,alpha:0.5).setStroke();shine.stroke()
     }
     /// A caliper is an arc-shaped body that straddles the rim of the disc, bolted to the fork slider / swingarm by a bracket plate.
-    private func vmCaliper(axle:NSPoint,discRadius:Double,angle deg:Double,span:Double,color:[NSColor],bracketTo mount:NSPoint) {
+    func vmCaliper(axle:NSPoint,discRadius:Double,angle deg:Double,span:Double,color:[NSColor],bracketTo mount:NSPoint) {
         let a=deg*Double.pi/180,half=span*Double.pi/360
         // Mounting bracket from the axle area to the caliper body.
         let mid=NSPoint(x:axle.x+cos(a)*discRadius*0.5,y:axle.y+sin(a)*discRadius*0.5)
@@ -243,7 +259,7 @@ extension RideRenderer {
         let c=NSPoint(x:axle.x+cos(a)*(discRadius-0.8),y:axle.y+sin(a)*(discRadius-0.8))
         circle(c.x,c.y,1.1,NSColor(hex:0x20292E)); line(c.x+cos(a)*2.6,c.y+sin(a)*2.6,c.x+cos(a)*4.4,c.y+sin(a)*4.4,0.9,NSColor(hex:0x11181C))
     }
-    private func vmBrake(front:NSPoint,rear:NSPoint,radius:Double,kind:BikeKind,grip:NSPoint,fork:NSPoint,pivot:NSPoint) {
+    func vmBrake(front:NSPoint,rear:NSPoint,radius:Double,kind:BikeKind,grip:NSPoint,fork:NSPoint,pivot:NSPoint) {
         let sporty=kind == .sport || kind == .hyperbike
         let rimR=radius-5.8
         let frontDisc=rimR*0.66,rearDisc=rimR*0.48
@@ -270,15 +286,15 @@ extension RideRenderer {
     private func offroadKind(_ k:BikeKind)->Bool { k == .motocross || k == .trials || k == .scrambler }
 
     // MARK: Chassis pieces
-    private func vmSwingarm(pivot:NSPoint,axle:NSPoint,kind:BikeKind,far:Bool) {
+    func vmSwingarm(pivot:NSPoint,axle:NSPoint,kind:BikeKind,far:Bool) {
         let sporty=kind == .sport || kind == .hyperbike
         let dx=axle.x-pivot.x,dy=axle.y-pivot.y,l=max(0.001,hypot(dx,dy)),nx = -dy/l,ny=dx/l
         func at(_ t:Double,_ n:Double)->NSPoint { NSPoint(x:pivot.x+dx*t+nx*n,y:pivot.y+dy*t+ny*n) }
-        let w0=sporty ? 6.2 : 4.6,w1=sporty ? 3.6 : 2.8
+        let w0=sporty ? 4.8 : 4.6,w1=sporty ? 3.0 : 2.8
         let arm=NSBezierPath()
         arm.move(to:at(-0.05,-w0)); arm.line(to:at(1.0,-w1)); arm.line(to:at(1.04,w1*0.6)); arm.line(to:at(1.0,w1)); arm.line(to:at(-0.05,w0)); arm.close()
         if far { vmFill(arm,colors:[NSColor(hex:0x4A5961),NSColor(hex:0x1D272D)],angle:80,outline:0.6); return }
-        vmFill(arm,colors:sporty ? [NSColor(hex:0xE1E6E4),NSColor(hex:0x717F87),NSColor(hex:0x3B4950)] : [NSColor(hex:0x66747C),NSColor(hex:0x242F36)],angle:80,outline:0.7)
+        vmFill(arm,colors:sporty ? [NSColor(hex:0xA7B2B6),NSColor(hex:0x5A676E),NSColor(hex:0x2A353B)] : [NSColor(hex:0x66747C),NSColor(hex:0x242F36)],angle:80,outline:0.7)
         // Brace under the arm and the axle adjuster block with its tension bolt.
         line(at(0.22,w0*0.9).x,at(0.22,w0*0.9).y,at(0.62,w1*0.9).x,at(0.62,w1*0.9).y,1.4,NSColor(hex:0x2B363D,alpha:0.9))
         line(at(0.3,-w0*0.5).x,at(0.3,-w0*0.5).y,at(0.85,-w1*0.5).x,at(0.85,-w1*0.5).y,0.55,NSColor.white.withAlphaComponent(0.5))
@@ -288,7 +304,7 @@ extension RideRenderer {
         vmBolt(pivot.x,pivot.y,r:2.2)
     }
     /// Rear subframe: a seat-post strut and a gusseted shock mount that tie the damper, the seat rails and the swingarm pivot into one structure.
-    private func vmShockTower(top:NSPoint,seat:NSPoint,pivot:NSPoint,kind:BikeKind) {
+    func vmShockTower(top:NSPoint,seat:NSPoint,pivot:NSPoint,kind:BikeKind) {
         if kind == .bmx { return }
         let sporty=kind == .sport || kind == .hyperbike
         let c = sporty ? NSColor(hex:0xB9C0BF) : NSColor(hex:0x2D363C)
@@ -298,7 +314,7 @@ extension RideRenderer {
         let g=NSBezierPath(); g.move(to:NSPoint(x:top.x-5,y:top.y+4)); g.line(to:NSPoint(x:top.x+4,y:top.y+4)); g.line(to:NSPoint(x:top.x+2,y:top.y-3)); g.line(to:NSPoint(x:top.x-3,y:top.y-3)); g.close()
         vmFill(g,colors:[vmTone(c,0.25),vmTone(c,-0.25)],angle:80,outline:0.5)
     }
-    private func vmShock(top:NSPoint,bottom:NSPoint,offroad:Bool,reservoir:Bool,kind:BikeKind) {
+    func vmShock(top:NSPoint,bottom:NSPoint,offroad:Bool,reservoir:Bool,kind:BikeKind) {
         let dx=bottom.x-top.x,dy=bottom.y-top.y,len=max(0.001,hypot(dx,dy)),nx = -dy/len,ny=dx/len
         // Damper body and shaft, then the coil spring and an optional remote reservoir.
         vmMetalLink(top,bottom,width:3.0,dark:true)
@@ -308,21 +324,21 @@ extension RideRenderer {
             vmFill(tank,colors:[NSColor(hex:0x2B353C),NSColor(hex:0x6B7A82)],angle:0,outline:0.5)
             line(a.x,a.y,a.x+nx*6,a.y+ny*6,1.0,NSColor(hex:0x151D22))
         }
-        let start=vmMix(top,bottom,0.18),end=vmMix(top,bottom,0.86)
-        let coil=NSBezierPath();coil.move(to:start)
-        let turns=(kind == .cruiser || kind == .scooter) ? 9.0 : 11.0
-        for i in 1...56 {
-            let t=Double(i)/56,base=vmMix(start,end,t),wave=sin(t*Double.pi*2*turns)*2.9
-            coil.line(to:NSPoint(x:base.x+nx*wave,y:base.y+ny*wave))
+        let start=vmMix(top,bottom,0.16),end=vmMix(top,bottom,0.88)
+        let coils=(kind == .cruiser || kind == .scooter) ? 8 : 10
+        let spring = offroad ? NSColor(hex:0xE3BC58) : (kind == .sport || kind == .hyperbike) ? NSColor(hex:0xE0452F) : NSColor(hex:0xA9B2B0)
+        let ax=(end.x-start.x)/Double(coils),ay=(end.y-start.y)/Double(coils)
+        for i in 0..<coils {
+            let c=NSPoint(x:start.x+ax*(Double(i)+0.5),y:start.y+ay*(Double(i)+0.5))
+            let a=NSPoint(x:c.x-nx*3.3-ax*0.32,y:c.y-ny*3.3-ay*0.32),b=NSPoint(x:c.x+nx*3.3+ax*0.32,y:c.y+ny*3.3+ay*0.32)
+            line(a.x,a.y,b.x,b.y,2.9,NSColor(hex:0x1B262C)); line(a.x,a.y,b.x,b.y,1.9,spring); line(a.x-0.2,a.y-0.5,b.x-0.2,b.y-0.5,0.5,vmTone(spring,0.5))
         }
-        let spring = offroad ? NSColor(hex:0xE3BC58) : (kind == .sport || kind == .hyperbike) ? NSColor(hex:0xD94A34) : NSColor(hex:0xA9B2B0)
-        coil.lineWidth=1.9;NSColor(hex:0x1F2B31).setStroke();coil.stroke();coil.lineWidth=1.1;spring.setStroke();coil.stroke()
         vmBolt(top.x,top.y,r:1.9); vmBolt(bottom.x,bottom.y,r:1.9)
     }
-    private func vmFarFork(top:NSPoint,axle:NSPoint,offroad:Bool,upsideDown:Bool) {
+    func vmFarFork(top:NSPoint,axle:NSPoint,offroad:Bool,upsideDown:Bool) {
         vmMetalLink(NSPoint(x:top.x+1.2,y:top.y+1),NSPoint(x:axle.x+1.2,y:axle.y+0.5),width:4.0,dark:true)
     }
-    private func vmNearFork(top:NSPoint,axle:NSPoint,offroad:Bool,upsideDown:Bool,kind:BikeKind) {
+    func vmNearFork(top:NSPoint,axle:NSPoint,offroad:Bool,upsideDown:Bool,kind:BikeKind) {
         let dx=axle.x-top.x,dy=axle.y-top.y,length=max(0.001,hypot(dx,dy))
         let d=NSPoint(x:dx/length,y:dy/length)
         // Two tube sections keep their manufactured lengths; only their overlap changes with travel.
@@ -354,7 +370,7 @@ extension RideRenderer {
         vmRounded(NSRect(x:top.x-2.2,y:top.y-4.4,width:4.4,height:3),radius:1,colors:[NSColor(hex:0xDADFDA),NSColor(hex:0x6D7B82)])
         _=kind
     }
-    private func vmFender(axle:NSPoint,radius:Double,kind:BikeKind,paint:NSColor) {
+    func vmFender(axle:NSPoint,radius:Double,kind:BikeKind,paint:NSColor) {
         let offroad=(kind == .motocross || kind == .trials || kind == .scrambler)
         let low = (kind == .sport || kind == .hyperbike)
         let top=axle.y-radius
@@ -372,7 +388,7 @@ extension RideRenderer {
         }
         vmPanel(p,paint,gloss:0.3,outline:0.75)
     }
-    private func vmChain(rear:NSPoint,crank:NSPoint,rotation:Double) {
+    func vmChain(rear:NSPoint,crank:NSPoint,rotation:Double) {
         // Front sprocket, rear sprocket and the chain run between them.
         let rs:Double=9.4
         let p=NSBezierPath();p.move(to:NSPoint(x:rear.x,y:rear.y-rs));p.line(to:NSPoint(x:crank.x,y:crank.y-4.6));p.curve(to:NSPoint(x:crank.x,y:crank.y+4.6),controlPoint1:NSPoint(x:crank.x+6,y:crank.y-4.6),controlPoint2:NSPoint(x:crank.x+6,y:crank.y+4.6))
@@ -386,7 +402,7 @@ extension RideRenderer {
         for i in 0..<9 { let a=Double(i)*Double.pi*2/9+rotation; circle(crank.x+cos(a)*4.6,crank.y+sin(a)*4.6,0.5,NSColor(hex:0xD2D7D1)) }
     }
     /// The visible frame, per kind: trellis, twin-spar, cradle or backbone.
-    private func vmFrame(kind:BikeKind,rig:VehicleRig,pivot:NSPoint,fork:NSPoint) {
+    func vmFrame(kind:BikeKind,rig:VehicleRig,pivot:NSPoint,fork:NSPoint) {
         let steel=NSColor(hex:0x2D363C),alu=NSColor(hex:0xB9C0BF)
         let head=NSPoint(x:fork.x-1,y:fork.y-1)
         switch kind {
@@ -413,7 +429,7 @@ extension RideRenderer {
     }
 
     // MARK: Powertrains
-    private func vmFins(_ rect:NSRect,count:Int,angle:Double,about c:NSPoint) {
+    func vmFins(_ rect:NSRect,count:Int,angle:Double,about c:NSPoint) {
         let t=NSAffineTransform(); t.translateX(by:c.x,yBy:c.y); t.rotate(byDegrees:angle); t.translateX(by:-c.x,yBy:-c.y)
         NSGraphicsContext.saveGraphicsState(); t.concat()
         for i in 0..<count {
@@ -423,7 +439,7 @@ extension RideRenderer {
         }
         NSGraphicsContext.restoreGraphicsState()
     }
-    private func vmCylinder(base:NSPoint,width:Double,height:Double,angle:Double,fins:Int,headColor:NSColor) {
+    func vmCylinder(base:NSPoint,width:Double,height:Double,angle:Double,fins:Int,headColor:NSColor) {
         NSGraphicsContext.saveGraphicsState()
         let t=NSAffineTransform(); t.translateX(by:base.x,yBy:base.y); t.rotate(byDegrees:angle); t.concat()
         vmRounded(NSRect(x:-width/2,y:-height,width:width,height:height),radius:1.2,colors:[NSColor(hex:0x9AA6A8),NSColor(hex:0x3C4A52),NSColor(hex:0x6B7B83)],angle:0)
@@ -448,7 +464,7 @@ extension RideRenderer {
             h.lineWidth=2.4; NSColor(hex:0x12181C).setStroke(); h.stroke(); h.lineWidth=0.6; NSColor(hex:0x4C5961).setStroke(); h.stroke()
         }
     }
-    private func vmCase(_ pts:[(Double,Double)],_ outline:Double=0.85) {
+    func vmCase(_ pts:[(Double,Double)],_ outline:Double=0.85) {
         vmFill(vmSpline(pts),colors:[NSColor(hex:0xA1ACAE),NSColor(hex:0x3C4A52),NSColor(hex:0x687A82)],angle:62,outline:outline)
     }
     func vmClutchCover(_ c:NSPoint,r:Double) {
@@ -457,7 +473,7 @@ extension RideRenderer {
         for i in 0..<6 { let a=Double(i)*Double.pi/3; vmBolt(c.x+cos(a)*(r*0.8),c.y+sin(a)*(r*0.8),r:0.7) }
     }
     /// Engine, cooling and exhaust, drawn between the frame and the bodywork.
-    private func vmPowertrain(kind:BikeKind) {
+    func vmPowertrain(kind:BikeKind) {
         let steel=NSColor(hex:0x151D22)
         switch kind {
         case .sport,.hyperbike:
@@ -521,7 +537,7 @@ extension RideRenderer {
         // Shift lever and the sparking-plug wire.
         vmMetalLink(vmQ(34,6),vmQ(28,7),width:1.6,dark:true)
     }
-    private func vmHandlebar(fork:NSPoint,grip:NSPoint,kind:BikeKind) {
+    func vmHandlebar(fork:NSPoint,grip:NSPoint,kind:BikeKind) {
         let sporty=kind == .sport || kind == .hyperbike
         let wide=kind == .motocross || kind == .trials
         let top=NSPoint(x:fork.x+1,y:fork.y-6)
@@ -542,7 +558,7 @@ extension RideRenderer {
         // Black grip, brake lever, throttle housing and a mirror on a stalk.
         let lever=NSBezierPath();lever.move(to:NSPoint(x:grip.x+3,y:grip.y-1));lever.curve(to:NSPoint(x:grip.x+9,y:grip.y-5.5),controlPoint1:NSPoint(x:grip.x+9,y:grip.y-1),controlPoint2:NSPoint(x:grip.x+10,y:grip.y-3.5));lever.lineWidth=1.0;NSColor(hex:0xC7D0D1).setStroke();lever.stroke()
         vmRounded(NSRect(x:grip.x-1.5,y:grip.y-5.4,width:5.2,height:3.5),radius:1,colors:[NSColor(hex:0x3C464D),NSColor(hex:0x151D22)])
-        if !wide && kind != .scooter && kind != .hyperbike {
+        if !wide && kind != .scooter && kind != .hyperbike && kind != .sport {
             let m0=NSPoint(x:grip.x-1,y:grip.y-5),m1=NSPoint(x:grip.x-5,y:grip.y-(sporty ? 14 : 18))
             vmMetalLink(m0,m1,width:1.0,dark:true)
             let mirror=NSBezierPath(ovalIn:NSRect(x:m1.x-6,y:m1.y-3.6,width:11,height:7)); vmFill(mirror,colors:[NSColor(hex:0x253038),NSColor(hex:0x90A2AA)],angle:20,outline:0.55)
@@ -560,7 +576,7 @@ extension RideRenderer {
         line(back+3,y+0.9,x+12,y+1.8,0.55,NSColor(hex:0x93A0A8,alpha:0.75))
         for i in 0..<7 { let xx=back+4+Double(i)*5.5;line(xx,y+4.2,xx+2,y+4.5,0.45,NSColor(hex:0x818A90,alpha:0.5)) }
     }
-    private func vmBicycle(rig:VehicleRig,rear:NSPoint,front:NSPoint,pedalPhase:Double) {
+    func vmBicycle(rig:VehicleRig,rear:NSPoint,front:NSPoint,pedalPhase:Double) {
         let u=rig.drawingUnitsPerMetre, seat=NSPoint(x:rig.seat.x*u,y:-rig.seat.y*u),head=NSPoint(x:rig.frontSuspensionMount.x*u,y:-rig.frontSuspensionMount.y*u),grip=NSPoint(x:rig.grip.x*u,y:-rig.grip.y*u),crank=NSPoint(x:rig.crank.x*u,y:-rig.crank.y*u)
         func frameTube(_ a:NSPoint,_ b:NSPoint,_ w:Double) { vmTube(a,b,w,body) }
         vmChain(rear:rear,crank:crank,rotation:pedalPhase)

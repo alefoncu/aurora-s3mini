@@ -371,6 +371,17 @@ Lo que **no** se ha podido comprobar y conviene revisar jugando:
 - **Bifurcaciones:** solo existen en el modo infinito y en las rutas largas. Desde 6.18 el fantasma guarda el carril; los fantasmas antiguos lo desconocen.
 
 
+### Actualización 6.20 · motos y piloto diseñados desde cero
+
+Las diez motos se dibujan ahora con diseño propio (`BikeDesign.swift`) en lugar de apilar formas sueltas; la física, el solver y los tests no cambian.
+
+- **Deportiva y Hyper:** carenado bicolor (pintura arriba, quilla negra abajo) con proa en punta, faro de rendija, cúpula grande inclinada, espejo en el carenado y silencioso corto paralelo a la cola. La Hyper añade aleta, cola de carbono y rotulación.
+- **Street, Scrambler y Eléctrica:** chasis con tubos reales (superior, inferior, cuna y subchasis), motor con carter y cilindro aleteado, depósito en gota, faro redondo con soporte y escape que sale del cilindro. La Eléctrica lleva batería con aletas y motor central.
+- **Enduro y Trial:** cámara de expansión y silenciador hasta la cola, carenado único de depósito y aletas, matrícula frontal, motor con radiador y quilla.
+- **Cruiser:** V-twin con dos cilindros, doble escape cromado, guardabarros con faldón, alforja colgada de rieles, respaldo y estribos.
+- **Piloto:** hombro definido, muslos y piernas más finos, traje coherente (parte superior en el color del mono y piernas oscuras) y sin picos en la nuca.
+- **Herramienta:** `WheelieRide --bikesheet <carpeta> [--only <moto>]` guarda `bike-<moto>.png` a gran tamaño para revisar el arte.
+
 ### Actualización 6.19 · nuevo diseño de piloto y motos
 
 Rediseño solo visual: la física, el solver del piloto (`RiderRig`), el ragdoll y los tests no cambian.

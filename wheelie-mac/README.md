@@ -371,6 +371,13 @@ Lo que **no** se ha podido comprobar y conviene revisar jugando:
 - **Bifurcaciones:** solo existen en el modo infinito y en las rutas largas. Desde 6.18 el fantasma guarda el carril; los fantasmas antiguos lo desconocen.
 
 
+### Actualización 6.19 · nuevo diseño de piloto y motos
+
+Rediseño solo visual: la física, el solver del piloto (`RiderRig`), el ragdoll y los tests no cambian.
+
+- **Estilo cel-shading unificado:** pintura plana con una banda de sombra de borde duro, brillo especular nítido y contorno firme, tanto en carrocerías como en el piloto (ropa, guantes, botas y casco).
+- **Deportiva 600 e Hyper R 1000 rehechas:** cola ascendente, depósito esculpido y un único carenado continuo (en la Hyper, parte superior pintada y quilla de carbono con aleta y faro LED) en lugar de bloques sueltos.
+
 ### Actualización 6.18 · revisión de pendientes
 
 Auditoría del estado actual: avisos de logros/misiones, dificultad Asistido/Normal/Realista, volteretas del rival en tierra y dunas, herramientas de rendimiento y separación de `RideView` ya estaban implementados. Esta revisión cierra defectos de esas funciones:

@@ -120,66 +120,67 @@ extension RideRenderer {
 
     // MARK: Sport 600
     func vmSportBody(rig:VehicleRig) {
-        // Pointed tail, sharp tank, half-fairing nose with twin lamps and a belly pan that leaves the engine visible.
-        let tail=vmRoundedPoly([(-4,43),(-2,50),(22,58),(44,52),(44,44),(18,40)],radius:3)
+        // One continuous line: upswept tail, sculpted tank, and a single side fairing that flows from the nose into the belly pan.
+        let tail=vmSpline([(-8,45),(-7,50),(6,55),(26,55),(40,50),(36,44),(14,41),(0,42)])
         vmPanel(tail,body,gloss:0.5)
-        vmClip(tail) { line(0,-48,38,-52,1.2,NSColor.white.withAlphaComponent(0.75)); line(14,-42,40,-47,2.6,vmTone(body,-0.45)) }
+        vmClip(tail) { line(-4,-47,34,-51,1.2,NSColor.white.withAlphaComponent(0.75)); line(8,-43,36,-46,2.2,vmTone(body,-0.45)) }
         vmSeat(rig:rig,kind:.sport,length:12)
-        let tank=vmRoundedPoly([(32,46),(36,58),(56,67),(76,62),(86,56),(72,44),(48,42)],radius:5)
+        let tank=vmSpline([(32,47),(38,58),(56,66),(76,63),(84,57),(70,46),(48,43)])
         vmPanel(tank,body,gloss:0.55)
-        vmClip(tank) { line(40,-59,74,-60,3.4,vmTone(body,-0.5)); line(36,-56,66,-64,0.9,NSColor.white.withAlphaComponent(0.55)) }
+        vmClip(tank) { line(40,-58,76,-60,3.2,vmTone(body,-0.5)); line(36,-55,68,-63,0.9,NSColor.white.withAlphaComponent(0.6)) }
         vmKneeGrip([(44,46),(44,55),(56,57),(58,47)])
-        // Belly pan first, then the fairing nose over it.
-        let belly=vmRoundedPoly([(50,32),(88,38),(102,30),(96,16),(84,3),(58,0),(47,9)],radius:3)
-        vmPanel(belly,body,gloss:0.4)
-        vmClip(belly) { line(52,-26,98,-30,3.0,vmTone(body,-0.45)); line(50,-20,96,-22,0.8,NSColor.white.withAlphaComponent(0.7)) }
-        let outlet=vmPoly([(66,22),(86,26),(88,20),(72,15)])
+        let fairing=vmSpline([(50,46),(64,56),(78,68),(96,69),(112,58),(110,48),(100,40),(94,28),(88,14),(74,4),(56,2),(46,10),(44,26)])
+        vmPanel(fairing,body,gloss:0.6,outline:0.9)
+        // Racing stripe and a contrasting belly line follow the fairing's flow.
+        vmClip(fairing) {
+            line(60,-47,104,-53,2.4,vmTone(body,-0.5)); line(58,-42,96,-45,0.8,NSColor.white.withAlphaComponent(0.8))
+            line(52,-10,90,-24,1.6,vmTone(body,-0.45))
+        }
+        // Radiator outlet louvres.
+        let outlet=vmPoly([(62,24),(80,29),(82,22),(66,16)])
         vmFill(outlet,colors:[NSColor(hex:0x152028),NSColor(hex:0x4A5E69)],angle:80,outline:0.4)
-        for i in 0..<3 { line(70+Double(i)*5,-(17+Double(i)*1.2),72+Double(i)*5,-(22+Double(i)*1.2),0.6,NSColor(hex:0x93A8B0)) }
-        let nose=vmRoundedPoly([(64,50),(80,67),(100,65),(114,55),(106,43),(92,40),(74,40)],radius:3.2)
-        vmPanel(nose,body,gloss:0.6)
-        vmClip(nose) { line(70,-56,108,-52,2.4,vmTone(body,-0.45)) }
-        // Angular twin projector lamps, an air scoop, indicator and the screen.
-        let lamp=vmRoundedPoly([(96,56),(108,54),(110,48),(98,47)],radius:1.6)
+        for i in 0..<3 { line(66+Double(i)*5,-(19+Double(i)*1.2),68+Double(i)*5,-(24+Double(i)*1.2),0.6,NSColor(hex:0x93A8B0)) }
+        // Twin projector lamps in a swept housing, air scoop between them and the tank.
+        let lamp=vmRoundedPoly([(96,58),(110,56),(112,50),(98,49)],radius:1.8)
         vmFill(lamp,colors:[NSColor(hex:0x253A47),NSColor(hex:0x0B151C)],angle:70,outline:0.6)
-        circle(101.5,-51.5,2.3,NSColor(hex:0xF4F8F2)); circle(106,-50.6,1.5,NSColor(hex:0xF4F8F2,alpha:0.85))
-        let scoop=vmPoly([(88,50),(94,46),(94,43),(88,45)]); vmFill(scoop,colors:[NSColor(hex:0x0F171C),NSColor(hex:0x3C4A52)],outline:0.4)
+        circle(102,-53.5,2.3,NSColor(hex:0xF4F8F2)); circle(107,-52.6,1.5,NSColor(hex:0xF4F8F2,alpha:0.85))
         vmIndicator(106,44)
-        vmWindscreen([(78,66),(82,80),(98,72),(94,65)])
-        vmMetalLink(vmQ(88,64),vmQ(84,72),width:1.1,dark:true)
-        vmTailLight(-6,44,w:7,h:2.6); vmPlate(-11,40,w:8,h:5,text:"7",size:3.6)
+        vmWindscreen([(78,67),(83,81),(99,73),(94,66)])
+        vmMetalLink(vmQ(88,65),vmQ(84,73),width:1.1,dark:true)
+        vmTailLight(-8,45,w:7,h:2.6); vmPlate(-13,40,w:8,h:5,text:"7",size:3.6)
         vmBolt(59,-9,r:1);vmBolt(95,-30,r:0.9)
     }
 
     // MARK: Hyper R 1000
     func vmHyperBody(rig:VehicleRig) {
-        // Angular superbike: pointed tail, sharp tank, full fairing with winglets and an LED lamp.
-        let tail=vmPoly([(-2,49),(18,58),(44,52),(30,43),(6,43)])
+        // Superbike: razor tail, deep tank, a full fairing in two tones (painted upper, carbon lower) with a winglet and LED nose.
+        let tail=vmRoundedPoly([(-6,46),(-3,52),(18,58),(42,53),(36,44),(8,42)],radius:3)
         vmPanel(tail,body,gloss:0.5)
-        vmClip(tail) { line(2,-50,38,-54,1.4,NSColor.white.withAlphaComponent(0.7)) }
+        vmClip(tail) { line(0,-50,38,-54,1.2,NSColor.white.withAlphaComponent(0.7)) }
         vmSeat(rig:rig,kind:.hyperbike,length:11)
-        let tank=vmSpline([(32,50),(40,62),(58,69),(78,63),(84,57),(68,44),(48,44)])
+        let tank=vmSpline([(33,50),(40,62),(58,69),(78,64),(86,58),(70,46),(48,45)])
         vmPanel(tank,body,gloss:0.6)
-        vmClip(tank) { line(42,-61,76,-62,3.2,vmTone(body,-0.55)); line(38,-57,70,-66,0.8,NSColor.white.withAlphaComponent(0.55)) }
+        vmClip(tank) { line(42,-61,78,-62,3.2,vmTone(body,-0.55)); line(38,-57,70,-66,0.8,NSColor.white.withAlphaComponent(0.6)) }
         vmKneeGrip([(46,48),(46,58),(60,60),(62,50)])
-        let fairing=vmPoly([(55,47),(81,69),(104,60),(116,50),(100,38),(92,20),(79,2),(44,0),(48,20)])
-        vmPanel(fairing,body,gloss:0.5,outline:0.9)
-        // Dark intake duct and inner cowl, a panel with louvres, and the side winglet.
-        let duct=vmPoly([(52,35),(90,54),(104,52),(80,34),(72,9),(49,6)])
-        vmFill(duct,colors:[NSColor(hex:0x24384A),NSColor(hex:0x0D161D)],angle:70,outline:0.5)
-        vmClip(duct) { for i in 0..<5 { line(54+Double(i)*5,-(8+Double(i)*3.2),90-Double(i)*2,-(36+Double(i)*2),0.5,NSColor(hex:0x6C8798,alpha:0.7)) } }
-        vmFill(vmPoly([(55,30),(83,43),(79,35),(58,22)]),colors:[NSColor(hex:0xE2EAEA),NSColor(hex:0x9AA9AB)],angle:90,outline:0.4)
-        let wing=vmPoly([(82,46),(106,43),(100,38),(78,41)])
+        // Lower carbon cowl behind the painted upper fairing.
+        let cowl=vmSpline([(46,30),(66,34),(90,32),(100,20),(92,6),(70,0),(48,2),(42,16)])
+        vmFill(cowl,colors:[NSColor(hex:0x3A444C),NSColor(hex:0x0E151A)],angle:80,outline:0.8)
+        vmClip(cowl) { for i in 0..<6 { line(46+Double(i)*8,-(2),56+Double(i)*8,-(34),0.6,NSColor(hex:0x5F7482,alpha:0.5)) } }
+        let fairing=vmSpline([(52,46),(66,58),(80,70),(100,66),(117,52),(110,43),(96,36),(84,26),(70,24),(56,30),(48,38)])
+        vmPanel(fairing,body,gloss:0.55,outline:0.9)
+        vmClip(fairing) { line(62,-42,108,-48,2.6,vmTone(body,-0.5)); line(60,-38,96,-42,0.8,NSColor.white.withAlphaComponent(0.8)) }
+        // Winglet and slotted vent.
+        let wing=vmPoly([(80,38),(104,40),(98,34),(78,33)])
         vmFill(wing,colors:[NSColor(hex:0x20323E),NSColor(hex:0x0E1820)],angle:80,outline:0.6)
-        line(85,-44,102,-42,0.6,NSColor(hex:0xA2BAC2))
-        // LED headlamp with a DRL strip, tall screen and mirrors.
-        vmFill(vmPoly([(97,57),(112,53),(110,47),(96,50)]),colors:[NSColor(hex:0x2B4558),NSColor(hex:0x0A141B)],angle:60,outline:0.6)
-        line(99,-53.5,110,-51,1.0,NSColor(hex:0xF0FFFF)); circle(105,-51,1.6,NSColor(hex:0xFFFFFF))
-        vmWindscreen([(80,66),(85,80),(104,64),(98,60)])
-        vmMetalLink(vmQ(90,66),vmQ(86,74),width:1.1,dark:true)
-        text("R",69,-44,11,NSColor(hex:0xF2F0DF),.heavy,center:true)
-        text("1000",63,-12,4.8,NSColor(hex:0xD8E4E6),.bold,center:true)
-        vmTailLight(-3,48,w:8,h:2.4); vmPlate(-9,43,w:8,h:5,text:"R",size:3.6)
+        line(82,-36,100,-37,0.6,NSColor(hex:0xA2BAC2))
+        // LED headlamp with a DRL strip, tall screen.
+        vmFill(vmPoly([(97,58),(113,53),(111,47),(96,50)]),colors:[NSColor(hex:0x2B4558),NSColor(hex:0x0A141B)],angle:60,outline:0.6)
+        line(99,-54,111,-51,1.0,NSColor(hex:0xF0FFFF)); circle(106,-51.5,1.6,NSColor(hex:0xFFFFFF))
+        vmWindscreen([(80,68),(85,82),(104,66),(98,62)])
+        vmMetalLink(vmQ(90,67),vmQ(86,75),width:1.1,dark:true)
+        text("R",68,-46,10,NSColor(hex:0xF2F0DF),.heavy,center:true)
+        text("1000",64,-14,4.6,NSColor(hex:0xD8E4E6),.bold,center:true)
+        vmTailLight(-6,48,w:8,h:2.4); vmPlate(-11,43,w:8,h:5,text:"R",size:3.6)
         vmBolt(48,-9,r:0.9);vmBolt(96,-46,r:0.9)
     }
 

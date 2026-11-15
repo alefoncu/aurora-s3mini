@@ -21,9 +21,11 @@ extension RideRenderer {
         if closed { path.close() }
         return path
     }
+    /// Cel-shaded fill: light top edge, flat base, one hard shadow terminator and a firm ink outline.
     private func raFill(_ shape:NSBezierPath,_ base:NSColor,angle:Double=75,outline:Bool=true,strength:Double=1,width:Double=0.6) {
-        NSGradient(colors:[raShade(base,0.24*strength),base,raShade(base,-0.28*strength)])?.draw(in:shape,angle:angle)
-        if outline { ink.withAlphaComponent(0.72).setStroke(); shape.lineWidth=width; shape.lineJoinStyle = .round; shape.stroke() }
+        NSGradient(colors:[raShade(base,0.20*strength),raShade(base,0.06*strength),base,raShade(base,-0.30*strength),raShade(base,-0.34*strength)],
+                   atLocations:[0,0.16,0.5,0.62,1],colorSpace:.deviceRGB)?.draw(in:shape,angle:angle)
+        if outline { ink.withAlphaComponent(0.9).setStroke(); shape.lineWidth=max(width,0.75)+0.25; shape.lineJoinStyle = .round; shape.stroke() }
     }
     /// A tapered limb segment: width `w0` at `a`, `w1` at `b`, with an optional muscle belly.
     private func raLimb(_ a:NSPoint,_ b:NSPoint,_ w0:Double,_ w1:Double,bulge:Double=0,at:Double=0.35,color:NSColor,outline:Bool=true) {

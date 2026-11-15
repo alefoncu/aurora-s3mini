@@ -80,7 +80,7 @@ import Foundation
         disk.load(contextKey: "sport.0.stock.cones1")
         precondition(disk.ghost == nil, "Cones and setup configurations must isolate ghosts")
 
-        run(s, duration: 601, context: "long")
+        run(s, duration: RideGhostRun.maximumDuration + 1, context: "long")
         precondition(s.ghost == nil, "A run beyond the recording cap must not save a truncated ghost")
         prefs.set(Data("invalid json".utf8), forKey: "v6.ghost.corrupt")
         disk.load(contextKey: "corrupt"); precondition(disk.ghost == nil)
@@ -102,6 +102,38 @@ import Foundation
         precondition(timed.time(atDistance: -1) == nil && timed.time(atDistance: 1_000) == nil && timed.time(atDistance: .nan) == nil)
         let cmp = RideChallengeSession(preferences: UserDefaults(suiteName: "wheelie.ghosttime." + UUID().uuidString)!)
         precondition(cmp.timeDelta(elapsed: 5, atDistance: 10) == nil, "No ghost, no delta")
+        // Recordings crossing the wrapped pitch boundary must not turn the bike through zero.
+        let a = frame(0, pitch: Double.pi - 0.1), b = frame(1, pitch: -Double.pi + 0.1)
+        let wrapped = RideGhostRun(version: 1, contextKey: "wrap", duration: 1, frames: [a,b])
+        precondition(abs(abs(wrapped.frame(at: 0.5)!.pitch) - Double.pi) < 1e-9, "Interpolate the short arc across ±pi")
+        // Lanes survive recording, disk and interpolation. Old recordings with no lane still load.
+        func laneFrame(_ time: Double, lane: Int) -> RideGhostFrame {
+            RideGhostFrame(time: time, x: time*2, y: lane == 1 ? 3.8 : 0.6, pitch: 0,
+                rearWheelX: time*2, rearWheelY: 0.3, frontWheelX: time*2+1.4, frontWheelY: 0.3,
+                wheelRotation: time*4, speed: 2, lane: lane)
+        }
+        let lanes = RideChallengeSession(preferences: prefs)
+        lanes.start(contextKey: "fork-lanes", initialFrame: laneFrame(0,lane:0))
+        for i in 1...20 {
+            let t=Double(i)/10
+            lanes.update(frame:laneFrame(t,lane:i < 10 ? 0 : 1),distance:t*2,wheelie:0,stoppie:0,airborne:false,height:0,crashed:false)
+        }
+        lanes.finish(routeCompleted:true,elapsed:2)
+        let replay=RideChallengeSession(preferences:prefs);replay.load(contextKey:"fork-lanes")
+        precondition(replay.ghostFrame(at:0.5)?.lane == 0 && replay.ghostFrame(at:1.5)?.lane == 1, "Ghost remembers both roads")
+        precondition(replay.ghostFrame(at:0.95)?.lane == 0 && replay.ghostFrame(at:1)?.lane == 1, "Do not switch lane before its sample")
+        let oldRun=RideGhostRun(version:1,contextKey:"legacy",duration:1,frames:[frame(0),frame(1)])
+        prefs.set(try! JSONEncoder().encode(oldRun),forKey:"v6.ghost.legacy")
+        replay.load(contextKey:"legacy");precondition(replay.ghost != nil && replay.ghostFrame(at:0.5)?.lane == nil,"Legacy recordings remain compatible")
+        let invalidLane=RideGhostRun(version:1,contextKey:"bad-lane",duration:1,frames:[laneFrame(0,lane:0),laneFrame(1,lane:7)])
+        prefs.set(try! JSONEncoder().encode(invalidLane),forKey:"v6.ghost.bad-lane")
+        replay.load(contextKey:"bad-lane");precondition(replay.ghost == nil,"Reject an unknown lane")
+        // A slow marathon may take more than ten minutes: it must still save its ghost.
+        run(s,duration:900,context:"marathon")
+        precondition(s.savedNewGhost && s.ghost?.duration == 900, "A 15-minute marathon records a complete ghost")
+        let empty=RideGhostRun(version:1,contextKey:"empty",duration:1,frames:[])
+        let single=RideGhostRun(version:1,contextKey:"single",duration:1,frames:[frame(0)])
+        precondition(empty.frame(at:0) == nil && single.frame(at:0.5) == nil,"Incomplete recordings never index past their frames")
         print("ChallengeTests passed: goals and safe landing, abandonment, scoped persistence, faster completed ghosts, timed interpolation, recording cap and corrupt-data rejection.")
     }
 }

@@ -9,6 +9,15 @@ struct RunReport {
     var finished = false, crashed = false, endless = false, raceWon = false
 }
 
+/// Keep persisted and incoming counters nonnegative, finite, and safe to add/display.
+private func progressValue(_ value: Double) -> Double {
+    value.isFinite ? min(max(0, value), Double(Int.max).nextDown) : 0
+}
+private func progressSum(_ a: Int, _ b: Int) -> Int {
+    let (sum, overflow) = max(0, a).addingReportingOverflow(max(0, b))
+    return overflow ? Int.max : sum
+}
+
 /// Lifetime totals, stored as JSON in the app's preferences.
 struct RideTotals: Codable, Equatable {
     var runs = 0, crashes = 0, finishes = 0, raceWins = 0, flips = 0, spins = 0, jumps = 0, dodges = 0, supermans = 0
@@ -17,6 +26,17 @@ struct RideTotals: Codable, Equatable {
     var bestEndless = 0.0
     var tutorialDone = false
     var coinsEarned = 0
+
+    fileprivate var sanitized: RideTotals {
+        var result = self
+        for key in [\RideTotals.runs, \.crashes, \.finishes, \.raceWins, \.flips, \.spins, \.jumps, \.dodges, \.supermans, \.bestCombo, \.bestScore, \.coinsEarned] {
+            result[keyPath: key] = max(0, result[keyPath: key])
+        }
+        for key in [\RideTotals.distance, \.wheelieMetres, \.stoppieMetres, \.airTime, \.noHandsSeconds, \.bestEndless] {
+            result[keyPath: key] = progressValue(result[keyPath: key])
+        }
+        return result
+    }
 }
 
 struct RideAchievement {
@@ -46,7 +66,7 @@ final class RideStats {
     private(set) var earned: Set<String>
     init(preferences: UserDefaults) {
         prefs = preferences
-        if let data = preferences.data(forKey: "stats.totals"), let decoded = try? JSONDecoder().decode(RideTotals.self, from: data) { totals = decoded } else { totals = RideTotals() }
+        if let data = preferences.data(forKey: "stats.totals"), let decoded = try? JSONDecoder().decode(RideTotals.self, from: data) { totals = decoded.sanitized } else { totals = RideTotals() }
         earned = Set(preferences.stringArray(forKey: "stats.achievements") ?? [])
     }
     private func save() {
@@ -60,19 +80,19 @@ final class RideStats {
     }
     /// The totals after adding a run. Pure, so the game can preview achievements mid-run.
     static func applying(_ r: RunReport, to base: RideTotals) -> RideTotals {
-        func clean(_ v: Double) -> Double { v.isFinite ? max(0, v) : 0 }
-        var totals = base
-        totals.runs += 1
-        if r.crashed { totals.crashes += 1 }
-        if r.finished { totals.finishes += 1 }
-        if r.raceWon { totals.raceWins += 1 }
-        totals.flips += max(0, r.flips); totals.spins += max(0, r.spins); totals.jumps += max(0, r.jumps)
-        totals.dodges += max(0, r.dodges); totals.supermans += max(0, r.supermans)
+        func clean(_ v: Double) -> Double { progressValue(v) }
+        var totals = base.sanitized
+        totals.runs = progressSum(totals.runs, 1)
+        if r.crashed { totals.crashes = progressSum(totals.crashes, 1) }
+        if r.finished { totals.finishes = progressSum(totals.finishes, 1) }
+        if r.raceWon { totals.raceWins = progressSum(totals.raceWins, 1) }
+        totals.flips = progressSum(totals.flips, max(0, r.flips)); totals.spins = progressSum(totals.spins, max(0, r.spins)); totals.jumps = progressSum(totals.jumps, max(0, r.jumps))
+        totals.dodges = progressSum(totals.dodges, max(0, r.dodges)); totals.supermans = progressSum(totals.supermans, max(0, r.supermans))
         totals.distance += clean(r.distance); totals.wheelieMetres += clean(r.wheelieMetres)
         totals.stoppieMetres += clean(r.stoppieMetres); totals.airTime += clean(r.airTime); totals.noHandsSeconds += clean(r.noHandsSeconds)
         totals.bestCombo = max(totals.bestCombo, r.bestCombo); totals.bestScore = max(totals.bestScore, r.score)
         if r.endless { totals.bestEndless = max(totals.bestEndless, clean(r.distance)) }
-        return totals
+        return totals.sanitized
     }
     /// Achievements the run would unlock if it ended now. Changes nothing.
     func preview(_ r: RunReport) -> [RideAchievement] {
@@ -80,7 +100,7 @@ final class RideStats {
         return RideAchievement.all.filter { !earned.contains($0.id) && $0.isEarned(projected) }
     }
     func markTutorialDone() -> [RideAchievement] { totals.tutorialDone = true; return unlockNew() }
-    func addCoinsEarned(_ coins: Int) { totals.coinsEarned += max(0, coins); save() }
+    func addCoinsEarned(_ coins: Int) { totals.coinsEarned = progressSum(totals.coinsEarned, max(0, coins)); save() }
     private func unlockNew() -> [RideAchievement] {
         let fresh = RideAchievement.all.filter { !earned.contains($0.id) && $0.isEarned(totals) }
         fresh.forEach { earned.insert($0.id) }

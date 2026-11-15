@@ -128,7 +128,9 @@ final class BikePhysics {
         // even with the high damping rate needed by a motorcycle's sprung mass.
         1.2*sqrt(spring(front)*rig.sprungMass*0.5)*suspensionDamping*(1-0.35*suspensionHeat)
     }
-    func reset() {
+    /// Settle the suspension at a position on this course; useful for a respawn or a diagnostic scene.
+    func reset(at position:Double=0) {
+        let start=position.isFinite ? max(-1_000_000,min(1_000_000,position)) : 0
         speed=0; rollback=0; pitch=0; angularVelocity=0; bodyV=0
         airTime=0;airRotation=0;airPeak=0;trickHeld=false;angularDamping=1.4
         tyreWear=0;suspensionHeat=0;spinYaw=0;spinHeld=false;flipActive=false
@@ -143,14 +145,18 @@ final class BikePhysics {
         landingImpact=0; rearContact=true;frontContact=true
         rearWasContact=true;frontWasContact=true
         let sag=(rig.frontTravel+rig.rearTravel)*0.15
-        com=RideVector(rig.centerOfMass.x,Self.ground(0,route:route,lane:lane)+rig.wheelRadius-sag+rig.centerOfMass.y)
-        rearY=Self.ground(0,route:route,lane:lane)+rig.wheelRadius
-        frontY=Self.ground(rig.wheelbase,route:route,lane:lane)+rig.wheelRadius
+        com=RideVector(start+rig.centerOfMass.x,Self.ground(start,route:route,lane:lane)+rig.wheelRadius-sag+rig.centerOfMass.y)
+        rearY=Self.ground(start,route:route,lane:lane)+rig.wheelRadius
+        frontY=Self.ground(start+rig.wheelbase,route:route,lane:lane)+rig.wheelRadius
         rearV=0;frontV=0
         settling=true
-        for _ in 0..<480 { integrate(Self.h,throttle:false,brake:false,back:false,forward:false) }
+        for _ in 0..<480 {
+            integrate(Self.h,throttle:false,brake:false,back:false,forward:false)
+            if start != 0 { com.x=start+rotated(rig.centerOfMass).x }
+        }
+        if start != 0 { projectGround(false,dt:Self.h);projectGround(true,dt:Self.h) }
         settling=false
-        com.x=rotated(rig.centerOfMass).x
+        com.x=start+rotated(rig.centerOfMass).x
         bodyV=0;rearV=0;frontV=0;angularVelocity=0
         distance=0;wheelieDistance=0;bestWheelie=0;coins=0;landingImpact=0
         publish()
@@ -162,6 +168,7 @@ final class BikePhysics {
         trickHeld=trick && !crashed;spinHeld=spin && !crashed
         // Hands off the bars: no weight shift and no front-lever braking, only throttle and rear brake remain.
         let leanBack=noHands ? false : leanBack,leanForward=noHands ? false : leanForward,frontBrake=noHands ? false : frontBrake
+        let rearBrake=rearBrake || (noHands && brake),brake=noHands ? false : brake
         jumpPending=jump && !jumpHeld && !crashed;jumpHeld=jump;landingImpact=0
         var remaining=min(dt,0.25)
         while remaining>0.0000001 && !finished {

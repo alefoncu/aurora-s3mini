@@ -127,6 +127,14 @@ extension RideView {
             art.text("\(Int(item.1)) m",x+4,h-84,25,white,.medium,mono:true)
         }
     }
+    /// World-space bounds of a rival, including its rider. Use the viewport, which changes with
+    /// window size and camera zoom, instead of an arbitrary fixed-distance culling radius.
+    func rivalIsVisible(_ r:BikePhysics,fully:Bool=false)->Bool {
+        let ppm=art.metresToPixels
+        let left=art.focusX+(min(r.rearWheelPosition.x,r.frontWheelPosition.x)-camX-0.5)*ppm
+        let right=art.focusX+(max(r.rearWheelPosition.x,r.frontWheelPosition.x)-camX+0.5)*ppm
+        return fully ? left>=0 && right<=sceneWidth : right>=0 && left<=sceneWidth
+    }
     func drawRide() {
         let ppm=art.metresToPixels,rig=bike.kind.rig,camY=cameraY+presentationOffset
         RideProfile.section("obstáculos") { if obstaclesOn {
@@ -146,8 +154,7 @@ extension RideView {
             art.ellipse(x-size,y-size,size*2,size,NSColor(hex:bike.route==0 ? 0xCFD0C7 : bike.route==3 ? 0xFFFFFF : bike.route==4 ? 0xB8C0C8 : 0xD6BD91,alpha:(p.life/p.maxLife)*0.17))
         }
         RideProfile.section("rival") { for (index,run) in rivalRuns.enumerated() { let r=run.bike
-            // Rivals far off screen are not drawn (about 12 m are visible).
-            if abs(r.x-camX)>16 { continue }
+            if !rivalIsVisible(r) { continue }
             let c=cos(r.pitch),s=sin(r.pitch),rrig=r.kind.rig
             func localRival(_ point:RideVector)->RideVector { let d=point-r.chassisPosition; return RideVector(c*d.x+s*d.y,-s*d.x+c*d.y) }
             let savedBody=art.body,savedJacket=art.jacket
@@ -165,7 +172,7 @@ extension RideView {
             }
             NSGraphicsContext.saveGraphicsState()
             NSGraphicsContext.current?.cgContext.setAlpha(0.28)
-            art.wheelBlur=art.blur(speed:bike.speed,radius:rig.wheelRadius); art.motorcycle(x:art.focusX+(ghost.x-camX)*ppm,y:art.groundY+camY-ghost.y*ppm,
+            art.wheelBlur=art.blur(speed:ghost.speed,radius:rig.wheelRadius); art.motorcycle(x:art.focusX+(ghost.x-camX)*ppm,y:art.groundY+camY-ghost.y*ppm,
                 scale:ppm/rig.drawingUnitsPerMetre,angle:ghost.pitch,kind:bike.kind,
                 rotation:-ghost.wheelRotation,time:elapsed,showRider:true,
                 rearWheelLocal:localGhost(ghost.rearWheelX,ghost.rearWheelY),

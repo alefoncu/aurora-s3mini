@@ -37,6 +37,7 @@ enum RideUnlock: Hashable {
 
 final class RideProgress {
     static let startingCoins = 150
+    static let maximumWallet = 1_000_000
     private let prefs: UserDefaults
     private var unlocked: Set<String>
     private(set) var wallet: Int
@@ -51,7 +52,7 @@ final class RideProgress {
             if veteran { for k in BikeKind.allCases { unlocked.insert(RideUnlock.vehicle(k).key) }; for r in 0..<BikePhysics.routeCount { unlocked.insert(RideUnlock.route(r).key) } }
             save()
         } else {
-            wallet = max(0, preferences.integer(forKey: "progress.wallet"))
+            wallet = min(Self.maximumWallet,max(0, preferences.integer(forKey: "progress.wallet")))
             unlocked = Set(preferences.stringArray(forKey: "progress.unlocked") ?? [])
         }
     }
@@ -64,7 +65,7 @@ final class RideProgress {
         guard canAfford(item) else { return false }
         wallet -= item.cost; unlocked.insert(item.key); save(); return true
     }
-    func earn(_ coins: Int) { guard coins > 0 else { return }; wallet = min(wallet + coins, 1_000_000); save() }
+    func earn(_ coins: Int) { guard coins > 0 else { return }; wallet += min(coins, Self.maximumWallet-wallet); save() }
     func unlockEverything() {
         for k in BikeKind.allCases { unlocked.insert(RideUnlock.vehicle(k).key) }
         for r in 0..<BikePhysics.routeCount { unlocked.insert(RideUnlock.route(r).key) }
@@ -72,6 +73,8 @@ final class RideProgress {
     }
     /// Coins for a finished run: distance coins plus one per 200 points.
     static func reward(distanceCoins: Int, score: Int, multiplier: Double = 1) -> Int {
-        Int((Double(max(0, distanceCoins) + max(0, score) / 200) * max(0, multiplier)).rounded())
+        guard multiplier.isFinite, multiplier>0 else { return 0 }
+        let base=Double(max(0,distanceCoins))+Double(max(0,score)/200)
+        return Int(min(Double(maximumWallet),(base*multiplier).rounded()))
     }
 }

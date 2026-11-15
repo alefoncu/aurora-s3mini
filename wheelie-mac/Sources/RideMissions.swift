@@ -79,6 +79,13 @@ final class RideMissions {
     }
     /// Regenerate goals when the day or week has changed since the last call.
     func refresh() {
+        let snapshot = refreshedState()
+        state = snapshot.state; daily = snapshot.daily; weekly = snapshot.weekly
+        save()
+    }
+    /// Build a current-date snapshot without changing progress or preferences (also used by preview).
+    private func refreshedState() -> (state: State, daily: [Mission], weekly: Mission) {
+        var state = self.state
         let k = keys()
         var g = Seeded(state: k.daySeed &* 2_654_435_761)
         var pool = Array(Self.dailyPool.indices), picked: [Mission] = []
@@ -86,13 +93,20 @@ final class RideMissions {
             let i = pool.remove(at: g.next(pool.count)), entry = Self.dailyPool[i]
             picked.append(Mission(metric: entry.0, target: entry.1[g.next(entry.1.count)], reward: entry.2))
         }
-        daily = picked
+        let daily = picked
         var w = Seeded(state: k.weekSeed &* 40_503 &+ 7)
         let e = Self.dailyPool[w.next(Self.dailyPool.count)]
-        weekly = Mission(metric: e.0, target: e.1.last! * (e.0.accumulates ? 4 : 2), reward: e.2 * 5)
+        let weekly = Mission(metric: e.0, target: e.1.last! * (e.0.accumulates ? 4 : 2), reward: e.2 * 5)
         if state.dayKey != k.day { state.dayKey = k.day; state.dayProgress = Array(repeating: 0, count: 3); state.dayDone = Array(repeating: false, count: 3) }
         if state.weekKey != k.week { state.weekKey = k.week; state.weekProgress = 0; state.weekDone = false }
-        save()
+        // Treat each slot independently: damaged/missing progress must never shift another claim.
+        state.dayProgress = daily.indices.map { i in
+            let value = state.dayProgress.indices.contains(i) ? state.dayProgress[i] : 0
+            return value.isFinite ? min(Double(daily[i].target), max(0, value)) : 0
+        }
+        state.dayDone = daily.indices.map { state.dayDone.indices.contains($0) && state.dayDone[$0] }
+        state.weekProgress = state.weekProgress.isFinite ? min(Double(weekly.target), max(0, state.weekProgress)) : 0
+        return (state, daily, weekly)
     }
     private func save() { if let data = try? JSONEncoder().encode(state) { prefs.set(data, forKey: "missions.state") } }
     func progress(daily i: Int) -> Double { state.dayProgress.indices.contains(i) ? state.dayProgress[i] : 0 }
@@ -103,7 +117,7 @@ final class RideMissions {
         var completed: [Mission] = []
         func advance(_ current: inout Double, _ m: Mission) {
             let v = max(0, m.metric.value(of: report)); guard v.isFinite else { return }
-            current = m.metric.accumulates ? current + v : max(current, v)
+            current = min(Double(m.target), m.metric.accumulates ? current + min(v, Double(m.target)) : max(current, v))
         }
         for (i, m) in daily.enumerated() where !state.dayDone[i] {
             advance(&state.dayProgress[i], m)
@@ -118,6 +132,8 @@ final class RideMissions {
     }
     /// Missions the run would complete if it ended now. Changes nothing.
     func preview(_ report: RunReport) -> [Mission] {
+        let snapshot = refreshedState()
+        let state = snapshot.state, daily = snapshot.daily, weekly = snapshot.weekly
         func projected(_ current: Double, _ m: Mission) -> Double {
             let v = max(0, m.metric.value(of: report)); guard v.isFinite else { return current }
             return m.metric.accumulates ? current + v : max(current, v)

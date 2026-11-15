@@ -111,7 +111,7 @@ extension RideView {
             o.brakeHeld=held(.brake); o.crashed=bike.crashed; o.landingSerial=bike.landingSerial; o.lastAirTime=bike.lastAirTime; o.lastFlips=bike.lastFlips; o.dt=dt
             if tutorial.update(o) {
                 tutorialToast=tutorial.finished ? "¡Tutorial completado!" : "Paso \(tutorial.stepNumber-1) conseguido"; tutorialToastAge=0; audio.play(tutorial.finished ? .chime : .coin)
-                if tutorial.finished && !stats.totals.tutorialDone { progress.earn(40); lastReward+=40; runNotes.append("Tutorial completado (+40)"); for a in stats.markTutorialDone() where a.reward>0 { progress.earn(a.reward) } }
+                if tutorial.finished && !stats.totals.tutorialDone { awardCoins(40); runNotes.append("Tutorial completado (+40)"); for a in stats.markTutorialDone() where a.reward>0 { awardCoins(a.reward) } }
             }
         }
         if BikePhysics.circuit {

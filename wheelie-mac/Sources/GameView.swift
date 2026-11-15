@@ -47,6 +47,8 @@ final class RideView: NSView {
     var score=RideScore(), bestScore=0.0
     lazy var progress=RideProgress(preferences:prefs)
     var rewarded=false, lastReward=0
+    /// Freeze the record context when starting; changing garage selections cannot rewrite the previous run.
+    var runRecordKey:String?, runCoinMultiplier=1.0
     var lastWheelie=0.0, lastStoppie=0.0, lastLandingSerial=0, lastStage=0
     var passedObstacles=Set<Int>()
     var splitDeltas:[Double?]=[], splitText="", splitAge=99.0
@@ -149,46 +151,9 @@ final class RideView: NSView {
         bike.suspensionDamping=prefs.object(forKey:key+".damping") == nil ? 1 : prefs.double(forKey:key+".damping")
         bike.reset()
     }
-    var runContext:String {
-        "v6.\(bike.kind.rawValue).\(bike.route).\(obstacles ? "cones" : "clear").\(bike.transmission.automatic ? "auto" : "manual").\(Int((bike.suspensionStiffness*100).rounded())).\(Int((bike.suspensionDamping*100).rounded()))\(absOn ? ".abs" : "")\(weatherOn ? ".clima" : "")\(difficulty == .normal ? "" : ".\(difficulty.title.lowercased())")\(challengeKind == .endless ? ".endless" : "")\(activeRouteLength>1200 && challengeKind != .endless ? ".len\(Int(activeRouteLength))" : "")\(challengeKind == .circuit ? ".circuit\(bike.laps)" : "")"
-    }
-    var recordKey:String { runContext }
-    func ghostSnapshot()->RideGhostFrame {
-        RideGhostFrame(time:elapsed,x:bike.x,y:bike.chassisPosition.y,pitch:bike.pitch,
-            rearWheelX:bike.rearWheelPosition.x,rearWheelY:bike.rearWheelPosition.y,
-            frontWheelX:bike.frontWheelPosition.x,frontWheelY:bike.frontWheelPosition.y,
-            wheelRotation:bike.rearWheelRotation,speed:bike.speed)
-    }
     func shift(up:Bool) {
         guard mode == .riding,window?.attachedSheet == nil else { return }
         bike.transmission.shift(up:up,kind:bike.kind);updateTouchBar();needsDisplay=true
-    }
-    func preserveRun() {
-        if mode != .garage { saveRun() }
-    }
-    func loadRecords() { record=prefs.double(forKey:recordKey+".distance"); best=prefs.double(forKey:recordKey+".wheelie"); bestTime=prefs.double(forKey:recordKey+".time"); bestStoppie=prefs.double(forKey:recordKey+".stoppie"); bestScore=prefs.double(forKey:recordKey+".score") }
-    func saveRun() {
-        if bike.finished || bike.crashed { challenges.finish(routeCompleted:bike.finished,elapsed:elapsed) }
-        record=max(record,bike.distance); best=max(best,bike.bestWheelie); bestStoppie=max(bestStoppie,bike.bestStoppie)
-        bestScore=max(bestScore,Double(score.total)); prefs.set(bestScore,forKey:recordKey+".score")
-        if !rewarded && (bike.crashed || bike.finished) {
-            rewarded=true; lastReward+=RideProgress.reward(distanceCoins:bike.coins,score:score.total,multiplier:difficulty.coinMultiplier); progress.earn(lastReward)
-        }
-        if !reported && (bike.crashed || bike.finished || bike.distance>50) {
-            reported=true
-            report.distance=bike.distance; report.score=score.total; report.bestCombo=max(report.bestCombo,score.bestChain)
-            report.finished=bike.finished; report.crashed=bike.crashed; report.endless=bike.endless
-            report.raceWon=challengeKind == .race && challenges.completed
-            for a in stats.record(report) { progress.earn(a.reward); lastReward+=a.reward; runNotes.append("Logro: \(a.title)"+(a.reward>0 ? " (+\(a.reward))" : "")) }
-            for m in missions.record(report) { progress.earn(m.reward); lastReward+=m.reward; runNotes.append("Misión: \(m.title) (+\(m.reward))") }
-            if !rivalRuns.isEmpty {
-                let prize=bike.finished ? RideRace.prize(position:racePosition,fieldSize:rivalRuns.count+1) : 0
-                if prize>0 { progress.earn(prize); lastReward+=prize; runNotes.append("Premio de posición \(racePosition)º (+\(prize))") }
-            }
-            stats.addCoinsEarned(lastReward)
-        }
-        prefs.set(bestStoppie,forKey:recordKey+".stoppie"); prefs.set(record,forKey:recordKey+".distance"); prefs.set(best,forKey:recordKey+".wheelie")
-        if bike.finished && (bestTime==0 || elapsed<bestTime) { bestTime=elapsed; prefs.set(bestTime,forKey:recordKey+".time") }
     }
     func clearInput() { keys.removeAll(); touchHeld.removeAll(); bar.releaseAll() }
     @objc func windowResigned(_ notification:Notification) {
@@ -203,8 +168,8 @@ final class RideView: NSView {
     @objc func deactivate() { clearInput(); if mode == .riding { mode = .paused }; audio.update(speed:0,throttle:false,vehicle:0,active:false); syncState() }
     func start() { guard window?.attachedSheet == nil else { return }
         guard cosmeticItems.allSatisfy({ progress.isUnlocked($0) }),progress.isUnlocked(.vehicle(bike.kind)),progress.isUnlocked(.route(bike.route)) else { audio.play(.denied); NSSound.beep(); return }
-        NSColorPanel.shared.orderOut(nil); preserveRun(); challenges.abandon(); bike.hazards=obstaclesOn; bike.absEnabled=absOn; bike.assist=difficulty; bike.endless=challengeKind == .endless; BikePhysics.circuit=challengeKind == .circuit; configureCourse(); challenges.courseLength=BikePhysics.finish; bike.laps=3; bike.reset(); resetRunState(); startRival(); art.metresToPixels=RideScene.metresToPixels; elapsed=0; crashTime=0; cameraY=0; riderLean=0; riderLift=0; riderLiftVelocity=0; pedalPhase=0; challenges.selected=challengeKind; challenges.start(contextKey:runContext,initialFrame:ghostSnapshot()); ragdoll=nil; passengerRagdoll=nil; riderVelocity=RideVector.zero; crashCamShift=0; knockedCones.removeAll(); dust.removeAll(); clearInput(); mode = .riding; previous=ProcessInfo.processInfo.systemUptime; window?.makeFirstResponder(self); syncState() }
-    func garage() { guard window?.attachedSheet == nil else { return }; preserveRun(); challenges.abandon(); clearInput(); mode = .garage; rivalRuns=[]; BikePhysics.circuit=false; resetCourse(); bike.hazards=obstacles; bike.endless=false; bike.absEnabled=absOn; bike.assist=difficulty; bike.reset(); resetRunState(); art.metresToPixels=RideScene.metresToPixels; cameraY=0; ragdoll=nil; passengerRagdoll=nil; crashCamShift=0; knockedCones.removeAll(); dust.removeAll(); audio.update(speed:0,throttle:false,vehicle:0,active:false); syncState() }
+        NSColorPanel.shared.orderOut(nil); preserveRun(); challenges.abandon(); bike.hazards=obstaclesOn; bike.absEnabled=absOn; bike.assist=difficulty; bike.endless=challengeKind == .endless; BikePhysics.circuit=challengeKind == .circuit; configureCourse(); challenges.courseLength=BikePhysics.finish; bike.laps=3; bike.reset(); resetRunState(); runRecordKey=runContext; runCoinMultiplier=difficulty.coinMultiplier; loadRecords(); startRival(); art.metresToPixels=RideScene.metresToPixels; elapsed=0; crashTime=0; cameraY=0; riderLean=0; riderLift=0; riderLiftVelocity=0; pedalPhase=0; challenges.selected=challengeKind; challenges.start(contextKey:runContext,initialFrame:ghostSnapshot()); ragdoll=nil; passengerRagdoll=nil; riderVelocity=RideVector.zero; crashCamShift=0; knockedCones.removeAll(); dust.removeAll(); clearInput(); mode = .riding; previous=ProcessInfo.processInfo.systemUptime; window?.makeFirstResponder(self); syncState() }
+    func garage() { guard window?.attachedSheet == nil else { return }; preserveRun(); challenges.abandon(); clearInput(); mode = .garage; rivalRuns=[]; BikePhysics.circuit=false; resetCourse(); bike.hazards=obstacles; bike.endless=false; bike.absEnabled=absOn; bike.assist=difficulty; bike.reset(); resetRunState(); runRecordKey=nil; loadRecords(); art.metresToPixels=RideScene.metresToPixels; cameraY=0; ragdoll=nil; passengerRagdoll=nil; crashCamShift=0; knockedCones.removeAll(); dust.removeAll(); audio.update(speed:0,throttle:false,vehicle:0,active:false); syncState() }
     func pause() {
         guard window?.attachedSheet == nil, mode == .riding || mode == .paused else { return }
         clearInput(); mode = mode == .riding ? .paused : .riding; previous=ProcessInfo.processInfo.systemUptime

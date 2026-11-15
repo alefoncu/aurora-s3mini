@@ -5,7 +5,7 @@ import Foundation
     static func suite() -> UserDefaults { UserDefaults(suiteName: "wheelie.progress.tests." + UUID().uuidString)! }
 
     static func main() {
-        stats(); missions(); tutorial(); rivals(); racing()
+        stats(); missions(); malformedProgress(); tutorial(); rivals(); racing()
         print("ProgressTests passed: lifetime stats and achievements, daily/weekly missions, guided tutorial, rival levels, mistakes and ramp flips on every route, race standings, overtakes and prizes.")
     }
 
@@ -77,6 +77,72 @@ import Foundation
         check(pm.preview(huge).isEmpty, "Completed missions are not previewed again")
         // Every mission has a readable Spanish title with its target.
         for metric in MissionMetric.allCases { check(Mission(metric: metric, target: 7, reward: 1).title.contains("7"), "Title for \(metric)") }
+    }
+
+    static func malformedProgress() {
+        var cal = Calendar(identifier: .iso8601); cal.timeZone = TimeZone(secondsFromGMT: 0)!
+        var date = cal.date(from: DateComponents(year: 2026, month: 12, day: 31, hour: 23))!
+        let prefs = suite()
+        let initial = RideMissions(preferences: prefs, calendar: cal, now: { date })
+        for lengths in [(0, 0), (1, 4), (5, 1)] {
+            var damaged = initial.state
+            damaged.dayProgress = Array(repeating: -50, count: lengths.0)
+            damaged.dayDone = Array(repeating: true, count: lengths.1)
+            damaged.weekProgress = -100
+            prefs.set(try! JSONEncoder().encode(damaged), forKey: "missions.state")
+            let loaded = RideMissions(preferences: prefs, calendar: cal, now: { date })
+            check(loaded.state.dayProgress == [0, 0, 0] && loaded.state.dayDone.count == 3 && loaded.weeklyProgress == 0, "Malformed arrays and negative progress repaired")
+            for i in 0..<3 { check(loaded.isDone(daily: i) == (i < lengths.1), "Existing claims keep their slot") }
+            let persisted = try! JSONDecoder().decode(RideMissions.State.self, from: prefs.data(forKey: "missions.state")!)
+            check(persisted.dayProgress.count == 3 && persisted.dayDone.count == 3, "Array repairs are persisted")
+            _ = loaded.preview(RunReport()); _ = loaded.record(RunReport())
+            check(loaded.progress(daily: -1) == 0 && !loaded.isDone(daily: 3), "Invalid indices are safe")
+        }
+        let rolloverPrefs = suite()
+        let live = RideMissions(preferences: rolloverPrefs, calendar: cal, now: { date })
+        var huge = RunReport()
+        huge.distance = .greatestFiniteMagnitude; huge.wheelieMetres = .greatestFiniteMagnitude
+        huge.stoppieMetres = .greatestFiniteMagnitude; huge.noHandsSeconds = .greatestFiniteMagnitude
+        huge.score = Int.max; huge.bestCombo = Int.max; huge.flips = Int.max; huge.spins = Int.max
+        huge.jumps = Int.max; huge.dodges = Int.max; huge.finished = true
+        _ = live.record(huge)
+        for days in [1, 4] {
+            date = cal.date(byAdding: .day, value: days, to: date)!
+            let before = live.state
+            let stored = rolloverPrefs.data(forKey: "missions.state")
+            let current = RideMissions(preferences: suite(), calendar: cal, now: { date })
+            let expected = current.record(huge)
+            let preview = live.preview(huge)
+            check(Array(preview.prefix(3)) == Array(expected.prefix(3)), "Preview uses goals for the new date")
+            check(preview.contains(current.weekly) == (days == 4), "Weekly claim survives year rollover and resets with the ISO week")
+            check(live.state.dayKey == before.dayKey && live.state.dayProgress == before.dayProgress && live.state.dayDone == before.dayDone && live.state.weekKey == before.weekKey && live.state.weekDone == before.weekDone && live.state.weekProgress == before.weekProgress, "Rollover preview leaves state unchanged")
+            check(rolloverPrefs.data(forKey: "missions.state") == stored, "Rollover preview leaves persistence unchanged")
+            check(live.record(huge) == preview && live.record(huge).isEmpty, "Rollover preview and record agree; claims pay once")
+        }
+        let invalid = RideMissions(preferences: suite(), calendar: cal, now: { date })
+        var bad = RunReport(); bad.distance = .infinity; bad.wheelieMetres = .nan
+        bad.stoppieMetres = -.infinity; bad.noHandsSeconds = -1
+        bad.score = -1; bad.bestCombo = -1; bad.flips = -1; bad.spins = -1; bad.jumps = -1; bad.dodges = -1
+        check(invalid.preview(bad).isEmpty && invalid.record(bad).isEmpty, "Invalid reports never complete missions")
+        check(invalid.state.dayProgress == [0, 0, 0] && invalid.weeklyProgress == 0, "Invalid metrics do not advance")
+        let statPrefs = suite()
+        var corrupt = RideTotals(); corrupt.runs = -4; corrupt.flips = Int.max
+        corrupt.distance = -10; corrupt.airTime = .greatestFiniteMagnitude; corrupt.bestEndless = .greatestFiniteMagnitude
+        corrupt.coinsEarned = Int.max
+        statPrefs.set(try! JSONEncoder().encode(corrupt), forKey: "stats.totals")
+        let stats = RideStats(preferences: statPrefs)
+        check(stats.totals.runs == 0 && stats.totals.distance == 0, "Negative persisted totals repaired")
+        check(stats.summary.count == 6, "Huge persisted distances are safe to display")
+        huge.airTime = .greatestFiniteMagnitude; huge.supermans = Int.max
+        _ = stats.record(huge); _ = stats.record(huge)
+        stats.addCoinsEarned(Int.max); stats.addCoinsEarned(-1)
+        check(stats.totals.flips == Int.max && stats.totals.coinsEarned == Int.max, "Integer additions saturate without trapping")
+        check(stats.totals.distance.isFinite && stats.totals.airTime.isFinite && stats.summary.count == 6, "Huge reports stay finite and displayable")
+        let reopened = RideStats(preferences: statPrefs)
+        check(reopened.totals == stats.totals && reopened.record(huge).isEmpty, "Saturated totals and claims persist")
+        var base = RideTotals(); base.distance = .nan; base.runs = Int.max; base.bestScore = -5
+        let projected = RideStats.applying(bad, to: base)
+        check(projected.runs == Int.max && projected.distance == 0 && projected.bestScore == 0, "Pure projection sanitizes base and input")
     }
 
     static func tutorial() {

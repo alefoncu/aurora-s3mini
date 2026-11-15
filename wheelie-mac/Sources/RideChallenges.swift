@@ -45,10 +45,20 @@ struct RideGhostFrame: Codable, Equatable {
     let frontWheelY: Double
     let wheelRotation: Double
     let speed: Double
+    /// Optional so recordings from before forks still decode; their lane is unknown.
+    let lane: Int?
+
+    init(time: Double, x: Double, y: Double, pitch: Double,
+         rearWheelX: Double, rearWheelY: Double, frontWheelX: Double, frontWheelY: Double,
+         wheelRotation: Double, speed: Double, lane: Int? = nil) {
+        self.time=time; self.x=x; self.y=y; self.pitch=pitch
+        self.rearWheelX=rearWheelX; self.rearWheelY=rearWheelY; self.frontWheelX=frontWheelX; self.frontWheelY=frontWheelY
+        self.wheelRotation=wheelRotation; self.speed=speed; self.lane=lane
+    }
 
     fileprivate var valid: Bool {
         let values = [time, x, y, pitch, rearWheelX, rearWheelY, frontWheelX, frontWheelY, wheelRotation, speed]
-        return values.allSatisfy { $0.isFinite } && time >= 0 && time <= 36_000
+        return (lane == nil || lane == 0 || lane == 1) && values.allSatisfy { $0.isFinite } && time >= 0 && time <= 36_000
             && abs(x) <= 10_000 && abs(y) <= 1_000 && abs(pitch) <= 100
             && abs(rearWheelX) <= 10_000 && abs(frontWheelX) <= 10_000
             && abs(rearWheelY) <= 1_000 && abs(frontWheelY) <= 1_000
@@ -56,17 +66,18 @@ struct RideGhostFrame: Codable, Equatable {
     }
     fileprivate func interpolated(to other: Self, fraction: Double, time: Double) -> Self {
         func mix(_ a: Double, _ b: Double) -> Double { a + (b - a) * fraction }
-        return Self(time: time, x: mix(x, other.x), y: mix(y, other.y), pitch: mix(pitch, other.pitch),
+        return Self(time: time, x: mix(x, other.x), y: mix(y, other.y), pitch: pitch + atan2(sin(other.pitch-pitch), cos(other.pitch-pitch))*fraction,
             rearWheelX: mix(rearWheelX, other.rearWheelX), rearWheelY: mix(rearWheelY, other.rearWheelY),
             frontWheelX: mix(frontWheelX, other.frontWheelX), frontWheelY: mix(frontWheelY, other.frontWheelY),
-            wheelRotation: mix(wheelRotation, other.wheelRotation), speed: mix(speed, other.speed))
+            wheelRotation: mix(wheelRotation, other.wheelRotation), speed: mix(speed, other.speed),
+            lane: fraction >= 1 ? other.lane : lane)
     }
 }
 
 struct RideGhostRun: Codable {
-    static let maximumDuration = 600.0
-    static let maximumFrames = 6_002
-    static let maximumDataBytes = 2_500_000
+    static let maximumDuration = 1_800.0
+    static let maximumFrames = 18_002
+    static let maximumDataBytes = 7_500_000
     let version: Int
     let contextKey: String
     let duration: Double
@@ -95,12 +106,14 @@ struct RideGhostRun: Codable {
     func frame(at time: Double) -> RideGhostFrame? {
         guard time.isFinite, time >= 0, time <= duration, !frames.isEmpty else { return nil }
         if time == duration { return frames.last }
+        guard frames.count >= 2 else { return frames.first?.time == time ? frames.first : nil }
         var lower = 0, upper = frames.count - 1
         while upper - lower > 1 {
             let middle = (lower + upper) / 2
             if frames[middle].time <= time { lower = middle } else { upper = middle }
         }
         let a = frames[lower], b = frames[upper]
+        guard b.time > a.time else { return nil }
         return a.interpolated(to: b, fraction: (time - a.time) / (b.time - a.time), time: time)
     }
 }

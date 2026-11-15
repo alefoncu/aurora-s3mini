@@ -31,6 +31,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSToolbarDelegate, NST
     var settings:NSPanel?, settingsResume=false
     var colorWells:[String:NSColorWell]=[:]
     var smokePreferences:String?
+    var diagnosticMode:Bool {
+        let flags:Set<String>=["--smoke-test","--snapshot","--responsive","--crash","--ragdoll","--bench","--fps","--screenshot"]
+        return !flags.isDisjoint(with:CommandLine.arguments)
+    }
     func applicationDidFinishLaunching(_ notification:Notification) {
         NSApp.appearance=nil
         NSTouchBar.isAutomaticCustomizeTouchBarMenuItemEnabled=true
@@ -39,7 +43,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSToolbarDelegate, NST
         window.title="Wheelie Ride"; window.contentMinSize=NSSize(width:760,height:520)
         window.titlebarAppearsTransparent=true; window.toolbarStyle = .unified; window.isReleasedWhenClosed=false; window.delegate=self
         let preferences:UserDefaults
-        if CommandLine.arguments.contains("--smoke-test") {
+        if diagnosticMode {
             let domain="com.scratch.wheelieride.test."+UUID().uuidString
             smokePreferences=domain; preferences=UserDefaults(suiteName:domain)!
             preferences.register(defaults:["vehicle":1,"route":1,"sound":false,"obstacles":false])
@@ -64,8 +68,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSToolbarDelegate, NST
         inspectorItem=NSSplitViewItem(viewController:inspector); inspectorItem.minimumThickness=260; inspectorItem.maximumThickness=300; inspectorItem.canCollapse=true
         split.addSplitViewItem(sidebarItem); split.addSplitViewItem(middle); split.addSplitViewItem(inspectorItem)
         window.contentViewController=split
-        let restored=window.setFrameUsingName("WheelieRideNativeWindow")
-        window.setFrameAutosaveName("WheelieRideNativeWindow")
+        let restored = diagnosticMode ? false : window.setFrameUsingName("WheelieRideNativeWindow")
+        if !diagnosticMode { window.setFrameAutosaveName("WheelieRideNativeWindow") }
         touchBarWindowController=NSWindowController(window:window)
         window.touchBarFocusChanged = { [weak self] in self?.bindTouchBar() }
         bindTouchBar()
@@ -84,13 +88,31 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSToolbarDelegate, NST
     /// Developer aid: real frame rate in the real window, driven by the game's own 60 Hz timer and the run loop.
     func measureLiveFrameRate() {
         game.audio.enabled=false; game.progress.unlockEverything(); game.obstacles=true; game.bike.kind = .sport
-        for (name,route,night) in [("Valle",0,false),("Sierra",1,false),("Nieve",3,false),("Ciudad con lluvia y noche",4,true)] {
-            game.bike.route=route; game.night=night; game.challengeKind = .free; game.start(); game.keys=[126]
-            RunLoop.current.run(until:Date(timeIntervalSinceNow:1))        // warm-up
+        let scenarios:[(String,Int,Bool,RideChallengeKind)] = [
+            ("Valle",0,false,.free),("Sierra",1,false,.free),("Nieve",3,false,.free),
+            ("Ciudad con lluvia y noche",4,true,.free),("Ciudad con lluvia, noche y rival",4,true,.race),
+            ("Ciudad con lluvia, noche y 3 rivales",4,true,.circuit)]
+        for (name,route,night,challenge) in scenarios {
+            game.garage();game.bike.route=route;game.night=night;game.challengeKind=challenge;game.start()
+            game.bike.reset(at:500);game.bike.speed=9
+            for (i,r) in game.rivalRuns.enumerated() { r.bike.reset(at:500+Double(i+1)*2);r.bike.speed=9 }
+            // Hold the pack in view with a modest pace, avoiding a crash that would cheapen the scene.
+            let driver=Timer(timeInterval:1/30,repeats:true) { [weak self] _ in
+                guard let self else { return }
+                self.game.keys=[]
+                if self.game.bike.speed<12 { self.game.keys.insert(126) }
+                if self.game.bike.speed>12.6 { self.game.keys.insert(125) }
+                if self.game.bike.angle < -0.25 { self.game.keys.insert(123) }
+                if self.game.bike.angle > 0.25 { self.game.keys.insert(124) }
+            }
+            RunLoop.main.add(driver,forMode:.common)
+            RunLoop.current.run(until:Date(timeIntervalSinceNow:1))
             let before=game.sceneView.drawCount,start=ProcessInfo.processInfo.systemUptime
             RunLoop.current.run(until:Date(timeIntervalSinceNow:4))
+            driver.invalidate()
             let fps=Double(game.sceneView.drawCount-before)/(ProcessInfo.processInfo.systemUptime-start)
-            print(String(format:"%-28@ %5.1f fotogramas por segundo",name as NSString,fps))
+            let visible=game.rivalRuns.filter { !$0.crashed && abs($0.bike.x-game.camX)<=16 }.count
+            print(String(format:"%-36@ %5.1f fps · %d rivales en pantalla · %@",name as NSString,fps,visible,game.mode == .riding ? "rodando" : "escena interrumpida"))
         }
         NSApp.terminate(nil)
     }
@@ -112,12 +134,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSToolbarDelegate, NST
         NSApp.terminate(nil)
     }
     /// Frame cost of the heaviest scenes: one simulation tick plus one full draw into an offscreen bitmap.
-    struct BenchResult { let name:String; let average:Double; let p95:Double; let worst:Double; var sections:[(String,Double)] = [] }
+    struct BenchResult { let name:String; let average:Double; let p95:Double; let worst:Double; var ridingFrames=0,visibleRivals=0; var sections:[(String,Double)] = [] }
     var benchScale=0.0
     func measure(_ name:String,frames:Int,setup:()->Void)->BenchResult {
         game.audio.enabled=false; game.progress.unlockEverything()
         setup()
-        var samples:[Double]=[]
+        precondition(frames>5,"A benchmark needs warm-up plus measured frames")
+        let expectedRivals=game.rivalRuns.count
+        var samples:[Double]=[],ridingFrames=0,visibleRivals=expectedRivals
+        RideProfile.reset()
         // The CPU cost per frame: simulation, the layer updates, and rasterising the two drawing views (world and HUD).
         // The backdrop and shading are Core Animation layers composited by the GPU, so they are not part of this number.
         func bitmap(for view:NSView)->NSBitmapImageRep? {
@@ -127,16 +152,27 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSToolbarDelegate, NST
             }
             return view.bitmapImageRepForCachingDisplay(in:view.bounds)
         }
-        guard let sceneRep=bitmap(for:game.sceneView),let hudRep=bitmap(for:game.hudView) else { return BenchResult(name:name,average:0,p95:0,worst:0) }
+        guard let sceneRep=bitmap(for:game.sceneView),let hudRep=bitmap(for:game.hudView) else { preconditionFailure("Cannot allocate render targets for benchmark: \(name)") }
         for i in 0..<frames {
             let start=ProcessInfo.processInfo.systemUptime
-            game.previous=start-1/60; game.keys=[126]; game.tick()
+            game.previous=start-1/60
+            game.keys=[]
+            if game.bike.speed<9 { game.keys.insert(126) }
+            if game.bike.speed>9.6 { game.keys.insert(125) }
+            if game.bike.angle < -0.25 { game.keys.insert(123) }
+            if game.bike.angle > 0.25 { game.keys.insert(124) }
+            game.tick()
+            if game.mode == .riding { ridingFrames+=1 }
+            if i>=5 { visibleRivals=min(visibleRivals,game.rivalRuns.filter { !$0.crashed && abs($0.bike.x-game.camX)<=16 }.count) }
             game.sceneView.cacheDisplay(in:game.sceneView.bounds,to:sceneRep)
             game.hudView.cacheDisplay(in:game.hudView.bounds,to:hudRep)
             if i>=5 { samples.append((ProcessInfo.processInfo.systemUptime-start)*1000) }   // skip warm-up (textures, caches)
         }
+        precondition(ridingFrames==frames,"Benchmark left the riding state in \(name)")
+        precondition(visibleRivals==expectedRivals,"Benchmark lost a visible rival in \(name)")
         samples.sort()
         var result=BenchResult(name:name,average:samples.reduce(0,+)/Double(max(1,samples.count)),p95:samples[min(samples.count-1,Int(Double(samples.count)*0.95))],worst:samples.last ?? 0)
+        result.ridingFrames=ridingFrames; result.visibleRivals=visibleRivals
         result.sections=RideProfile.totals.sorted(by:{ $0.value>$1.value }).map { ($0.key,$0.value*1000/Double(frames)) }
         RideProfile.reset()
         return result
@@ -146,7 +182,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSToolbarDelegate, NST
         func scene(_ name:String,route:Int,night:Bool,obstacles:Bool,kind:BikeKind,challenge:RideChallengeKind,start:Double) {
             results.append(measure(name,frames:frames) {
                 game.garage(); game.bike.kind=kind; game.bike.route=route; game.night=night; game.obstacles=obstacles; game.challengeKind=challenge
-                game.start(); game.bike.x=start; game.bike.speed=9
+                game.start(); game.bike.reset(at:start); game.bike.speed=9
+                for (i,r) in game.rivalRuns.enumerated() { r.bike.reset(at:start+Double(i+1)*2); r.bike.speed=9 }
+                game.elapsed=10; game.updateWeather(); game.updateGeometry()
+                game.cameraY=BikePhysics.ground(start,route:route)*game.art.metresToPixels
             })
         }
         scene("Valle de día",route:0,night:false,obstacles:false,kind:.sport,challenge:.free,start:300)
@@ -155,6 +194,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSToolbarDelegate, NST
         scene("Ciudad, lluvia y noche",route:4,night:true,obstacles:true,kind:.sport,challenge:.free,start:500)
         game.rivalLevel = .expert
         scene("Ciudad, lluvia, noche y rival",route:4,night:true,obstacles:true,kind:.sport,challenge:.race,start:500)
+        scene("Ciudad, lluvia, noche y 3 rivales",route:4,night:true,obstacles:true,kind:.sport,challenge:.circuit,start:500)
         scene("Circuito en la Sierra",route:1,night:true,obstacles:true,kind:.sport,challenge:.circuit,start:900)
         game.garage(); game.night=false; game.obstacles=false; game.challengeKind = .free
         return results
@@ -310,7 +350,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSToolbarDelegate, NST
         }
         game.art.helmetStyle = .standard; game.art.jacketStyle = .standard; game.art.livery = .none; game.bike.kind = .sport
         // Weather: fog bank in the valley, storm in the city, blizzard on the snow.
-        for (name,route,x,night,time) in [("weather-fog",0,550.0,false,1.0),("weather-storm",4,860.0,true,1.0),("weather-blizzard",3,690.0,false,1.0)] {
+        for (name,route,x,night) in [("weather-fog",0,550.0,false),("weather-storm",4,860.0,true),("weather-blizzard",3,690.0,false)] {
             game.weatherOn=true; game.challengeKind = .free; game.bike.kind = .sport; game.bike.route=route; game.night=night; game.start(); game.bike.x=x; game.bike.speed=9
             for _ in 0..<40 { game.previous=ProcessInfo.processInfo.systemUptime-1/60; game.keys=[126]; game.tick() }
             shot(name)
@@ -492,7 +532,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSToolbarDelegate, NST
         if settingsResume && game.mode == .paused { game.pause() }; game.syncState(); window.makeFirstResponder(game)
     }
     func applicationShouldTerminateAfterLastWindowClosed(_ sender:NSApplication)->Bool { true }
-    func applicationWillTerminate(_ notification:Notification) { game?.preserveRun(); game?.audio.stop(); game?.bar.releaseAll() }
+    func applicationWillTerminate(_ notification:Notification) {
+        game?.preserveRun(); game?.audio.stop(); game?.bar.releaseAll()
+        if let domain=smokePreferences { game?.prefs.removePersistentDomain(forName:domain) }
+    }
     func windowWillClose(_ notification:Notification) { game.preserveRun(); game.audio.stop(); game.bar.releaseAll() }
     /// Exercise the actual UI state machine without injecting global keyboard events.
     func smokeTest() {
@@ -676,7 +719,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSToolbarDelegate, NST
         // at most 4x the plain valley, and nothing may take half a second per frame.
         let scenes=benchmarkScenes(frames:40)
         let baseline=scenes.first?.average ?? 1
+        precondition(scenes.contains { $0.visibleRivals==3 },"The heavy benchmark must actually draw three rivals")
         for r in scenes {
+            precondition(r.ridingFrames==40,"Benchmark left the riding state in \(r.name)")
             precondition(r.average<500,"Frame cost absurd in \(r.name): \(r.average) ms average")
             precondition(r.average<baseline*4,"\(r.name) costs \(r.average) ms against \(baseline) ms for the plain valley")
         }
@@ -708,6 +753,34 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSToolbarDelegate, NST
         game.challengeKind = .free; game.start(); game.keys=[126,4,5,9]
         for _ in 0..<30 { game.previous=ProcessInfo.processInfo.systemUptime-1/60; game.tick() }
         precondition(game.noHandsHeld && game.spinHeld && game.supermanHeld,"Trick keys")
+        // Awards: the tutorial bonus is paid immediately and must never be included again
+        // in the natural result's base reward. A repeat save does not count coins twice.
+        game.garage();game.bike.kind = .sport;game.bike.route=0;game.challengeKind = .free;game.start()
+        let awardWallet=game.progress.wallet,earnedBefore=game.stats.totals.coinsEarned
+        game.awardCoins(40)
+        let immediate=game.progress.wallet
+        precondition(immediate-awardWallet==40 && game.stats.totals.coinsEarned-earnedBefore==40,"Immediate tutorial-sized award is credited once")
+        game.bike.coins=10;game.bike.crashed=true;game.score.crash();game.saveRun()
+        precondition(game.progress.wallet-immediate==10 && game.lastReward==50,"The natural reward must not pay the prior bonus again")
+        let paidWallet=game.progress.wallet,paidLifetime=game.stats.totals.coinsEarned
+        game.saveRun();precondition(game.progress.wallet==paidWallet && game.stats.totals.coinsEarned==paidLifetime,"Repeated results never repeat awards")
+        // Saving progress mid-run must not consume its final statistics report or cash an open chain.
+        game.garage();game.start();game.bike.distance=100
+        let midRuns=game.stats.totals.runs,midScore=game.bestScore
+        game.score.add(.flip,points:400,label:"test");game.saveRun()
+        precondition(!game.reported && game.stats.totals.runs==midRuns && game.bestScore==midScore,"Mid-run save keeps the run open and pending points at risk")
+        game.bike.distance=160;game.bike.coins=2;game.bike.crashed=true;game.score.crash();game.saveRun()
+        precondition(game.stats.totals.runs==midRuns+1 && game.report.distance==160,"Final report includes all distance after an interim save")
+        // A prior run's record stays in its original context, even if a caller changes selection
+        // before asking the previous run to save. Existing records never leak to another route.
+        game.garage();game.bike.route=0;game.challengeKind = .free;game.start()
+        let oldKey=game.recordKey,oldDistance=game.prefs.double(forKey:game.recordKey+".distance")
+        game.bike.distance=oldDistance+234;game.bike.bestWheelie=7
+        game.difficulty = .realistic
+        let newKey=game.recordKey,newDistance=game.prefs.double(forKey:newKey+".distance")
+        game.saveRun()
+        precondition(game.prefs.double(forKey:oldKey+".distance")==oldDistance+234 && game.prefs.double(forKey:newKey+".distance")==newDistance,"A run saves under its frozen context")
+        game.garage();game.difficulty = .normal;game.bike.route=0;game.challengeKind = .free
         // A full run to the finish line: coins, score, stats, missions and achievements all update once.
         game.garage(); game.bike.route=0; game.challengeKind = .free; game.start()
         let walletBefore=game.progress.wallet,runsBefore=game.stats.totals.runs
@@ -770,7 +843,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSToolbarDelegate, NST
         for _ in 0..<150 { game.previous=ProcessInfo.processInfo.systemUptime-1/60; game.tick() }
         precondition(game.mode == .result && game.ragdoll != nil, "Crash dynamics must reach the result state")
         checkBar(.result); game.garage(); checkBar(.garage)
-        if let domain=smokePreferences { UserDefaults.standard.removePersistentDomain(forName:domain) }
         game.bar.releaseAll(); print("App smoke: garage UI flow (wallet, locks, purchases, challenges, rival, ABS), race, tutorial, endless, tricks, full run rewards, acceleration, pause/resume, focus loss, settings sheet guards, Touch Bar contexts, native pause-button focus and detached crash dynamics passed.")
         NSApp.terminate(nil)
     }

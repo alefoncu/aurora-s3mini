@@ -83,6 +83,11 @@ extension RideView {
                 art.text(message,cx,176,12,bike.lane == 1 && bike.x>=f.start ? NSColor.systemYellow : .white,.semibold,center:true)
             }
         }
+        if ghostEnabled, BikePhysics.forksEnabled,
+           let ghost=challenges.ghostFrame(at:elapsed), let ghostLane=ghost.lane,
+           BikePhysics.fork(containing:ghost.x) != nil {
+            art.text("FANTASMA · CAMINO "+(ghostLane == 1 ? "ALTO" : "NORMAL"),cx,208,11,NSColor.white.withAlphaComponent(0.8),.medium,center:true)
+        }
         if let label=weather.label { art.text(label.uppercased(),28,104,11,weather.storm ? NSColor.systemYellow : NSColor(hex:0xBFD4EA),.bold) }
         let stage=BikePhysics.difficultyStage(at:bike.x)
         if BikePhysics.circuit {

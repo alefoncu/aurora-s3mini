@@ -19,5 +19,5 @@ jobs:
       - name: Build the app
         run: ./build.sh
       - name: App smoke test (isolated preferences)
-        continue-on-error: true  # needs a GUI session; the tests above are the gate
-        run: timeout 180 "build/Wheelie Ride.app/Contents/MacOS/WheelieRide" --smoke-test
+        timeout-minutes: 3
+        run: '"build/Wheelie Ride.app/Contents/MacOS/WheelieRide" --smoke-test'

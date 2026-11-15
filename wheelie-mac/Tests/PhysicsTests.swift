@@ -20,6 +20,24 @@ import Foundation
         check(b.rearCompression>=0 && b.rearCompression<=b.kind.rig.rearTravel+0.0001,"Rear travel exceeded")
     }
     static func main() {
+        // Hands off: the combined brake must use only the rear pedal, not the unreachable front lever.
+        do {
+            let b=BikePhysics();b.kind = .commuter;b.reset(at:-500);b.speed=12
+            for _ in 0..<60 { b.update(frame,throttle:false,brake:true,leanBack:false,leanForward:false,frontBrake:true,noHands:true) }
+            check(b.frontBrakePressure==0 && b.frontBrakeForce==0 && b.rearBrakePressure>0.9,"H disables the front lever even when the combined brake is held")
+        }
+        // Diagnostic/respawn placement must settle on the local terrain rather than falling
+        // from the start-line height (which made the old benchmark measure a crashed bike).
+        for route in 0..<BikePhysics.routeCount {
+            let b=BikePhysics();b.kind = .sport;b.route=route
+            for position in [300.0,500,700,900] {
+                b.reset(at:position)
+                finite(b)
+                check(abs(b.x-position)<0.001 && !b.crashed && b.speed==0,"Spawn at the selected world position")
+                check(b.rearContact || b.frontContact,"Spawn settles at least one wheel")
+            }
+            b.reset(at:.nan);check(abs(b.x)<0.001,"Invalid spawn position falls back to the start")
+        }
         check(BikePhysics.difficultyStage(at:0)==0 && BikePhysics.difficultyStage(at:299.99)==0 && BikePhysics.difficultyStage(at:300)==1 && BikePhysics.difficultyStage(at:600)==2 && BikePhysics.difficultyStage(at:900)==3,"Course sector boundaries")
         check(BikePhysics.difficultyStage(at:Double.greatestFiniteMagnitude)==3,"Extreme finite distance must clamp before integer conversion")
         check(BikePhysics.difficultyStage(at:Double.nan)==0 && BikePhysics.difficultyStage(at:-5)==0,"Invalid/negative sector positions")

@@ -165,7 +165,7 @@ extension RideView {
             }
             NSGraphicsContext.saveGraphicsState()
             NSGraphicsContext.current?.cgContext.setAlpha(0.28)
-            art.wheelBlur=art.blur(speed:bike.speed,radius:rig.wheelRadius); art.motorcycle(x:art.focusX+(ghost.x-camX)*ppm,y:art.groundY+camY-ghost.y*ppm,
+            art.wheelBlur=art.blur(speed:ghost.speed,radius:rig.wheelRadius); art.motorcycle(x:art.focusX+(ghost.x-camX)*ppm,y:art.groundY+camY-ghost.y*ppm,
                 scale:ppm/rig.drawingUnitsPerMetre,angle:ghost.pitch,kind:bike.kind,
                 rotation:-ghost.wheelRotation,time:elapsed,showRider:true,
                 rearWheelLocal:localGhost(ghost.rearWheelX,ghost.rearWheelY),

@@ -47,6 +47,16 @@ import Foundation
         check(p.unlock(.vehicle(.sport)) && p.wallet == 70, "Buying twice is free")
         p.earn(RideProgress.reward(distanceCoins: 10, score: 1_000)); p.earn(-50); p.earn(0)
         check(p.wallet == 85, "Rewards: \(p.wallet)")
+        // Persisted wallet data and extreme rewards cannot overflow or crash purchases.
+        let cappedDomain="wheelie.capped."+UUID().uuidString
+        let cappedPrefs=UserDefaults(suiteName:cappedDomain)!
+        defer { cappedPrefs.removePersistentDomain(forName:cappedDomain) }
+        cappedPrefs.set(Int.max,forKey:"progress.wallet")
+        let capped=RideProgress(preferences:cappedPrefs)
+        capped.earn(Int.max)
+        check(capped.wallet == RideProgress.maximumWallet,"Wallet caps persisted and incoming coins")
+        check(RideProgress.reward(distanceCoins:Int.max,score:Int.max,multiplier:1.25)==RideProgress.maximumWallet,"Extreme reward remains bounded")
+        check(RideProgress.reward(distanceCoins:10,score:100,multiplier:.nan)==0 && RideProgress.reward(distanceCoins:10,score:100,multiplier:.infinity)==0,"Invalid multipliers give no coins")
         let again = RideProgress(preferences: prefs)
         check(again.wallet == 85 && again.isUnlocked(.vehicle(.sport)), "Progress persists")
         // Cosmetic styles: free defaults, priced extras, bought once with coins and remembered.

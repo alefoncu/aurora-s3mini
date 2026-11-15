@@ -376,6 +376,8 @@ Lo que **no** se ha podido comprobar y conviene revisar jugando:
 Rediseño solo visual: la física, el solver del piloto (`RiderRig`), el ragdoll y los tests no cambian.
 
 - **Estilo cel-shading unificado:** pintura plana con una banda de sombra de borde duro, brillo especular nítido y contorno firme, tanto en carrocerías como en el piloto (ropa, guantes, botas y casco).
+- **Estructura coherente:** el amortiguador trasero se ancla ahora a un soporte y a un puntal del subchasis (antes flotaba), las colas de la Sport, Hyper, Trial y Eléctrica tienen proporciones reales y los escapes ya no dan una vuelta suelta.
+- **Frenos rehechos:** pinzas en arco que abrazan el borde del disco con su soporte a la horquilla o al basculante, depósito en el manillar y latiguillo pegado a la barra hasta la pinza.
 - **Deportiva 600 e Hyper R 1000 rehechas:** cola ascendente, depósito esculpido y un único carenado continuo (en la Hyper, parte superior pintada y quilla de carbono con aleta y faro LED) en lugar de bloques sueltos.
 
 ### Actualización 6.18 · revisión de pendientes

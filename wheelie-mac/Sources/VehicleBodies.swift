@@ -121,7 +121,7 @@ extension RideRenderer {
     // MARK: Sport 600
     func vmSportBody(rig:VehicleRig) {
         // One continuous line: upswept tail, sculpted tank, and a single side fairing that flows from the nose into the belly pan.
-        let tail=vmSpline([(-8,45),(-7,50),(6,55),(26,55),(40,50),(36,44),(14,41),(0,42)])
+        let tail=vmSpline([(-10,47),(-8,52),(6,56),(26,55),(40,50),(38,43),(28,39),(10,38),(-3,41)])
         vmPanel(tail,body,gloss:0.5)
         vmClip(tail) { line(-4,-47,34,-51,1.2,NSColor.white.withAlphaComponent(0.75)); line(8,-43,36,-46,2.2,vmTone(body,-0.45)) }
         vmSeat(rig:rig,kind:.sport,length:12)
@@ -154,7 +154,7 @@ extension RideRenderer {
     // MARK: Hyper R 1000
     func vmHyperBody(rig:VehicleRig) {
         // Superbike: razor tail, deep tank, a full fairing in two tones (painted upper, carbon lower) with a winglet and LED nose.
-        let tail=vmRoundedPoly([(-6,46),(-3,52),(18,58),(42,53),(36,44),(8,42)],radius:3)
+        let tail=vmSpline([(-9,48),(-6,54),(16,59),(40,54),(40,45),(30,40),(10,39),(-3,42)])
         vmPanel(tail,body,gloss:0.5)
         vmClip(tail) { line(0,-50,38,-54,1.2,NSColor.white.withAlphaComponent(0.7)) }
         vmSeat(rig:rig,kind:.hyperbike,length:11)
@@ -252,8 +252,8 @@ extension RideRenderer {
             vmClip(tank) { line(26,-52,66,-58,2.4,vmTone(body,-0.5)) }
         }
         vmFill(vmSpline([(8,46),(10,52),(30,52),(38,48),(26,44)]),colors:[NSColor(hex:0x4E5B60),NSColor(hex:0x1D2D34)],angle:80,outline:0.6)
-        let tail=vmPoly([(-14,46),(14,49),(24,45),(-10,41)]); vmPanel(tail,body,gloss:0.3,outline:0.65)
-        vmTailLight(-15,46,w:4,h:2.6)
+        let tail=vmSpline([(-10,45),(-7,50),(8,52),(24,47),(14,42),(-2,41)]); vmPanel(tail,body,gloss:0.3,outline:0.65)
+        vmTailLight(-11,47,w:4,h:2.6)
         // Radiator, plastic side panels and a skid plate.
         vmRadiator(rect:NSRect(x:56,y:-52,width:6,height:20),angle:-12,about:NSPoint(x:59,y:-42),hoses:false)
         let plate=vmSpline([(86,82),(98,80),(98,62),(85,64)])

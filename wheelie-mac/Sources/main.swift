@@ -94,8 +94,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSToolbarDelegate, NST
             ("Ciudad con lluvia, noche y 3 rivales",4,true,.circuit)]
         for (name,route,night,challenge) in scenarios {
             game.garage();game.bike.route=route;game.night=night;game.challengeKind=challenge;game.start()
-            game.bike.reset(at:500);game.bike.speed=9
-            for (i,r) in game.rivalRuns.enumerated() { r.bike.reset(at:500+Double(i+1)*2);r.bike.speed=9 }
+            game.bike.reset(at:500);game.bike.speed=12
+            for (i,r) in game.rivalRuns.enumerated() { r.bike.reset(at:500+Double(i-1)*1.8);r.bike.speed=12 }
             // Hold the pack in view with a modest pace, avoiding a crash that would cheapen the scene.
             let driver=Timer(timeInterval:1/30,repeats:true) { [weak self] _ in
                 guard let self else { return }
@@ -104,6 +104,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSToolbarDelegate, NST
                 if self.game.bike.speed>12.6 { self.game.keys.insert(125) }
                 if self.game.bike.angle < -0.25 { self.game.keys.insert(123) }
                 if self.game.bike.angle > 0.25 { self.game.keys.insert(124) }
+                for rival in self.game.rivalRuns { rival.bike.speed=self.game.bike.speed }
+                for (i,r) in self.game.rivalRuns.enumerated() where !self.game.rivalIsVisible(r.bike,fully:true) {
+                    r.bike.reset(at:self.game.bike.x+Double(i-1)*1.8);r.bike.speed=self.game.bike.speed
+                }
             }
             RunLoop.main.add(driver,forMode:.common)
             RunLoop.current.run(until:Date(timeIntervalSinceNow:1))
@@ -111,7 +115,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSToolbarDelegate, NST
             RunLoop.current.run(until:Date(timeIntervalSinceNow:4))
             driver.invalidate()
             let fps=Double(game.sceneView.drawCount-before)/(ProcessInfo.processInfo.systemUptime-start)
-            let visible=game.rivalRuns.filter { !$0.crashed && abs($0.bike.x-game.camX)<=16 }.count
+            let visible=game.rivalRuns.filter { !$0.crashed && game.rivalIsVisible($0.bike,fully:true) }.count
             print(String(format:"%-36@ %5.1f fps · %d rivales en pantalla · %@",name as NSString,fps,visible,game.mode == .riding ? "rodando" : "escena interrumpida"))
         }
         NSApp.terminate(nil)
@@ -139,6 +143,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSToolbarDelegate, NST
     func measure(_ name:String,frames:Int,setup:()->Void)->BenchResult {
         game.audio.enabled=false; game.progress.unlockEverything()
         setup()
+        window.contentView?.layoutSubtreeIfNeeded();game.updateGeometry()
         precondition(frames>5,"A benchmark needs warm-up plus measured frames")
         let expectedRivals=game.rivalRuns.count
         var samples:[Double]=[],ridingFrames=0,visibleRivals=expectedRivals
@@ -157,16 +162,22 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSToolbarDelegate, NST
             let start=ProcessInfo.processInfo.systemUptime
             game.previous=start-1/60
             game.keys=[]
-            if game.bike.speed<9 { game.keys.insert(126) }
-            if game.bike.speed>9.6 { game.keys.insert(125) }
+            let pace=(game.bike.route == 0 || game.bike.route == 4) ? 12.0 : 9.0
+            if game.bike.speed<pace { game.keys.insert(126) }
+            if game.bike.speed>pace+0.6 { game.keys.insert(125) }
+            // This is a rendering stress scene: pace-match the pack so its full load stays in view.
+            for rival in game.rivalRuns { rival.bike.speed=game.bike.speed }
             if game.bike.angle < -0.25 { game.keys.insert(123) }
             if game.bike.angle > 0.25 { game.keys.insert(124) }
             game.tick()
             if game.mode == .riding { ridingFrames+=1 }
-            if i>=5 { visibleRivals=min(visibleRivals,game.rivalRuns.filter { !$0.crashed && abs($0.bike.x-game.camX)<=16 }.count) }
+            if i>=5 { visibleRivals=min(visibleRivals,game.rivalRuns.filter { !$0.crashed && game.rivalIsVisible($0.bike,fully:true) }.count) }
             game.sceneView.cacheDisplay(in:game.sceneView.bounds,to:sceneRep)
             game.hudView.cacheDisplay(in:game.hudView.bounds,to:hudRep)
             if i>=5 { samples.append((ProcessInfo.processInfo.systemUptime-start)*1000) }   // skip warm-up (textures, caches)
+        }
+        if ridingFrames != frames || visibleRivals != expectedRivals {
+            FileHandle.standardError.write(Data("Benchmark \(name): \(ridingFrames)/\(frames) riding frames, \(visibleRivals)/\(expectedRivals) visible rivals\n".utf8))
         }
         precondition(ridingFrames==frames,"Benchmark left the riding state in \(name)")
         precondition(visibleRivals==expectedRivals,"Benchmark lost a visible rival in \(name)")
@@ -182,8 +193,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSToolbarDelegate, NST
         func scene(_ name:String,route:Int,night:Bool,obstacles:Bool,kind:BikeKind,challenge:RideChallengeKind,start:Double) {
             results.append(measure(name,frames:frames) {
                 game.garage(); game.bike.kind=kind; game.bike.route=route; game.night=night; game.obstacles=obstacles; game.challengeKind=challenge
-                game.start(); game.bike.reset(at:start); game.bike.speed=9
-                for (i,r) in game.rivalRuns.enumerated() { r.bike.reset(at:start+Double(i+1)*2); r.bike.speed=9 }
+                game.start(); game.bike.reset(at:start); game.bike.speed=12
+                for (i,r) in game.rivalRuns.enumerated() { r.bike.reset(at:start+Double(i-1)*1.8); r.bike.speed=12 }
                 game.elapsed=10; game.updateWeather(); game.updateGeometry()
                 game.cameraY=BikePhysics.ground(start,route:route)*game.art.metresToPixels
             })

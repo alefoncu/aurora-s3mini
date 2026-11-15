@@ -1,5 +1,14 @@
 import Cocoa
 
+/// Unlike an optimized Swift precondition, a failing diagnostic always keeps its message in CI logs.
+private func diagnosticCheck(_ condition:@autoclosure ()->Bool,_ message:@autoclosure ()->String="",
+                             file:StaticString=#fileID,line:UInt=#line) {
+    guard condition() else {
+        FileHandle.standardError.write(Data("Diagnostic failed at \(file):\(line): \(message())\n".utf8))
+        exit(EXIT_FAILURE)
+    }
+}
+
 /// Keep the game context attached when a native pause button becomes responder.
 final class RideWindow:NSWindow {
     var touchBarFocusChanged:(()->Void)?
@@ -144,7 +153,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSToolbarDelegate, NST
         game.audio.enabled=false; game.progress.unlockEverything()
         setup()
         window.contentView?.layoutSubtreeIfNeeded();game.updateGeometry()
-        precondition(frames>5,"A benchmark needs warm-up plus measured frames")
+        diagnosticCheck(frames>5,"A benchmark needs warm-up plus measured frames")
         let expectedRivals=game.rivalRuns.count
         var samples:[Double]=[],ridingFrames=0,visibleRivals=expectedRivals
         RideProfile.reset()
@@ -179,8 +188,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSToolbarDelegate, NST
         if ridingFrames != frames || visibleRivals != expectedRivals {
             FileHandle.standardError.write(Data("Benchmark \(name): \(ridingFrames)/\(frames) riding frames, \(visibleRivals)/\(expectedRivals) visible rivals\n".utf8))
         }
-        precondition(ridingFrames==frames,"Benchmark left the riding state in \(name)")
-        precondition(visibleRivals==expectedRivals,"Benchmark lost a visible rival in \(name)")
+        diagnosticCheck(ridingFrames==frames,"Benchmark left the riding state in \(name)")
+        diagnosticCheck(visibleRivals==expectedRivals,"Benchmark lost a visible rival in \(name)")
         samples.sort()
         var result=BenchResult(name:name,average:samples.reduce(0,+)/Double(max(1,samples.count)),p95:samples[min(samples.count-1,Int(Double(samples.count)*0.95))],worst:samples.last ?? 0)
         result.ridingFrames=ridingFrames; result.visibleRivals=visibleRivals
@@ -556,88 +565,88 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSToolbarDelegate, NST
         let originalKind=game.bike.kind,originalRoute=game.bike.route
         func gui() { game.syncState(); inspector.refresh() }
         gui()
-        precondition(inspector.uiWalletText.hasPrefix("\(RideProgress.startingCoins)"),"Wallet shows the starting coins")
-        precondition(inspector.uiMissionTexts.count == 4 && inspector.uiMissionTexts.allSatisfy { !$0.isEmpty },"Missions are listed in the garage")
+        diagnosticCheck(inspector.uiWalletText.hasPrefix("\(RideProgress.startingCoins)"),"Wallet shows the starting coins")
+        diagnosticCheck(inspector.uiMissionTexts.count == 4 && inspector.uiMissionTexts.allSatisfy { !$0.isEmpty },"Missions are listed in the garage")
         game.bike.kind = .hyperbike; game.start(); gui()
-        precondition(game.mode == .garage && !inspector.uiPlayEnabled && inspector.uiUnlockVisible && !inspector.uiUnlockEnabled,"A locked, unaffordable vehicle cannot start or be bought")
-        precondition(inspector.uiUnlockTitle.contains("Hyper R 1000") && inspector.uiUnlockTitle.contains("220"),"The unlock button names the vehicle and its price")
+        diagnosticCheck(game.mode == .garage && !inspector.uiPlayEnabled && inspector.uiUnlockVisible && !inspector.uiUnlockEnabled,"A locked, unaffordable vehicle cannot start or be bought")
+        diagnosticCheck(inspector.uiUnlockTitle.contains("Hyper R 1000") && inspector.uiUnlockTitle.contains("220"),"The unlock button names the vehicle and its price")
         game.bike.kind = .scooter; gui()
-        precondition(inspector.uiUnlockVisible && inspector.uiUnlockEnabled && !inspector.uiPlayEnabled,"An affordable vehicle offers purchase")
+        diagnosticCheck(inspector.uiUnlockVisible && inspector.uiUnlockEnabled && !inspector.uiPlayEnabled,"An affordable vehicle offers purchase")
         inspector.uiUnlock(); gui()
-        precondition(game.progress.isUnlocked(.vehicle(.scooter)) && game.progress.wallet == RideProgress.startingCoins-40 && inspector.uiPlayEnabled && !inspector.uiUnlockVisible,"Buying through the inspector spends coins and enables Play")
+        diagnosticCheck(game.progress.isUnlocked(.vehicle(.scooter)) && game.progress.wallet == RideProgress.startingCoins-40 && inspector.uiPlayEnabled && !inspector.uiUnlockVisible,"Buying through the inspector spends coins and enables Play")
         inspector.uiSelectRoute(3); gui()
-        precondition(game.bike.route == 3 && !inspector.uiPlayEnabled && inspector.uiUnlockTitle.contains("Nieve"),"A locked route blocks Play")
-        game.start(); precondition(game.mode == .garage,"A locked route must not start")
+        diagnosticCheck(game.bike.route == 3 && !inspector.uiPlayEnabled && inspector.uiUnlockTitle.contains("Nieve"),"A locked route blocks Play")
+        game.start(); diagnosticCheck(game.mode == .garage,"A locked route must not start")
         inspector.uiUnlock(); gui()
-        precondition(game.progress.wallet == RideProgress.startingCoins-140 && inspector.uiPlayEnabled,"Buying the route spends its price")
+        diagnosticCheck(game.progress.wallet == RideProgress.startingCoins-140 && inspector.uiPlayEnabled,"Buying the route spends its price")
         inspector.uiSelectRoute(4); gui()
-        precondition(!inspector.uiUnlockEnabled,"Not enough coins left for the city route")
-        precondition(!game.progress.unlock(.route(4)) && game.progress.wallet == RideProgress.startingCoins-140,"A failed purchase changes nothing")
+        diagnosticCheck(!inspector.uiUnlockEnabled,"Not enough coins left for the city route")
+        diagnosticCheck(!game.progress.unlock(.route(4)) && game.progress.wallet == RideProgress.startingCoins-140,"A failed purchase changes nothing")
         for kind in RideChallengeKind.allCases {
             inspector.uiSelectChallenge(kind); gui()
-            precondition(game.challengeKind == kind && inspector.uiRivalEnabled == (kind == .race),"Challenge \(kind.rawValue) and rival controls enable only for the race")
+            diagnosticCheck(game.challengeKind == kind && inspector.uiRivalEnabled == (kind == .race),"Challenge \(kind.rawValue) and rival controls enable only for the race")
         }
         inspector.uiSelectChallenge(.race); inspector.uiSelectRival(.expert); inspector.uiToggleRivalVehicle()
-        precondition(game.rivalLevel == .expert && !game.rivalSameVehicle,"Rival options reach the game")
+        diagnosticCheck(game.rivalLevel == .expert && !game.rivalSameVehicle,"Rival options reach the game")
         inspector.uiSelectChallenge(.free)
         let contextBefore=game.runContext
-        inspector.uiToggle("abs"); precondition(game.absOn && game.runContext != contextBefore && game.runContext.contains(".abs"),"ABS changes the record context")
-        inspector.uiToggle("abs"); precondition(!game.absOn && game.runContext == contextBefore,"ABS toggles back")
+        inspector.uiToggle("abs"); diagnosticCheck(game.absOn && game.runContext != contextBefore && game.runContext.contains(".abs"),"ABS changes the record context")
+        inspector.uiToggle("abs"); diagnosticCheck(!game.absOn && game.runContext == contextBefore,"ABS toggles back")
         inspector.uiSelectDifficulty(.realistic)
-        precondition(game.difficulty == .realistic && game.runContext.contains(".realista") && game.bike.assist == .realistic,"Difficulty reaches the game and the record context")
-        inspector.uiSelectDifficulty(.assisted); precondition(game.runContext.contains(".asistido"),"Assisted has its own records")
-        inspector.uiSelectDifficulty(.normal); precondition(game.runContext == contextBefore,"Normal keeps the original record context")
-        inspector.uiToggle("weather"); precondition(!game.weatherOn && !game.runContext.contains(".clima"),"Weather toggles off with its own records")
-        inspector.uiToggle("weather"); precondition(game.weatherOn && game.runContext.contains(".clima"),"Weather toggles back on")
-        inspector.uiToggle("obstacles"); precondition(game.obstacles,"Obstacles checkbox")
+        diagnosticCheck(game.difficulty == .realistic && game.runContext.contains(".realista") && game.bike.assist == .realistic,"Difficulty reaches the game and the record context")
+        inspector.uiSelectDifficulty(.assisted); diagnosticCheck(game.runContext.contains(".asistido"),"Assisted has its own records")
+        inspector.uiSelectDifficulty(.normal); diagnosticCheck(game.runContext == contextBefore,"Normal keeps the original record context")
+        inspector.uiToggle("weather"); diagnosticCheck(!game.weatherOn && !game.runContext.contains(".clima"),"Weather toggles off with its own records")
+        inspector.uiToggle("weather"); diagnosticCheck(game.weatherOn && game.runContext.contains(".clima"),"Weather toggles back on")
+        inspector.uiToggle("obstacles"); diagnosticCheck(game.obstacles,"Obstacles checkbox")
         inspector.uiToggle("obstacles")
         // Cosmetic styles must be owned before riding; buying them works through the same unlock button.
         inspector.uiSelectRoute(originalRoute); game.bike.kind=originalKind; gui()
         game.progress.earn(500)
         inspector.uiSelectHelmet(.flames); gui()
-        precondition(game.art.helmetStyle == .flames && !inspector.uiPlayEnabled && inspector.uiUnlockVisible && inspector.uiUnlockTitle.contains("llamas"),"A locked helmet style blocks Play and offers purchase")
-        game.start(); precondition(game.mode == .garage,"A locked style must not start")
+        diagnosticCheck(game.art.helmetStyle == .flames && !inspector.uiPlayEnabled && inspector.uiUnlockVisible && inspector.uiUnlockTitle.contains("llamas"),"A locked helmet style blocks Play and offers purchase")
+        game.start(); diagnosticCheck(game.mode == .garage,"A locked style must not start")
         inspector.uiSelectJacket(.reflective); inspector.uiSelectLivery(.number); gui()
-        precondition(inspector.uiUnlockTitle.contains("chaqueta") && inspector.uiUnlockTitle.contains("decoración"),"Several locked styles are bought together")
+        diagnosticCheck(inspector.uiUnlockTitle.contains("chaqueta") && inspector.uiUnlockTitle.contains("decoración"),"Several locked styles are bought together")
         let walletBeforeStyles=game.progress.wallet
         inspector.uiUnlock(); gui()
-        precondition(game.progress.wallet == walletBeforeStyles-HelmetStyle.flames.cost-JacketStyle.reflective.cost-Livery.number.cost && inspector.uiPlayEnabled && !inspector.uiUnlockVisible,"Buying styles spends their prices and enables Play")
-        precondition(game.prefs.integer(forKey:"helmetStyle") == HelmetStyle.flames.rawValue && game.prefs.integer(forKey:"livery") == Livery.number.rawValue,"Styles are remembered")
+        diagnosticCheck(game.progress.wallet == walletBeforeStyles-HelmetStyle.flames.cost-JacketStyle.reflective.cost-Livery.number.cost && inspector.uiPlayEnabled && !inspector.uiUnlockVisible,"Buying styles spends their prices and enables Play")
+        diagnosticCheck(game.prefs.integer(forKey:"helmetStyle") == HelmetStyle.flames.rawValue && game.prefs.integer(forKey:"livery") == Livery.number.rawValue,"Styles are remembered")
         // Every vehicle draws with every style combination.
         for helmet in HelmetStyle.allCases { for jacket in JacketStyle.allCases { for livery in Livery.allCases {
             game.art.helmetStyle=helmet; game.art.jacketStyle=jacket; game.art.livery=livery
-            for kind in BikeKind.allCases { game.bike.kind=kind; precondition(game.snapshotRep(scale:0.25) != nil,"Styled frame must render") }
+            for kind in BikeKind.allCases { game.bike.kind=kind; diagnosticCheck(game.snapshotRep(scale:0.25) != nil,"Styled frame must render") }
         } } }
         inspector.uiSelectHelmet(.standard); inspector.uiSelectJacket(.standard); inspector.uiSelectLivery(.none)
         inspector.uiSelectRoute(originalRoute); game.bike.kind=originalKind; gui()
         game.progress.unlockEverything()
         func checkBar(_ expected:RideTouchBarMode) {
-            precondition(game.bar.mode == expected)
+            diagnosticCheck(game.bar.mode == expected)
             let selected=game.bar.touchBar
-            precondition(window.touchBar === selected && game.touchBar === selected)
-            precondition(split.touchBar === selected && touchBarWindowController.touchBar === selected)
-            precondition(game.continueButton.touchBar === selected && game.retryButton.touchBar === selected)
+            diagnosticCheck(window.touchBar === selected && game.touchBar === selected)
+            diagnosticCheck(split.touchBar === selected && touchBarWindowController.touchBar === selected)
+            diagnosticCheck(game.continueButton.touchBar === selected && game.retryButton.touchBar === selected)
         }
         checkBar(.garage)
         let selected=game.bike.kind
         for kind in BikeKind.allCases {
             game.bike.kind=kind;game.loadRecords();game.syncState()
-            precondition(game.bike.kind == kind && game.bike.frontContact && game.bike.rearContact)
-            precondition(game.recordKey.contains(kind.rawValue))
+            diagnosticCheck(game.bike.kind == kind && game.bike.frontContact && game.bike.rearContact)
+            diagnosticCheck(game.recordKey.contains(kind.rawValue))
             let image=NSImage(size:game.bounds.size);image.lockFocusFlipped(true)
             game.drawGarage();image.unlockFocus()
         }
         game.bike.kind = .hyperbike;game.start();game.bike.x = -3000;game.bike.speed=45
         for _ in 0..<180 { game.previous=ProcessInfo.processInfo.systemUptime-1/60;game.tick() }
-        precondition(game.art.metresToPixels<RideScene.metresToPixels*0.7 && game.art.metresToPixels>=RideScene.metresToPixels*0.15)
-        game.garage();precondition(game.art.metresToPixels == RideScene.metresToPixels)
+        diagnosticCheck(game.art.metresToPixels<RideScene.metresToPixels*0.7 && game.art.metresToPixels>=RideScene.metresToPixels*0.15)
+        game.garage();diagnosticCheck(game.art.metresToPixels == RideScene.metresToPixels)
         game.bike.kind=selected;game.loadRecords();game.syncState()
         // Every route renders with obstacles, puddles and weather without crashing.
         game.obstacles=true
         for route in 0..<BikePhysics.routeCount {
             game.bike.route=route; game.night=route == 4; game.start()
             for _ in 0..<45 { game.previous=ProcessInfo.processInfo.systemUptime-1/60; game.tick() }
-            precondition(game.snapshotRep(scale:1) != nil,"Every route must compose a frame"); precondition(game.backdrop.route == route && !(game.backdrop.root.sublayers ?? []).isEmpty,"The backdrop layers follow the route")
+            diagnosticCheck(game.snapshotRep(scale:1) != nil,"Every route must compose a frame"); diagnosticCheck(game.backdrop.route == route && !(game.backdrop.root.sublayers ?? []).isEmpty,"The backdrop layers follow the route")
         }
         // The scrolling backdrop never leaves a gap, whatever the route, time of day, window height or camera position.
         func covers(_ spans:[ClosedRange<Double>])->Bool {
@@ -651,78 +660,78 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSToolbarDelegate, NST
                 game.backdrop.configure(route:route,night:night,height:height,backing:2)
                 for step in 0..<400 {
                     game.backdrop.update(camera:Double(step)*1_234.567+Double(step%7)*0.31)
-                    if route == 3 { precondition(covers(game.backdrop.mountainSpans) || game.backdrop.mountainSpans.allSatisfy { $0.lowerBound<=0 && $0.upperBound>=1280 },"Snow mountains must span the window (step \(step))") }
-                    else if route == 4 { for strip in game.backdrop.stripSpans { precondition(covers(strip),"A city strip leaves a gap (step \(step), height \(height))") } }
-                    else { precondition(covers(game.backdrop.scrollingSpans),"Photo tiles leave a gap on route \(route) at step \(step)") }
+                    if route == 3 { diagnosticCheck(covers(game.backdrop.mountainSpans) || game.backdrop.mountainSpans.allSatisfy { $0.lowerBound<=0 && $0.upperBound>=1280 },"Snow mountains must span the window (step \(step))") }
+                    else if route == 4 { for strip in game.backdrop.stripSpans { diagnosticCheck(covers(strip),"A city strip leaves a gap (step \(step), height \(height))") } }
+                    else { diagnosticCheck(covers(game.backdrop.scrollingSpans),"Photo tiles leave a gap on route \(route) at step \(step)") }
                 }
             }
         }
         game.night=false; game.obstacles=false; game.bike.route=originalRoute
         // Race mode spawns a rival that rides the same physics.
         game.challengeKind = .race; game.start()
-        precondition(game.rival != nil,"Race challenge needs a rival")
+        diagnosticCheck(game.rival != nil,"Race challenge needs a rival")
         for _ in 0..<120 { game.previous=ProcessInfo.processInfo.systemUptime-1/60; game.tick() }
-        precondition((game.rival?.x ?? 0)>1,"The rival must ride")
-        game.challengeKind = .free; game.start(); precondition(game.rival == nil)
+        diagnosticCheck((game.rival?.x ?? 0)>1,"The rival must ride")
+        game.challengeKind = .free; game.start(); diagnosticCheck(game.rival == nil)
         // Expert rival on another vehicle.
         game.rivalLevel = .expert; game.rivalSameVehicle=false; game.challengeKind = .race; game.start()
-        precondition(game.rivalRun?.level == .expert && game.rivalRun?.bike.kind != game.bike.kind,"The rival may ride another vehicle")
+        diagnosticCheck(game.rivalRun?.level == .expert && game.rivalRun?.bike.kind != game.bike.kind,"The rival may ride another vehicle")
         // Tutorial: no obstacles, and holding the throttle completes the first step.
         game.obstacles=true; game.challengeKind = .tutorial; game.start()
-        precondition(!game.obstaclesOn && game.tutorial.step == .accelerate,"Tutorial starts clean")
+        diagnosticCheck(!game.obstaclesOn && game.tutorial.step == .accelerate,"Tutorial starts clean")
         game.keys=[126]
         for _ in 0..<240 { game.previous=ProcessInfo.processInfo.systemUptime-1/60; game.tick() }
-        precondition(game.tutorial.step != .accelerate || game.bike.crashed,"Throttle completes the first tutorial step")
+        diagnosticCheck(game.tutorial.step != .accelerate || game.bike.crashed,"Throttle completes the first tutorial step")
         game.obstacles=false
         // Endless: no finish line.
         game.bike.route=0; game.challengeKind = .endless; game.start()
-        precondition(game.bike.endless && game.runContext.contains(".endless"),"Endless mode flag and record context")
-        precondition(BikePhysics.procedural && BikePhysics.endlessCourse && !game.obstacleList.isEmpty && game.obstacleList == BikePhysics.proceduralObstacles,"Endless mode generates its own terrain and obstacles")
+        diagnosticCheck(game.bike.endless && game.runContext.contains(".endless"),"Endless mode flag and record context")
+        diagnosticCheck(BikePhysics.procedural && BikePhysics.endlessCourse && !game.obstacleList.isEmpty && game.obstacleList == BikePhysics.proceduralObstacles,"Endless mode generates its own terrain and obstacles")
         game.bike.x=900; for _ in 0..<90 { game.previous=ProcessInfo.processInfo.systemUptime-1/60; game.keys=[126]; game.tick() }
-        precondition(game.snapshotRep(scale:0.25) != nil,"An endless frame composes")
+        diagnosticCheck(game.snapshotRep(scale:0.25) != nil,"An endless frame composes")
         // A fork, through the real game loop: an automatic cautious rider takes the elevated road and is paid for it.
         game.challengeKind = .endless; game.bike.kind = .sport; game.bike.route=0; game.start()
         BikePhysics.seed=7; BikePhysics.rebuildProceduralCourse(); game.obstacles=false
         guard let fork=BikePhysics.nextFork(after:0) else { preconditionFailure("The endless course must have forks") }
-        game.toggleLane(); precondition(game.bike.lanePreference == 1,"C chooses the elevated road")
+        game.toggleLane(); diagnosticCheck(game.bike.lanePreference == 1,"C chooses the elevated road")
         var sawHigh=false
         for _ in 0..<40_000 where game.mode == .riding && game.bike.x<fork.end+40 {
             game.previous=ProcessInfo.processInfo.systemUptime-1/60
             var held=Set<UInt16>(); if game.bike.speed<12 { held.insert(126) }; if game.bike.speed>12.6 { held.insert(125) }
             if game.bike.angle < -0.25 { held.insert(123) }; if game.bike.angle>0.25 { held.insert(124) }
             game.keys=held; game.tick()
-            if game.bike.lane == 1 && game.bike.x>fork.start+80 && game.bike.x<fork.end-80 { sawHigh=true; precondition(BikePhysics.ground(game.bike.x,route:0,lane:1)-BikePhysics.ground(game.bike.x,route:0,lane:0)>1.5) }
+            if game.bike.lane == 1 && game.bike.x>fork.start+80 && game.bike.x<fork.end-80 { sawHigh=true; diagnosticCheck(BikePhysics.ground(game.bike.x,route:0,lane:1)-BikePhysics.ground(game.bike.x,route:0,lane:0)>1.5) }
         }
-        precondition(game.mode == .riding && !game.bike.crashed && game.bike.x>fork.end,"The rider must cross the fork on the elevated road")
-        precondition(sawHigh && game.score.total>=150 && game.forkEnd == nil,"The elevated road is paid out when the roads join")
+        diagnosticCheck(game.mode == .riding && !game.bike.crashed && game.bike.x>fork.end,"The rider must cross the fork on the elevated road")
+        diagnosticCheck(sawHigh && game.score.total>=150 && game.forkEnd == nil,"The elevated road is paid out when the roads join")
         game.obstacles=false
         // A longer route: rodar libre at 3,000 m is procedural, has its own finish and its own record context.
         game.lengthIndex=1; game.challengeKind = .free; game.start()
-        precondition(BikePhysics.procedural && !BikePhysics.endlessCourse && BikePhysics.finish == 3000 && game.bike.finishDistance == 3000 && game.runContext.contains(".len3000"),"Long route setup")
+        diagnosticCheck(BikePhysics.procedural && !BikePhysics.endlessCourse && BikePhysics.finish == 3000 && game.bike.finishDistance == 3000 && game.runContext.contains(".len3000"),"Long route setup")
         game.bike.x=2500; for _ in 0..<60 { game.previous=ProcessInfo.processInfo.systemUptime-1/60; game.keys=[126]; game.tick() }
-        precondition(game.snapshotRep(scale:0.25) != nil && !game.bike.finished,"A long-route frame composes")
+        diagnosticCheck(game.snapshotRep(scale:0.25) != nil && !game.bike.finished,"A long-route frame composes")
         // Other challenges keep the classic 1,200 m course whatever length is selected.
-        game.challengeKind = .timeTrial; game.start(); precondition(!BikePhysics.procedural && BikePhysics.finish == 1200,"Only rodar libre and carrera use long routes")
+        game.challengeKind = .timeTrial; game.start(); diagnosticCheck(!BikePhysics.procedural && BikePhysics.finish == 1200,"Only rodar libre and carrera use long routes")
         game.lengthIndex=0; game.challengeKind = .endless; game.start()
         game.bike.x = 1190; game.bike.speed=14; game.keys=[126]
         for _ in 0..<300 where game.mode == .riding { game.previous=ProcessInfo.processInfo.systemUptime-1/60; game.tick() }
-        precondition(!game.bike.finished,"Endless never finishes")
+        diagnosticCheck(!game.bike.finished,"Endless never finishes")
         // Closed circuit: global terrain switch, lap times, the finish after the last lap, and a clean exit.
         game.bike.route=1; game.challengeKind = .circuit; game.start()
-        precondition(BikePhysics.circuit && game.bike.laps == 3 && game.runContext.contains(".circuit3") && game.obstacleList == game.circuitList,"Circuit mode switches the terrain and obstacles")
+        diagnosticCheck(BikePhysics.circuit && game.bike.laps == 3 && game.runContext.contains(".circuit3") && game.obstacleList == game.circuitList,"Circuit mode switches the terrain and obstacles")
         game.bike.x = 1196; game.bike.speed=12; game.keys=[126]
         for _ in 0..<240 where game.mode == .riding { game.previous=ProcessInfo.processInfo.systemUptime-1/60; game.tick() }
-        precondition(game.lapTimes.count == 1 || game.bike.crashed,"Crossing 1,200 m records a lap time")
-        game.garage(); precondition(!BikePhysics.circuit,"Leaving the circuit restores the normal terrain")
+        diagnosticCheck(game.lapTimes.count == 1 || game.bike.crashed,"Crossing 1,200 m records a lap time")
+        game.garage(); diagnosticCheck(!BikePhysics.circuit,"Leaving the circuit restores the normal terrain")
         game.bike.route=0; game.challengeKind = .circuit; game.rivalLevel = .normal; game.start()
-        precondition(game.rivalRuns.count == 3 && game.rivalRuns.allSatisfy { $0.bike.laps == 3 },"The circuit field has three rivals")
+        diagnosticCheck(game.rivalRuns.count == 3 && game.rivalRuns.allSatisfy { $0.bike.laps == 3 },"The circuit field has three rivals")
         for _ in 0..<150 { game.previous=ProcessInfo.processInfo.systemUptime-1/60; game.keys=[126]; game.tick() }
-        precondition(game.racePosition>=1 && game.racePosition<=4 && game.rivalRuns.allSatisfy { $0.bike.x>0 },"Rivals ride and standings update")
+        diagnosticCheck(game.racePosition>=1 && game.racePosition<=4 && game.rivalRuns.allSatisfy { $0.bike.x>0 },"Rivals ride and standings update")
         game.garage(); game.challengeKind = .circuit; game.start()
         game.bike.x = 3596; game.bike.speed=14; game.keys=[126]
         for _ in 0..<240 where game.mode == .riding { game.previous=ProcessInfo.processInfo.systemUptime-1/60; game.tick() }
-        precondition(game.mode == .result && game.bike.finished && abs(game.bike.distance-3600)<0.01,"The circuit finishes after three laps")
-        precondition(game.racePosition == 1 && game.challenges.completed && game.stateDetail.stringValue.contains("Posición 1/4") && game.runNotes.contains { $0.contains("Premio de posición 1") },"Finishing first on the circuit gives the podium, the prize and the standings text")
+        diagnosticCheck(game.mode == .result && game.bike.finished && abs(game.bike.distance-3600)<0.01,"The circuit finishes after three laps")
+        diagnosticCheck(game.racePosition == 1 && game.challenges.completed && game.stateDetail.stringValue.contains("Posición 1/4") && game.runNotes.contains { $0.contains("Premio de posición 1") },"Finishing first on the circuit gives the podium, the prize and the standings text")
         game.garage(); game.bike.route=originalRoute; game.challengeKind = .free
         // Performance guard: even the heaviest scene (rain, night, obstacles, rival) must stay far from a
         // visible stutter. The bound is deliberately generous so a slow CI machine does not flake.
@@ -730,58 +739,58 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSToolbarDelegate, NST
         // at most 4x the plain valley, and nothing may take half a second per frame.
         let scenes=benchmarkScenes(frames:40)
         let baseline=scenes.first?.average ?? 1
-        precondition(scenes.contains { $0.visibleRivals==3 },"The heavy benchmark must actually draw three rivals")
+        diagnosticCheck(scenes.contains { $0.visibleRivals==3 },"The heavy benchmark must actually draw three rivals")
         for r in scenes {
-            precondition(r.ridingFrames==40,"Benchmark left the riding state in \(r.name)")
-            precondition(r.average<500,"Frame cost absurd in \(r.name): \(r.average) ms average")
-            precondition(r.average<baseline*4,"\(r.name) costs \(r.average) ms against \(baseline) ms for the plain valley")
+            diagnosticCheck(r.ridingFrames==40,"Benchmark left the riding state in \(r.name)")
+            diagnosticCheck(r.average<500,"Frame cost absurd in \(r.name): \(r.average) ms average")
+            diagnosticCheck(r.average<baseline*4,"\(r.name) costs \(r.average) ms against \(baseline) ms for the plain valley")
         }
         game.garage(); game.challengeKind = .free; game.bike.route=originalRoute
         // In-run reward toasts: a flip would unlock "Primera voltereta" and the game announces it once.
         if !game.stats.earned.contains("first-flip") {
             game.challengeKind = .free; game.bike.route=0; game.start(); game.report.flips=1
             for _ in 0..<80 { game.previous=ProcessInfo.processInfo.systemUptime-1/60; game.keys=[126]; game.tick() }
-            precondition(game.toasts.contains { $0.text.contains("Primera voltereta") },"An achievement within reach is announced during the run")
+            diagnosticCheck(game.toasts.contains { $0.text.contains("Primera voltereta") },"An achievement within reach is announced during the run")
             let count=game.toasts.count
             for _ in 0..<80 { game.previous=ProcessInfo.processInfo.systemUptime-1/60; game.keys=[126]; game.tick() }
-            precondition(game.toasts.filter { $0.text.contains("Primera voltereta") }.count <= 1 && game.toasts.count <= max(count,1)+1,"A toast is not repeated")
-            precondition(!game.stats.earned.contains("first-flip"),"Toasts do not pay out: rewards are given when the run ends")
+            diagnosticCheck(game.toasts.filter { $0.text.contains("Primera voltereta") }.count <= 1 && game.toasts.count <= max(count,1)+1,"A toast is not repeated")
+            diagnosticCheck(!game.stats.earned.contains("first-flip"),"Toasts do not pay out: rewards are given when the run ends")
             game.garage()
         }
         // Dynamic weather: a storm on the Sierra soaks the road and shows its label; with it off the road stays dry.
         game.weatherOn=true; game.challengeKind = .free; game.bike.route=1; game.start(); game.bike.x=780; game.bike.speed=8
         for _ in 0..<30 { game.previous=ProcessInfo.processInfo.systemUptime-1/60; game.keys=[126]; game.tick() }
-        precondition(game.weather.storm && game.bike.wetness>0.9 && game.weather.label == "Tormenta","A storm must soak the Sierra road")
-        precondition(game.snapshotRep(scale:0.25) != nil && game.backdrop.route == 1,"A stormy frame composes")
+        diagnosticCheck(game.weather.storm && game.bike.wetness>0.9 && game.weather.label == "Tormenta","A storm must soak the Sierra road")
+        diagnosticCheck(game.snapshotRep(scale:0.25) != nil && game.backdrop.route == 1,"A stormy frame composes")
         game.weatherOn=false; game.start(); game.bike.x=780
         for _ in 0..<30 { game.previous=ProcessInfo.processInfo.systemUptime-1/60; game.keys=[126]; game.tick() }
-        precondition(!game.weather.storm && game.bike.wetness == 0,"Dynamic weather off keeps the road dry")
+        diagnosticCheck(!game.weather.storm && game.bike.wetness == 0,"Dynamic weather off keeps the road dry")
         game.bike.route=4; game.start()
         for _ in 0..<10 { game.previous=ProcessInfo.processInfo.systemUptime-1/60; game.keys=[126]; game.tick() }
-        precondition(game.bike.wetness == 1,"The city stays rainy without dynamic weather")
+        diagnosticCheck(game.bike.wetness == 1,"The city stays rainy without dynamic weather")
         game.weatherOn=true; game.garage(); game.bike.route=originalRoute
         // Extra tricks: hands off, spin and superman keys are accepted while riding.
         game.challengeKind = .free; game.start(); game.keys=[126,4,5,9]
         for _ in 0..<30 { game.previous=ProcessInfo.processInfo.systemUptime-1/60; game.tick() }
-        precondition(game.noHandsHeld && game.spinHeld && game.supermanHeld,"Trick keys")
+        diagnosticCheck(game.noHandsHeld && game.spinHeld && game.supermanHeld,"Trick keys")
         // Awards: the tutorial bonus is paid immediately and must never be included again
         // in the natural result's base reward. A repeat save does not count coins twice.
         game.garage();game.bike.kind = .sport;game.bike.route=0;game.challengeKind = .free;game.start()
         let awardWallet=game.progress.wallet,earnedBefore=game.stats.totals.coinsEarned
         game.awardCoins(40)
         let immediate=game.progress.wallet
-        precondition(immediate-awardWallet==40 && game.stats.totals.coinsEarned-earnedBefore==40,"Immediate tutorial-sized award is credited once")
+        diagnosticCheck(immediate-awardWallet==40 && game.stats.totals.coinsEarned-earnedBefore==40,"Immediate tutorial-sized award is credited once")
         game.bike.coins=10;game.bike.crashed=true;game.score.crash();game.saveRun()
-        precondition(game.progress.wallet-immediate==10 && game.lastReward==50,"The natural reward must not pay the prior bonus again")
+        diagnosticCheck(game.progress.wallet-immediate==10 && game.lastReward==50,"The natural reward must not pay the prior bonus again")
         let paidWallet=game.progress.wallet,paidLifetime=game.stats.totals.coinsEarned
-        game.saveRun();precondition(game.progress.wallet==paidWallet && game.stats.totals.coinsEarned==paidLifetime,"Repeated results never repeat awards")
+        game.saveRun();diagnosticCheck(game.progress.wallet==paidWallet && game.stats.totals.coinsEarned==paidLifetime,"Repeated results never repeat awards")
         // Saving progress mid-run must not consume its final statistics report or cash an open chain.
         game.garage();game.start();game.bike.distance=100
         let midRuns=game.stats.totals.runs,midScore=game.bestScore
         game.score.add(.flip,points:400,label:"test");game.saveRun()
-        precondition(!game.reported && game.stats.totals.runs==midRuns && game.bestScore==midScore,"Mid-run save keeps the run open and pending points at risk")
+        diagnosticCheck(!game.reported && game.stats.totals.runs==midRuns && game.bestScore==midScore,"Mid-run save keeps the run open and pending points at risk")
         game.bike.distance=160;game.bike.coins=2;game.bike.crashed=true;game.score.crash();game.saveRun()
-        precondition(game.stats.totals.runs==midRuns+1 && game.report.distance==160,"Final report includes all distance after an interim save")
+        diagnosticCheck(game.stats.totals.runs==midRuns+1 && game.report.distance==160,"Final report includes all distance after an interim save")
         // A prior run's record stays in its original context, even if a caller changes selection
         // before asking the previous run to save. Existing records never leak to another route.
         game.garage();game.bike.route=0;game.challengeKind = .free;game.start()
@@ -790,69 +799,69 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSToolbarDelegate, NST
         game.difficulty = .realistic
         let newKey=game.recordKey,newDistance=game.prefs.double(forKey:newKey+".distance")
         game.saveRun()
-        precondition(game.prefs.double(forKey:oldKey+".distance")==oldDistance+234 && game.prefs.double(forKey:newKey+".distance")==newDistance,"A run saves under its frozen context")
+        diagnosticCheck(game.prefs.double(forKey:oldKey+".distance")==oldDistance+234 && game.prefs.double(forKey:newKey+".distance")==newDistance,"A run saves under its frozen context")
         game.garage();game.difficulty = .normal;game.bike.route=0;game.challengeKind = .free
         // A full run to the finish line: coins, score, stats, missions and achievements all update once.
         game.garage(); game.bike.route=0; game.challengeKind = .free; game.start()
         let walletBefore=game.progress.wallet,runsBefore=game.stats.totals.runs
         game.bike.x = 1196; game.bike.speed=15; game.keys=[126]
         for _ in 0..<240 where game.mode == .riding { game.previous=ProcessInfo.processInfo.systemUptime-1/60; game.tick() }
-        precondition(game.mode == .result && game.bike.finished,"The run must reach the finish line")
-        precondition(game.progress.wallet>walletBefore && game.lastReward == game.progress.wallet-walletBefore,"Coins are paid exactly once")
-        precondition(game.stats.totals.runs == runsBefore+1 && game.stats.totals.finishes>=1 && game.stats.earned.contains("first-finish"),"Stats and achievements record the run")
-        precondition(game.stateDetail.stringValue.contains("puntos") && game.stateDetail.stringValue.contains("monedas"),"The result screen reports score and coins")
-        game.saveRun(); precondition(game.stats.totals.runs == runsBefore+1,"Saving again must not double count")
-        precondition(inspector.statsText.contains("Primera meta") && inspector.statsText.contains("LOGROS"),"Stats sheet text")
+        diagnosticCheck(game.mode == .result && game.bike.finished,"The run must reach the finish line")
+        diagnosticCheck(game.progress.wallet>walletBefore && game.lastReward == game.progress.wallet-walletBefore,"Coins are paid exactly once")
+        diagnosticCheck(game.stats.totals.runs == runsBefore+1 && game.stats.totals.finishes>=1 && game.stats.earned.contains("first-finish"),"Stats and achievements record the run")
+        diagnosticCheck(game.stateDetail.stringValue.contains("puntos") && game.stateDetail.stringValue.contains("monedas"),"The result screen reports score and coins")
+        game.saveRun(); diagnosticCheck(game.stats.totals.runs == runsBefore+1,"Saving again must not double count")
+        diagnosticCheck(inspector.statsText.contains("Primera meta") && inspector.statsText.contains("LOGROS"),"Stats sheet text")
         game.garage()
         game.start(); checkBar(.riding)
         game.keys.insert(14)
-        precondition(game.held(.brake) && game.held(.leanForward) && !game.held(.leanBack),"E must combine front weight transfer with braking")
+        diagnosticCheck(game.held(.brake) && game.held(.leanForward) && !game.held(.leanBack),"E must combine front weight transfer with braking")
         game.keys.remove(14);game.touchHeld.insert(.stoppie)
-        precondition(game.held(.brake) && game.held(.leanForward))
-        game.pause();precondition(!game.held(.brake) && !game.held(.leanForward));game.pause()
+        diagnosticCheck(game.held(.brake) && game.held(.leanForward))
+        game.pause();diagnosticCheck(!game.held(.brake) && !game.held(.leanForward));game.pause()
         game.touchHeld.removeAll();game.bike.x = -500;game.bike.speed=12;game.keys.insert(14)
         for _ in 0..<120 where game.bike.angle > -0.4 { game.previous=ProcessInfo.processInfo.systemUptime-1/120;game.tick() }
-        precondition(game.bike.isStoppie && game.bike.bestStoppie>0.5,"E must produce a physical front-wheel invertido")
-        precondition(game.score.total>0,"A real invertido must score points")
+        diagnosticCheck(game.bike.isStoppie && game.bike.bestStoppie>0.5,"E must produce a physical front-wheel invertido")
+        diagnosticCheck(game.score.total>0,"A real invertido must score points")
         game.saveRun();let recordedStoppie=game.bike.bestStoppie;game.bestStoppie=0;game.loadRecords()
-        precondition(game.bestStoppie>=recordedStoppie,"Invertido record must survive reloading preferences")
+        diagnosticCheck(game.bestStoppie>=recordedStoppie,"Invertido record must survive reloading preferences")
         game.garage();game.start()
         let drivingBar=game.bar.touchBar
         let auxiliary=NSWindow(contentRect:.zero,styleMask:[],backing:.buffered,defer:false)
         NotificationCenter.default.post(name:NSWindow.didResignKeyNotification,object:auxiliary)
-        precondition(game.mode == .riding, "An auxiliary window must not pause the game")
-         precondition(game.mode == .riding && sidebarItem.isCollapsed && inspectorItem.isCollapsed)
+        diagnosticCheck(game.mode == .riding, "An auxiliary window must not pause the game")
+         diagnosticCheck(game.mode == .riding && sidebarItem.isCollapsed && inspectorItem.isCollapsed)
         game.keys.insert(126)
         for _ in 0..<150 { game.previous=ProcessInfo.processInfo.systemUptime-1/60; game.tick() }
-        precondition(game.bike.speed>5 && game.bike.distance>5 && !game.bike.crashed)
+        diagnosticCheck(game.bike.speed>5 && game.bike.distance>5 && !game.bike.crashed)
         let pauseID=NSTouchBarItem.Identifier("com.scratch.wheelieride.touchbar.pause")
         let pauseControl=(drivingBar.item(forIdentifier:pauseID) as! NSCustomTouchBarItem).view as! NSButton
         pauseControl.performClick(nil); checkBar(.paused)
         let pausedBar=game.bar.touchBar
-        precondition(window.makeFirstResponder(game.continueButton))
+        diagnosticCheck(window.makeFirstResponder(game.continueButton))
         checkBar(.paused)
-        precondition(window.makeFirstResponder(game.retryButton))
+        diagnosticCheck(window.makeFirstResponder(game.retryButton))
         checkBar(.paused)
-        precondition(game.bar.touchBar === pausedBar, "Native pause-button focus must preserve the context bar")
-        let oldX=game.bike.x; game.tick(); precondition(game.bike.x==oldX && game.keys.isEmpty)
+        diagnosticCheck(game.bar.touchBar === pausedBar, "Native pause-button focus must preserve the context bar")
+        let oldX=game.bike.x; game.tick(); diagnosticCheck(game.bike.x==oldX && game.keys.isEmpty)
         let resumeControl=(pausedBar.item(forIdentifier:pauseID) as! NSCustomTouchBarItem).view as! NSButton
         resumeControl.performClick(nil)
-        precondition(game.mode == .riding && window.firstResponder === game && game.bar.touchBar === drivingBar); checkBar(.riding)
-        customize(); precondition(settings != nil && game.mode == .paused); checkBar(.blocked)
-        game.start(); precondition(game.mode == .paused, "A sheet must block starting a run")
-        game.pause(); precondition(game.mode == .paused, "A sheet must block resuming")
-        game.garage(); precondition(game.mode == .paused, "A sheet must block garage navigation")
-        closeSettings(); precondition(settings == nil && game.mode == .riding); checkBar(.riding)
-        game.deactivate(); precondition(game.mode == .paused && game.touchHeld.isEmpty); checkBar(.paused)
-        game.garage(); precondition(game.mode == .garage && game.bike.distance==0 && !sidebarItem.isCollapsed && !inspectorItem.isCollapsed)
+        diagnosticCheck(game.mode == .riding && window.firstResponder === game && game.bar.touchBar === drivingBar); checkBar(.riding)
+        customize(); diagnosticCheck(settings != nil && game.mode == .paused); checkBar(.blocked)
+        game.start(); diagnosticCheck(game.mode == .paused, "A sheet must block starting a run")
+        game.pause(); diagnosticCheck(game.mode == .paused, "A sheet must block resuming")
+        game.garage(); diagnosticCheck(game.mode == .paused, "A sheet must block garage navigation")
+        closeSettings(); diagnosticCheck(settings == nil && game.mode == .riding); checkBar(.riding)
+        game.deactivate(); diagnosticCheck(game.mode == .paused && game.touchHeld.isEmpty); checkBar(.paused)
+        game.garage(); diagnosticCheck(game.mode == .garage && game.bike.distance==0 && !sidebarItem.isCollapsed && !inspectorItem.isCollapsed)
         checkBar(.garage)
         game.mode = .result; game.syncState(); checkBar(.result)
         game.garage(); checkBar(.garage)
         game.start(); game.keys=[126,123]
         for _ in 0..<1200 where game.mode == .riding { game.previous=ProcessInfo.processInfo.systemUptime-1/60; game.tick() }
-        precondition(game.mode == .crashing && game.ragdoll != nil, "A real over-rotation must detach the rider")
+        diagnosticCheck(game.mode == .crashing && game.ragdoll != nil, "A real over-rotation must detach the rider")
         for _ in 0..<150 { game.previous=ProcessInfo.processInfo.systemUptime-1/60; game.tick() }
-        precondition(game.mode == .result && game.ragdoll != nil, "Crash dynamics must reach the result state")
+        diagnosticCheck(game.mode == .result && game.ragdoll != nil, "Crash dynamics must reach the result state")
         checkBar(.result); game.garage(); checkBar(.garage)
         game.bar.releaseAll(); print("App smoke: garage UI flow (wallet, locks, purchases, challenges, rival, ABS), race, tutorial, endless, tricks, full run rewards, acceleration, pause/resume, focus loss, settings sheet guards, Touch Bar contexts, native pause-button focus and detached crash dynamics passed.")
         NSApp.terminate(nil)

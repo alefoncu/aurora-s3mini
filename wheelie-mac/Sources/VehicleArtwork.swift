@@ -240,16 +240,22 @@ extension RideRenderer {
         br.line(to:NSPoint(x:axle.x+cos(a)*(discRadius-5)-nx*2.2,y:axle.y+sin(a)*(discRadius-5)-ny*2.2)); br.line(to:NSPoint(x:mount.x-nx*1.6,y:mount.y-ny*1.6)); br.close()
         vmFill(br,colors:[NSColor(hex:0x6B7A82),NSColor(hex:0x242F36)],angle:70,outline:0.5)
         _=mid
-        // Caliper body: an annular wedge from just inside the pad track to just outside the disc edge.
-        let r1=discRadius-6.2,r2=discRadius+3.6
+        // Caliper body: a short bridge that wraps over the disc rim, a darker inner half, pad slot, bridge bolts and a banjo fitting.
+        let r1=discRadius-3.8,r2=discRadius+2.8,half2=min(span,36)*Double.pi/360
         var pts:[NSPoint]=[]
-        for i in 0...8 { let t=a-half+2*half*Double(i)/8; pts.append(NSPoint(x:axle.x+cos(t)*r2,y:axle.y+sin(t)*r2)) }
-        for i in 0...8 { let t=a+half-2*half*Double(i)/8; pts.append(NSPoint(x:axle.x+cos(t)*r1,y:axle.y+sin(t)*r1)) }
-        let body=NSBezierPath(); body.move(to:pts[0]); for q in pts.dropFirst() { body.line(to:q) }; body.close()
-        vmFill(body,colors:color,angle:60,outline:0.65)
-        // Pistons / bleed nipple.
-        let c=NSPoint(x:axle.x+cos(a)*(discRadius-0.8),y:axle.y+sin(a)*(discRadius-0.8))
-        circle(c.x,c.y,1.1,NSColor(hex:0x20292E)); line(c.x+cos(a)*2.6,c.y+sin(a)*2.6,c.x+cos(a)*4.4,c.y+sin(a)*4.4,0.9,NSColor(hex:0x11181C))
+        for i in 0...6 { let t=a-half2+2*half2*Double(i)/6; pts.append(NSPoint(x:axle.x+cos(t)*r2,y:axle.y+sin(t)*r2)) }
+        for i in 0...6 { let t=a+half2-2*half2*Double(i)/6; pts.append(NSPoint(x:axle.x+cos(t)*r1,y:axle.y+sin(t)*r1)) }
+        let body=NSBezierPath(); body.move(to:pts[0]); for q in pts.dropFirst() { body.line(to:q) }; body.close(); body.lineJoinStyle = .round
+        vmFill(body,colors:[vmTone(color[min(1,color.count-1)],0.12),vmTone(color[color.count-1],-0.1)],angle:60,outline:0.8)
+        let slot=NSBezierPath(); slot.move(to:NSPoint(x:axle.x+cos(a)*r1,y:axle.y+sin(a)*r1)); slot.line(to:NSPoint(x:axle.x+cos(a)*r2,y:axle.y+sin(a)*r2))
+        slot.lineWidth=0.8; NSColor(hex:0x0E1417,alpha:0.9).setStroke(); slot.stroke()
+        for off in [-half2*0.55,half2*0.55] {
+            let q=NSPoint(x:axle.x+cos(a+off)*(discRadius-0.4),y:axle.y+sin(a+off)*(discRadius-0.4)); circle(q.x,q.y,0.95,NSColor(hex:0xC9D0CF)); circle(q.x,q.y,0.45,NSColor(hex:0x20292E))
+        }
+        let hi=NSBezierPath(); hi.appendArc(withCenter:axle,radius:r2-0.7,startAngle:CGFloat((a-half2*0.8)*180/Double.pi),endAngle:CGFloat((a+half2*0.8)*180/Double.pi))
+        hi.lineWidth=0.6; NSColor.white.withAlphaComponent(0.5).setStroke(); hi.stroke()
+        let b0=NSPoint(x:axle.x+cos(a+half2)*(discRadius-0.6),y:axle.y+sin(a+half2)*(discRadius-0.6))
+        circle(b0.x,b0.y,1.5,NSColor(hex:0xC9D0CF)); circle(b0.x,b0.y,0.7,NSColor(hex:0x20292E))
     }
     func vmBrake(front:NSPoint,rear:NSPoint,radius:Double,kind:BikeKind,grip:NSPoint,fork:NSPoint,pivot:NSPoint) {
         let sporty=kind == .sport || kind == .hyperbike

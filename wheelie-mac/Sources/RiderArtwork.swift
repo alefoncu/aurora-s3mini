@@ -130,7 +130,8 @@ extension RideRenderer {
         circle(cap.x-0.004*u,cap.y-0.005*u,0.005*u,NSColor.white.withAlphaComponent(0.8))
     }
     /// All limbs are shaded around the solver's exact anchors, never scaled to reach.
-    func drawRider(_ pose:RiderPose,units u:Double,kind:BikeKind,passenger:Bool=false,detached:Bool=false) {
+    /// `farLeg`: 0 draws everything, 1 draws only the far leg (call before the bike so the bodywork hides it), 2 draws everything else.
+    func drawRider(_ pose:RiderPose,units u:Double,kind:BikeKind,passenger:Bool=false,detached:Bool=false,farLeg:Int=0) {
         let hip=raPoint(pose.hip,u), shoulder=raPoint(pose.shoulder,u), elbow=raPoint(pose.elbow,u), hand=raPoint(pose.hand,u)
         let knee=raPoint(pose.knee,u),foot=raPoint(pose.foot,u),farKnee=raPoint(pose.farKnee,u),farFoot=raPoint(pose.farFoot,u)
         let neck=raPoint(pose.neck,u),head=raPoint(pose.head,u)
@@ -170,7 +171,8 @@ extension RideRenderer {
             }
         }
         // Far leg: darker to keep depth.
-        leg(hip,farKnee,farFoot,-0.28)
+        if farLeg != 2 { leg(hip,farKnee,farFoot,-0.28) }
+        if farLeg == 1 { return }
         // Pelvis and torso: a fitted volume with a lumbar curve, chest and shoulder line.
         let dx=shoulder.x-hip.x,dy=shoulder.y-hip.y,l=max(0.001,hypot(dx,dy)),nx = -dy/l,ny=dx/l
         func T(_ s:Double,_ n:Double)->NSPoint { NSPoint(x:hip.x+dx*s+nx*n*u,y:hip.y+dy*s+ny*n*u) }

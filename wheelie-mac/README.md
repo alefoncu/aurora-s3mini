@@ -371,6 +371,10 @@ Lo que **no** se ha podido comprobar y conviene revisar jugando:
 - **Bifurcaciones:** solo existen en el modo infinito y en las rutas largas. Desde 6.18 el fantasma guarda el carril; los fantasmas antiguos lo desconocen.
 
 
+### Actualización 6.22 · BMX rehecha
+
+El cuadro de la BMX se dibuja con tubos de diseño propio (vainas, tubo de sillín, tubo superior, tubo inferior con refuerzo y pipa de dirección, tija y sillín); pedales, cadena y manillar mantienen su animación. Diseño en `Design/bikes.js`.
+
 ### Actualización 6.21 · taller de diseño de motos
 
 Las ocho motos con carrocería propia (Street, Scrambler, Eléctrica, Enduro, Trial, Cruiser, Scooter y, antes, Sport e Hyper por separado) se rediseñaron en un **taller de diseño** en lugar de a ciegas en código.

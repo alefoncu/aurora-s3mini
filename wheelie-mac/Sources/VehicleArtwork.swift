@@ -573,17 +573,13 @@ extension RideRenderer {
         func frameTube(_ a:NSPoint,_ b:NSPoint,_ w:Double) { vmTube(a,b,w,body) }
         vmChain(rear:rear,crank:crank,rotation:pedalPhase)
         // Gusset plates, chainstays and a stout BMX frame.
-        frameTube(rear,seat,3.0);frameTube(rear,crank,3.2);frameTube(seat,crank,3.8)
-        frameTube(seat,head,4.0);frameTube(head,crank,4.2)
-        let top=NSPoint(x:(seat.x+head.x)/2,y:(seat.y+head.y)/2); frameTube(NSPoint(x:top.x-2,y:top.y),NSPoint(x:(seat.x+crank.x)/2,y:(seat.y+crank.y)/2),2.2)
+        let shapes=BikeShapes.layers(.bmx); drawShapeLayers(shapes,z:0); drawShapeLayers(shapes,z:1)
         vmMetalLink(head,front,width:3.4,dark:false)
         vmMetalLink(NSPoint(x:head.x-1,y:head.y+1),NSPoint(x:front.x-1,y:front.y),width:3.0,dark:true)
         vmMetalLink(head,NSPoint(x:grip.x-2,y:grip.y+10),width:3.0,dark:false);vmMetalLink(NSPoint(x:grip.x-2,y:grip.y+10),grip,width:2.8,dark:false)
         vmMetalLink(NSPoint(x:grip.x-8,y:grip.y+4),NSPoint(x:grip.x+3,y:grip.y+3),width:1.8,dark:false)   // crossbar
         line(grip.x-6,grip.y,grip.x+7,grip.y,3.8,NSColor(hex:0x1D2E37))
         let cable=NSBezierPath();cable.move(to:grip);cable.curve(to:front,controlPoint1:NSPoint(x:grip.x+12,y:grip.y+18),controlPoint2:NSPoint(x:front.x-16,y:front.y-29));cable.lineWidth=0.7;NSColor(hex:0x283E45).setStroke();cable.stroke()
-        vmMetalLink(seat,NSPoint(x:seat.x,y:seat.y-5),width:2.6,dark:false)
-        vmRounded(NSRect(x:seat.x-11,y:seat.y-5.5,width:22,height:5.5),radius:2.5,colors:[NSColor(hex:0x6A727A),NSColor(hex:0x1C2B34)],angle:90)
         circle(crank.x,crank.y,7.6,NSColor(hex:0x30454D));circle(crank.x,crank.y,5.8,NSColor(hex:0xAEBBBC));circle(crank.x,crank.y,3.5,NSColor(hex:0x43565D))
         let length=0.12*u
         for side in [-1.0,1.0] {

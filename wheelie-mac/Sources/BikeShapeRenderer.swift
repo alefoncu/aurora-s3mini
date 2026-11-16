@@ -64,9 +64,9 @@ extension RideRenderer {
         default: break
         }
     }
-    private func drawShapeLayers(_ layers:[ShapeLayer],z:Int) { for l in layers where l.z == z { drawShapeLayer(l) } }
+    func drawShapeLayers(_ layers:[ShapeLayer],z:Int) { for l in layers where l.z == z { drawShapeLayer(l) } }
 
-    func hasShapedBody(_ kind:BikeKind)->Bool { !BikeShapes.layers(kind).isEmpty }
+    func hasShapedBody(_ kind:BikeKind)->Bool { kind != .bmx && !BikeShapes.layers(kind).isEmpty }
 
     func drawShapedBike(kind:BikeKind,rig:VehicleRig,rearAxle:NSPoint,frontAxle:NSPoint,rotationRear:Double) {
         let u=rig.drawingUnitsPerMetre,layers=BikeShapes.layers(kind)

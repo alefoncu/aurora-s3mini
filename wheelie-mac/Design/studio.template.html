@@ -57,7 +57,7 @@ nav button:focus-visible,.sw button:focus-visible{outline:2px solid var(--accent
 </script>
 <script>
 const D = DESIGN, NAMES = {commuter:['Street 125','Uso diario'],scrambler:['Scrambler 400','Asfalto y tierra'],electric:['Volt E-8','Eléctrica'],motocross:['Enduro 250','Campo y saltos'],trials:['Trial 200','Equilibrio y técnica'],cruiser:['Cruiser 750','Crucero relajado'],scooter:['Scooter 80','Ligero y urbano'],sport:['Sport 600','Alta potencia'],hyperbike:['Hyper R 1000','Superdeportiva'],bmx:['BMX','Sin motor']};
-const ORDER = ['commuter','scrambler','electric','motocross','trials','cruiser','scooter'];
+const ORDER = ['bmx','commuter','scrambler','electric','motocross','trials','cruiser','scooter'];
 const PAINTS = ['#E9A82B','#D9402B','#2F7FD0','#2E9E6A','#EDEFF0','#1D2327'];
 let cur = ORDER.includes(location.hash.slice(1)) ? location.hash.slice(1) : ORDER[0], paint = PAINTS[0];
 const INK = '#141B20';
@@ -110,7 +110,7 @@ function render(kind){
     return '';
   }
   const Z=z=>layers.filter(l=>l.z===z).map(drawLayer).join('');
-  let body=wheel(0,false)+wheel(R.F,true)+mech.farFork+mech.swing+mech.shock+Z(0)+mech.swing+Z(1)+mech.nearFork+Z(2)+mech.bars+Z(3)+mech.peg;
+  const bm=kind==='bmx';let body=wheel(0,false)+wheel(R.F,true)+mech.farFork+(bm?'':mech.swing+mech.shock)+Z(0)+(bm?`<circle cx="45" cy="0" r="6" fill="#AEBBBC" stroke="${INK}" stroke-width=".8"/>`:mech.swing)+Z(1)+mech.nearFork+Z(2)+mech.bars+Z(3)+mech.peg;
   let over='';
   if(document.getElementById('ghost').checked){
     const h=R.seat,hd=R.grip,pg=R.peg;

@@ -371,6 +371,15 @@ Lo que **no** se ha podido comprobar y conviene revisar jugando:
 - **Bifurcaciones:** solo existen en el modo infinito y en las rutas largas. Desde 6.18 el fantasma guarda el carril; los fantasmas antiguos lo desconocen.
 
 
+### Actualización 6.30 · vehículos y piloto rehechos desde cero
+
+Se borró todo el arte anterior (queda en la rama `design-archive`) y se rediseñó con un método distinto. Física, solver del piloto y tests no cambian.
+
+- **Mecánica propia (`Mechanics.swift`):** ruedas de radios, fundidas, tacos o BMX con disco o tambor; horquilla telescópica o invertida con fuelles; basculante, amortiguador con muelle, pinzas de freno que abrazan el disco con latiguillo, manillar con palanca, espejo y protector.
+- **Carrocerías (`Design/bikes.js` → `BikeShapes.swift`):** cada vehículo es una silueta continua (depósito, asiento y cola; guardabarros fijados; escape recorriendo el lateral; faro de perfil con aro y cristal). Se hornean con `node Design/bake.mjs`.
+- **Piloto nuevo (`Rider.swift`):** torso, brazos y piernas con contorno propio, chaqueta, vaqueros, guantes, botas y casco integral o abierto según vehículo; la pierna lejana se dibuja detrás de la moto, así solo se ve un pie.
+- **Estilo:** cel-shading con sombra y luz que siguen el contorno de cada pieza.
+
 ### Actualización 6.22 · BMX rehecha
 
 El cuadro de la BMX se dibuja con tubos de diseño propio (vainas, tubo de sillín, tubo superior, tubo inferior con refuerzo y pipa de dirección, tija y sillín); pedales, cadena y manillar mantienen su animación. Diseño en `Design/bikes.js`.

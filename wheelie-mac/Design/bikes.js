@@ -1,10 +1,9 @@
-// Wheelie Ride: motorcycle body designs. Single source of truth for the Design Studio artifact and
-// for Sources/BikeShapes.swift (baked by Design/bake.mjs). Units: drawing units, origin on the rear
-// axle, x forward, y up. Wheels, fork, swingarm, shock, handlebar, brakes and pegs are drawn by the
-// app itself; the layers below are everything else on the bike.
+// Wheelie Ride: vehicle bodywork. Source of truth for the Taller de Motos artifact and for Sources/BikeShapes.swift
+// (baked by Design/bake.mjs). Units: drawing units, origin on the rear axle, x forward, y up.
+// Wheels, fork, swingarm, shock, brakes, bars and pegs are drawn by the app (Sources/Mechanics.swift);
+// the layers below are everything else on the vehicle. Layer z: 0 under the near swingarm, 1 body, 2 after the near fork, 3 after the bars.
 (function (g) {
   const r2 = v => Math.round(v * 100) / 100;
-  // Smooth closed/open outline through points; a third value of 1 makes a corner.
   function sm(pts, closed = true) {
     const n = pts.length, P = pts.map(p => [p[0], p[1]]);
     const tan = i => {
@@ -19,61 +18,64 @@
     }
     return d + (closed ? 'Z' : '');
   }
-  // Straight-edged polygon.
-  function poly(pts) { return 'M' + pts.map(p => `${r2(p[0])} ${r2(p[1])}`).join('L') + 'Z'; }
-  function line(pts) { return 'M' + pts.map(p => `${r2(p[0])} ${r2(p[1])}`).join('L'); }
-  function lerp(a, b, t) { return [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t]; }
-  // Tapered capsule between two points.
+  const poly = pts => 'M' + pts.map(p => `${r2(p[0])} ${r2(p[1])}`).join('L') + 'Z';
+  const line = pts => 'M' + pts.map(p => `${r2(p[0])} ${r2(p[1])}`).join('L');
+  const lerp = (a, b, t) => [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t];
   function cap(a, b, w0, w1) {
-    const dx = b[0] - a[0], dy = b[1] - a[1], l = Math.hypot(dx, dy), ux = dx / l, uy = dy / l, nx = -uy, ny = ux;
-    const m = lerp(a, b, .5), wm = (w0 + w1) / 4;
-    return sm([[a[0] + nx * w0 / 2, a[1] + ny * w0 / 2, 1], [m[0] + nx * wm, m[1] + ny * wm], [b[0] + nx * w1 / 2, b[1] + ny * w1 / 2, 1],
-      [b[0] + ux * w1 * .45, b[1] + uy * w1 * .45], [b[0] - nx * w1 / 2, b[1] - ny * w1 / 2, 1], [m[0] - nx * wm, m[1] - ny * wm],
-      [a[0] - nx * w0 / 2, a[1] - ny * w0 / 2, 1], [a[0] - ux * w0 * .45, a[1] - uy * w0 * .45]]);
+    const dx = b[0] - a[0], dy = b[1] - a[1], l = Math.hypot(dx, dy), ux = dx / l, uy = dy / l, nx = -uy, ny = ux, m = lerp(a, b, .5), wm = (w0 + w1) / 4;
+    return sm([[a[0] + nx * w0 / 2, a[1] + ny * w0 / 2, 1], [m[0] + nx * wm, m[1] + ny * wm], [b[0] + nx * w1 / 2, b[1] + ny * w1 / 2, 1], [b[0] + ux * w1 * .45, b[1] + uy * w1 * .45],
+      [b[0] - nx * w1 / 2, b[1] - ny * w1 / 2, 1], [m[0] - nx * wm, m[1] - ny * wm], [a[0] - nx * w0 / 2, a[1] - ny * w0 / 2, 1], [a[0] - ux * w0 * .45, a[1] - uy * w0 * .45]]);
   }
-  // Crescent around a wheel: inner/outer radius, angles in degrees (0 = front, 90 = top, 180 = rear).
-  function crescent(cx, cy, rin, rout, a0, a1, valance = 0) {
-    const P = (r, a) => [cx + Math.cos(a * Math.PI / 180) * r, cy + Math.sin(a * Math.PI / 180) * r];
-    const out = [], inn = [], N = 7;
-    for (let i = 0; i <= N; i++) { const a = a0 + (a1 - a0) * i / N; out.push(P(rout, a)); }
-    for (let i = N; i >= 0; i--) { const a = a0 + (a1 - a0) * i / N; inn.push(P(rin - (i === 0 || i === N ? valance : 0), a)); }
-    const pts = [];
-    out.forEach((p, i) => pts.push(i === 0 || i === N ? [p[0], p[1], 1] : p));
-    inn.forEach((p, i) => pts.push(i === 0 || i === N ? [p[0], p[1], 1] : p));
+  function crescent(cx, cy, rin, rout, a0, a1) {
+    const P = (r, a) => [cx + Math.cos(a * Math.PI / 180) * r, cy + Math.sin(a * Math.PI / 180) * r], N = 7, pts = [];
+    for (let i = 0; i <= N; i++) { const p = P(rout, a0 + (a1 - a0) * i / N); pts.push(i === 0 || i === N ? [p[0], p[1], 1] : p); }
+    for (let i = N; i >= 0; i--) { const p = P(rin, a0 + (a1 - a0) * i / N); pts.push(i === 0 || i === N ? [p[0], p[1], 1] : p); }
     return sm(pts);
   }
-  // Layer constructors. z: 0 under the near swingarm, 1 body, 2 front end (after the near fork), 3 on top (after the bars).
-  const F = (z, role, d, ol = 0.85) => ({ z, t: 'f', role, d, ol });                  // filled panel
-  const T = (z, role, d, w) => ({ z, t: 's', role, d, w });                           // tube with edge and highlight
-  const O = (z, role, x, y, r) => ({ z, t: 'c', role, x, y, r });                    // disc
-  const L = (z, role, d, w, a = 1) => ({ z, t: 'l', role, d, w, a });                 // thin line
-  const X = (z, role, x, y, size, str) => ({ z, t: 'x', role, x, y, size, str });     // lettering
+  const F = (z, role, d, ol = 0.9) => ({ z, t: 'f', role, d, ol });
+  const T = (z, role, d, w) => ({ z, t: 's', role, d, w });
+  const O = (z, role, x, y, r) => ({ z, t: 'c', role, x, y, r });
+  const L = (z, role, d, w, a = 1) => ({ z, t: 'l', role, d, w, a });
+  const X = (z, role, x, y, size, str) => ({ z, t: 'x', role, x, y, size, str });
   const rig = (F_, R, seat, grip, peg, fm, shock, pivot = [43, 10]) => ({ F: F_, R, seat, grip, peg, fm, shock, pivot });
 
-  // Steering axis helpers: point at distance t above the front axle along the fork.
-  const axis = (rg, t) => { const dx = rg.fm[0] - rg.F, dy = rg.fm[1], l = Math.hypot(dx, dy); return [rg.F + dx / l * t, dy / l * t]; };
-  const nrm = rg => { const dx = rg.fm[0] - rg.F, dy = rg.fm[1], l = Math.hypot(dx, dy); return [-dy / l, dx / l]; };   // forward-facing normal
+  const D = { rigs: {}, bikes: {}, helpers: { sm, poly, line, lerp, cap, crescent, F, T, O, L, X } };
+  D.rigs.commuter = rig(106, 23, [30, 45], [84, 67], [42, 11], [81, 57], [27, 36]);
+  D.rigs.motocross = rig(111, 26, [29, 57], [82, 82], [43, 17], [86, 76], [27, 47]);
+  D.rigs.sport = rig(110, 24, [29, 50], [84, 60], [39, 11], [85, 57], [27, 36]);
+  D.rigs.bmx = rig(94, 24, [29, 49], [77, 72], [44, 0], [69, 57], [27, 36]);
+  D.rigs.scooter = rig(100, 20, [27, 43], [79, 67], [59, 4], [75, 57], [27, 36]);
+  D.rigs.scrambler = rig(112, 26, [30, 49], [85, 72], [44, 13], [87, 65], [27, 36]);
+  D.rigs.trials = rig(108, 27, [34, 61], [83, 80], [44, 16], [83, 76], [27, 47]);
+  D.rigs.hyperbike = rig(114, 25, [31, 51], [87, 59], [41, 12], [89, 57], [27, 36]);
+  D.rigs.cruiser = rig(112, 25, [28, 38], [84, 76], [62, 9], [87, 57], [27, 36]);
+  D.rigs.electric = rig(104, 23, [30, 46], [80, 66], [44, 10], [79, 57], [27, 36]);
 
-  // Air-cooled single: crankcase, clutch cover, finned barrel leaning forward and a head.
+  // Air-cooled single: crankcase, clutch cover, finned barrel leaning forward, head.
   function engine(ox, oy, s = 1, lean = 1) {
-    const P = (x, y) => [ox + x * s, oy + y * s];
-    const out = [];
+    const P = (x, y) => [ox + x * s, oy + y * s], out = [];
     out.push(F(0, 'metal', sm([[...P(0, 10), 1], P(2, 20), P(12, 23.5), P(24, 21), [...P(29, 12), 1], P(26, 3), P(14, 0), P(4, 3.5)]), .9));
     const bl = P(10, 21), br = P(26, 21), tl = P(10 + 11 * lean, 40), tr = P(26 + 9 * lean, 36);
     out.push(F(0, 'metalDk', poly([bl, br, tr, tl]), .9));
-    for (let i = 1; i <= 5; i++) { const t = i / 6; out.push(L(0, 'black', line([lerp(bl, tl, t), lerp(br, tr, t)]), 1.0, .85)); out.push(L(0, 'chrome', line([lerp(bl, tl, t - .06), lerp(br, tr, t - .06)]), .5, .55)); }
-    const hl = P(10 + 11 * lean - 1.5, 39), hr = P(26 + 9 * lean + 1.5, 35);
-    out.push(F(0, 'dark', sm([[...hl, 1], [...hr, 1], [...P(26 + 9 * lean + 2, 43.5), 1], [...P(10 + 11 * lean - 2.5, 46), 1]]), .9));
+    for (let i = 1; i <= 5; i++) { const t = i / 6; out.push(L(0, 'black', line([lerp(bl, tl, t), lerp(br, tr, t)]), 1.0, .85)); }
+    out.push(F(0, 'dark', sm([[...P(10 + 11 * lean - 1.5, 39), 1], [...P(26 + 9 * lean + 1.5, 35), 1], [...P(26 + 9 * lean + 2, 43.5), 1], [...P(10 + 11 * lean - 2.5, 46), 1]]), .9));
     const c = P(13, 11);
     out.push(O(0, 'metalLt', ...c, 8.3 * s), O(0, 'metal', ...c, 5.6 * s), O(0, 'black', ...c, 2.2 * s));
     for (let k = 0; k < 4; k++) { const a = k * Math.PI / 2 + .6; out.push(O(0, 'black', c[0] + Math.cos(a) * 6.9 * s, c[1] + Math.sin(a) * 6.9 * s, .8)); }
     return out;
   }
+  // Round headlamp seen from the side: shell, rim and lens, hung from the fork by a short bracket.
+  function lamp(x, y, r = 6.2, z = 2) {
+    return [
+      T(z, 'steel', sm([[x - r - 1, y - 1], [x - r - 4.6, y + 0.4]], false), 2.4),
+      F(z, 'chrome', sm([[x - r, y - r * .9], [x - r, y + r * .1], [x - r * .4, y + r * .9], [x + r * .5, y + r * .95], [x + r * .9, y + r * .1], [x + r * .85, y - r * .9], [x + r * .2, y - r * 1.05], [x - r * .5, y - r * 1.0]]), .9),
+      L(z, 'metalDk', line([[x - r * .7, y - r * .85], [x + r * .5, y - r * .95]]), .7, .6),
+      F(z, 'metalLt', sm([[x + r * .9, y + r * 1.05], [x + r * 1.35, y], [x + r * .9, y - r * 1.05], [x + r * .5, y]]), .8),
+      F(z, 'lamp', sm([[x + r * .95, y + r * .8], [x + r * 1.18, y], [x + r * .95, y - r * .8], [x + r * .72, y]]), .6),
+    ];
+  }
 
-  const D = { rigs: {}, bikes: {} };
-
-  // ───────── Street 125: classic roadster ─────────
-  D.rigs.commuter = rig(106, 23, [30, 45], [84, 67], [42, 11], [81, 57], [27, 36]);
+  // ───────── Street 125 ─────────
   D.bikes.commuter = [
     T(0, 'steel', sm([[79, 60], [62, 55], [44, 49.5], [32, 47.5]], false), 3.6),
     T(0, 'steel', sm([[32, 46.5], [14, 45], [-10, 41]], false), 2.8),
@@ -81,144 +83,130 @@
     T(0, 'steel', sm([[54, 9], [44, 4.6], [32, 6]], false), 3.0),
     T(0, 'steel', sm([[44, 11], [37, 28], [28, 46]], false), 3.0),
     ...engine(33, 5, 1, 1),
-    // exhaust: header, then a tapered silencer sitting on the right side
     T(1, 'chrome', sm([[66, 27], [70, 17], [62, 8], [48, 5.6], [36, 7]], false), 3.8),
     F(1, 'chrome', cap([36, 9], [-6, 18], 10, 8.6), .9),
     F(1, 'black', cap([-6, 17.6], [-10, 18.7], 8.9, 8.2), .7),
     L(1, 'metalDk', line([[30, 10.6], [-2, 18.4]]), .8, .7),
-    // side cover and tail: one swooping panel that tucks under the seat and runs out to the tail lamp
     F(1, 'paint', sm([[37, 44.4, 1], [38.6, 37], [33, 28], [23, 22.4], [11, 24.6], [-2, 31], [-17, 35.6, 1], [-16.6, 40.6], [-9, 44.2], [4, 44.6, 1], [20, 44.6]]), .9),
     L(1, 'white', line([[34, 38], [28.5, 30], [20, 25.6], [8, 28.4]]), 1.2, .55),
     O(1, 'chrome', 26, 36, 2.6), O(1, 'paintDk', 26, 36, 1.4),
     F(1, 'seat', sm([[-8, 46.4, 1], [-4, 49], [14, 49.9], [32, 49.7], [45, 48.6, 1], [44, 45.4], [30, 44.9], [10, 44.7], [-4, 44.4]]), .85),
-    L(1, 'chrome', line([[-3, 48.8], [32, 49.2]]), .6, .55),
     F(1, 'red', sm([[-20.2, 38.8, 1], [-17.2, 41.8, 1], [-15.6, 38.6, 1], [-18.4, 36.6, 1]]), .5),
     T(1, 'steel', sm([[-4, 31], [-12, 28], [-19, 24]], false), 2.0),
-    F(1, 'paint', crescent(0, 0, 25.4, 28.6, 66, 148, 0), .8),
-    // tank
+    F(1, 'paint', crescent(0, 0, 25.4, 28.6, 66, 148), .8),
     F(1, 'paint', sm([[43, 47.5, 1], [45, 54.5], [55, 60.5], [68, 63.6], [79, 61.2, 1], [79, 56], [72, 51.4], [60, 48.8]]), .9),
     L(1, 'white', line([[48, 56], [62, 61.5], [74, 62]]), 1.1, .6),
     L(1, 'paintDk', line([[46, 50.4], [62, 51.8], [76, 54.5]]), 2.6, .7),
     F(1, 'chrome', sm([[62, 63.7, 1], [66, 65.6], [70, 63.7, 1], [66, 63.3]]), .6),
-    // front end: lamp bucket with its lens, fender fixed to the fork by a bridge
-    F(2, 'paint', crescent(106, 0, 25.6, 29.2, 22, 138, 2), .85),
+    F(2, 'paint', crescent(106, 0, 25.6, 29.2, 22, 138), .85),
     F(2, 'dark', sm([[90.2, 22, 1], [97, 26.4, 1], [96.2, 31, 1], [89, 27, 1]]), .7),
-    T(2, 'steel', sm([[84, 54], [80.4, 55.4]], false), 2.4),
-    F(2, 'chrome', sm([[83.5, 49.4], [83.4, 55.8], [88, 59.6], [93.6, 59.4], [95.6, 54.4], [95.2, 49], [91, 46.6], [86.4, 47]]), .9),
-    L(2, 'metalDk', line([[85, 50], [93, 49.2]]), .7, .6),
-    F(2, 'metalLt', sm([[95.8, 59.8], [98.6, 53.4], [95.8, 47], [93.2, 53.4]]), .8),
-    F(2, 'lamp', sm([[96.2, 58.4], [98.2, 53.4], [96.2, 48.4], [94.6, 53.4]]), .6),
+    ...lamp(89.5, 53, 6.2),
     F(3, 'dark', sm([[76.4, 63, 1], [79, 68.4], [84.4, 68.2], [86, 63.6, 1]]), .8),
     F(3, 'cream', sm([[78.4, 64.2, 1], [80, 67.4, 1], [83.6, 67.2, 1], [84, 64.4, 1]]), .5),
   ];
 
   // ───────── Scrambler 400 ─────────
-  D.rigs.scrambler = rig(112, 26, [30, 49], [85, 72], [44, 13], [87, 65], [27, 36]);
   D.bikes.scrambler = [
-    T(1, 'chrome', sm([[70, 32], [74, 21], [66, 10], [50, 7.5], [32, 12], [14, 24], [2, 33]], false), 3.8),
-    F(1, 'chrome', cap([14, 26], [-12, 39.5], 8.8, 7.6), .9),
-    F(1, 'black', cap([-12, 39], [-15.5, 40.8], 7.8, 7.2), .7),
     T(0, 'steel', sm([[88, 68], [64, 59], [44, 53], [30, 51.5]], false), 3.6),
     T(0, 'steel', sm([[30, 50.5], [10, 49], [-10, 46.5]], false), 2.8),
     T(0, 'steel', sm([[88, 63], [76, 44], [66, 22], [56, 8]], false), 3.6),
     T(0, 'steel', sm([[56, 8], [44, 5], [32, 7]], false), 3.0),
     T(0, 'steel', sm([[44, 11], [36, 30], [26, 50]], false), 3.0),
     ...engine(35, 5, 1.04, .8),
-    F(1, 'paint', crescent(0, 0, 29, 32.4, 56, 150, 0), .75),
-    O(1, 'white', 22, 32, 9.6), O(1, 'paintDk', 22, 32, 7.9), X(1, 'white', 22, 32, 11, '4'),
+    // high pipe that sweeps along the flank to an upswept silencer under the seat
+    T(1, 'chrome', sm([[70, 32], [74, 21], [66, 10], [50, 7.5], [32, 12], [16, 26], [6, 33]], false), 3.8),
+    F(1, 'chrome', cap([18, 28], [-14, 42], 9, 7.6), .9),
+    F(1, 'black', cap([-14, 41.6], [-17.6, 43.4], 7.8, 7.2), .7),
+    F(1, 'metalDk', sm([[8, 30.6, 1], [10, 36], [-6, 41], [-8, 36]]), .6),
     F(1, 'tan', sm([[-10, 50, 1], [-4, 53.4], [16, 54.4], [38, 54], [48, 52.6, 1], [47, 49], [30, 48], [8, 47.6], [-6, 47]]), .85),
-    L(1, 'tanLt', line([[-2, 52.6], [38, 53.2]]), .6, .7),
-    F(1, 'paint', sm([[-20, 42, 1], [-17, 48.5], [-8, 52], [10, 52.6, 1], [4, 45.5], [-8, 42]]), .75),
-    F(1, 'red', sm([[-22, 46, 1], [-19, 49, 1], [-17.4, 46, 1], [-20, 44.2, 1]]), .5),
+    L(1, 'cream', line([[-2, 52.6], [38, 53.2]]), .6, .6),
+    F(1, 'paint', sm([[-21, 43, 1], [-18, 49], [-9, 52.4], [10, 52.8, 1], [4, 45.5], [-8, 42.5]]), .8),
+    F(1, 'red', sm([[-23, 47, 1], [-20, 50, 1], [-18.4, 47, 1], [-21, 45.2, 1]]), .5),
+    F(1, 'paint', crescent(0, 0, 29, 32.4, 62, 150), .8),
+    O(1, 'white', 22, 33, 9.6), O(1, 'paintDk', 22, 33, 7.9), X(1, 'white', 22, 33, 11, '4'),
     F(1, 'paint', sm([[44, 53, 1], [46, 60], [56, 65.4], [70, 67.6], [81, 66, 1], [80, 60.5], [72, 55.6], [58, 53.2]]), .9),
     L(1, 'white', line([[48, 61], [62, 66], [76, 66.6]]), 1.1, .6),
     L(1, 'paintDk', line([[47, 55.4], [62, 56.4], [78, 59.5]]), 2.6, .7),
     F(1, 'chrome', sm([[62, 67.6, 1], [66, 69.4], [70, 67.7, 1], [66, 67.3]]), .6),
-    F(2, 'paint', crescent(112, 0, 31, 34.4, 20, 130, 3), .85),
-    O(3, 'chrome', 98, 66, 7.4), O(3, 'lamp', 98, 66, 5.4), O(3, 'white', 98, 66, 2.1),
+    F(2, 'paint', crescent(112, 0, 31, 34.4, 20, 130)),
+    ...lamp(98.5, 62, 6.8),
   ];
 
   // ───────── Volt E-8 ─────────
-  D.rigs.electric = rig(104, 23, [30, 46], [80, 66], [44, 10], [79, 57], [27, 36]);
   D.bikes.electric = [
-    L(0, 'black', line([[44, 18.2], [4, 6.5]]), 1.4, .9),
     T(0, 'steel', sm([[78, 59], [64, 54.5], [50, 50], [32, 48]], false), 3.6),
-    T(0, 'steel', sm([[32, 47], [14, 45.5], [-8, 42]], false), 2.8),
+    T(0, 'steel', sm([[32, 47], [14, 45.5], [-8, 42]], false), 3.0),
     T(0, 'steel', sm([[79, 55], [68, 36], [58, 14], [46, 8]], false), 3.8),
-    F(0, 'dark', sm([[30, 9, 1], [29, 34], [36, 42], [56, 44.5], [67, 40], [68, 20, 1], [60, 8], [42, 6]]), 1.0),    // battery pack
+    T(0, 'steel', sm([[44, 11], [36, 28], [28, 47]], false), 3.0),
+    F(0, 'dark', sm([[30, 9, 1], [29, 34], [36, 42], [56, 44.5], [67, 40], [68, 20, 1], [60, 8], [42, 6]]), 1.0),
     L(0, 'black', line([[36, 10], [36, 40]]), 1, .6), L(0, 'black', line([[42, 8], [42, 43]]), 1, .6), L(0, 'black', line([[48, 8], [48, 44]]), 1, .6), L(0, 'black', line([[54, 8], [54, 44]]), 1, .6), L(0, 'black', line([[60, 9], [60, 43]]), 1, .6),
     F(0, 'green', sm([[34, 35, 1], [62, 36.2, 1], [62, 38.6, 1], [34, 37.4, 1]]), .5),
     O(0, 'metalLt', 43, 12.6, 8.2), O(0, 'metal', 43, 12.6, 5.6), O(0, 'orange', 43, 12.6, 2.4),
-    F(1, 'paint', sm([[9, 28, 1], [10, 38], [22, 42.5], [33, 41, 1], [31, 29], [20, 24]]), .85),
-    F(1, 'seat', sm([[-8, 46, 1], [-4, 48.8], [14, 49.6], [34, 49.2], [46, 47.4, 1], [44, 44.8], [30, 44.4], [10, 44.2], [-4, 43.8]]), .85),
-    F(1, 'paint', sm([[-16, 35, 1], [-14, 41], [-6, 44.4], [8, 44.8, 1], [3, 38], [-5, 34.5]]), .75),
-    F(1, 'paint', crescent(0, 0, 25.4, 28.4, 55, 150, 0), .75),
-    F(1, 'red', sm([[-18.5, 39, 1], [-15.5, 42, 1], [-14, 39, 1], [-16.8, 37, 1]]), .5),
+    F(1, 'paint', sm([[37, 44.2, 1], [37, 36], [30, 27], [20, 23.4], [8, 26.6], [-4, 32], [-16, 36, 1], [-15, 40.6], [-8, 44.4], [4, 44.8, 1], [20, 44.8]]), .9),
+    L(1, 'green', line([[33, 37], [26, 29], [18, 26], [6, 29.4]]), 1.2, .9),
+    F(1, 'seat', sm([[-8, 46.4, 1], [-4, 48.8], [14, 49.6], [34, 49.2], [46, 47.4, 1], [44, 44.8], [30, 44.4], [10, 44.2], [-4, 43.8]]), .85),
+    F(1, 'red', sm([[-19, 38.6, 1], [-16, 41.6, 1], [-14.6, 38.4, 1], [-17.4, 36.6, 1]]), .5),
+    T(1, 'steel', sm([[-4, 32], [-12, 29], [-18, 24]], false), 2.0),
+    F(1, 'paint', crescent(0, 0, 25.4, 28.4, 66, 146), .8),
     F(1, 'paint', sm([[34, 49.6, 1], [40, 55], [56, 59.4], [72, 61, 1], [76, 57.8], [72, 53.4], [54, 50.5]]), .9),
     L(1, 'green', line([[44, 55], [70, 58.2]]), 1.2, .9),
-    F(2, 'paint', crescent(104, 0, 25.6, 29.4, 22, 140, 3), .85),
-    F(3, 'dark', sm([[86, 52, 1], [88, 59.5], [96, 60.2, 1], [96, 52]]), .8),
-    F(3, 'lamp', sm([[89, 54.6, 1], [89.2, 58.8], [93.8, 59.2, 1], [93.8, 54.6]]), .5),
+    F(2, 'paint', crescent(104, 0, 25.6, 29.4, 22, 138)),
+    F(2, 'dark', sm([[88, 22, 1], [95, 26, 1], [94, 31, 1], [87, 27, 1]]), .7),
+    F(2, 'dark', sm([[84, 48, 1], [85, 58], [92, 60.6], [99, 58, 1], [99, 49.6], [92, 47]]), .9),
+    F(2, 'lamp', sm([[88, 52, 1], [88.4, 58], [96.4, 58.4, 1], [96.4, 52]]), .6),
+    L(2, 'green', line([[88, 55], [96.4, 55.2]]), .9, .9),
   ];
 
+
   // ───────── Enduro 250 ─────────
-  D.rigs.motocross = rig(111, 26, [29, 57], [82, 82], [43, 17], [86, 76], [27, 47]);
   D.bikes.motocross = [
-    T(1, 'chrome', sm([[78, 36], [86, 24], [76, 8], [58, 5], [44, 12], [22, 26], [6, 38], [-8, 45]], false), 4.4),
-    F(1, 'chrome', cap([6, 40], [-18, 53], 9.4, 8.2), .9),
-    F(1, 'black', cap([-18, 52.6], [-21.5, 54.4], 8.2, 7.6), .7),
     T(0, 'steel', sm([[84, 78], [60, 68], [40, 62], [28, 60]], false), 3.6),
     T(0, 'steel', sm([[85, 72], [70, 52], [56, 30], [50, 14]], false), 3.8),
     T(0, 'steel', sm([[44, 11], [32, 30], [18, 52]], false), 3.2),
     T(0, 'steel', sm([[28, 60], [4, 58], [-12, 53]], false), 3.0),
     ...engine(37, 6, 1.1, 1),
     F(0, 'dark', sm([[34, 8, 1], [34, 3.6], [52, 0.5], [67, 2.4, 1], [66, 6], [46, 9]]), .8),
+    // expansion chamber sweeping round the front of the engine to a short silencer at the tail
+    T(1, 'chrome', sm([[78, 36], [86, 24], [76, 8], [58, 5], [44, 12], [22, 26], [6, 38], [-8, 45]], false), 4.4),
+    F(1, 'chrome', cap([6, 40], [-18, 53], 9.4, 8.2), .9),
+    F(1, 'black', cap([-18, 52.6], [-21.5, 54.4], 8.2, 7.6), .7),
     F(1, 'seat', sm([[-14, 57, 1], [0, 60.6], [26, 61.6], [48, 60.4], [58, 58.6, 1], [47, 56.2], [24, 55.6], [0, 55.4]]), .85),
     F(1, 'paint', sm([[-27, 53, 1], [-22, 59], [-8, 61.6], [14, 61.4, 1], [6, 56.6], [-10, 55.2]]), .75),
-    F(1, 'paint', crescent(0, 0, 29.4, 32.2, 100, 146, 0), .6),
+    F(1, 'paint', crescent(0, 0, 29.4, 32.2, 100, 146), .6),
     F(1, 'white', sm([[44, 56.6, 1], [47, 69], [58, 76], [66, 74, 1], [63, 62.4], [54, 57.4]]), .9),
+    X(1, 'dark', 55, 66, 10, '7'),
     F(1, 'paint', sm([[50, 69, 1], [58, 76.2], [74, 79], [86, 77, 1], [84, 72.4], [70, 70.6], [56, 70]]), .9),
-    X(1, 'dark', 55, 63.6, 10, '7'),
-    F(2, 'paint', crescent(111, 0, 30, 33.4, 22, 150, 0), .85),
+    F(2, 'paint', crescent(111, 0, 30, 33.4, 22, 150)),
     F(2, 'white', sm([[93, 74, 1], [94, 85], [101, 89], [107, 85, 1], [105, 75]]), .9),
     X(2, 'dark', 100, 80, 7.5, '7'),
   ];
 
   // ───────── Trial 200 ─────────
-  D.rigs.trials = rig(108, 27, [34, 61], [83, 80], [44, 16], [83, 76], [27, 47]);
   D.bikes.trials = [
-    T(1, 'chrome', sm([[78, 40], [84, 30], [74, 14], [56, 8], [40, 16], [20, 38], [4, 52], [-6, 58]], false), 3.6),
-    F(1, 'chrome', cap([4, 54], [-16, 62], 7.8, 6.8), .9),
-    F(1, 'black', cap([-16, 61.6], [-19, 63], 7, 6.6), .7),
     T(0, 'steel', sm([[82, 78], [60, 71], [44, 65], [34, 63]], false), 3.4),
     T(0, 'steel', sm([[83, 72], [68, 50], [58, 30], [52, 14]], false), 3.4),
     T(0, 'steel', sm([[44, 11], [34, 34], [22, 58]], false), 3.0),
     T(0, 'steel', sm([[34, 62], [10, 61], [-4, 58]], false), 2.8),
     ...engine(37, 6, .95, .9),
     F(0, 'dark', sm([[36, 8, 1], [36, 4], [52, 1], [64, 3, 1], [62, 7], [46, 9.4]]), .8),
+    T(1, 'chrome', sm([[78, 40], [84, 30], [74, 14], [56, 8], [40, 16], [20, 38], [4, 52], [-6, 58]], false), 3.6),
+    F(1, 'chrome', cap([4, 54], [-16, 62], 7.8, 6.8), .9),
+    F(1, 'black', cap([-16, 61.6], [-19, 63], 7, 6.6), .7),
     F(1, 'seat', sm([[8, 62, 1], [14, 64.8], [34, 65.6], [46, 64.4, 1], [40, 61.4], [20, 61]]), .85),
     F(1, 'paint', sm([[-14, 56, 1], [-12, 60.4], [0, 63.6], [14, 64, 1], [8, 59], [-4, 56.4]]), .75),
-    F(1, 'paint', crescent(0, 0, 30.8, 33.6, 60, 142, 0), .6),
+    F(1, 'paint', crescent(0, 0, 30.8, 33.6, 60, 142), .6),
     F(1, 'paint', sm([[44, 66, 1], [48, 74.5], [60, 79.6], [76, 80.4, 1], [78, 75.4], [66, 70.4], [54, 67.2]]), .9),
     L(1, 'white', line([[50, 74], [64, 79], [74, 79.6]]), 1.1, .6),
-    F(2, 'white', crescent(108, 0, 33.4, 36.8, 18, 128, 2), .85),
-    O(3, 'chrome', 91, 76, 6.6), O(3, 'lamp', 91, 76, 4.8),
+    F(2, 'white', crescent(108, 0, 33.4, 36.8, 18, 128)),
+    ...lamp(92, 76, 5.4),
   ];
 
   // ───────── Cruiser 750 ─────────
-  D.rigs.cruiser = rig(112, 25, [28, 38], [84, 76], [62, 9], [87, 57], [27, 36]);
   D.bikes.cruiser = [
-    // two drag pipes along the right side, slash-cut at the rear
-    T(1, 'chrome', sm([[60, 31], [67, 22], [62, 10], [48, 6.4], [22, 5.4], [-8, 8]], false), 4.6),
-    T(1, 'chrome', sm([[40, 31], [48, 22], [44, 12], [38, 2], [20, -1], [-14, 2]], false), 4.6),
-    F(1, 'chrome', cap([20, 6], [-16, 8.6], 7.8, 8.6), .9),
-    F(1, 'black', cap([-16, 8.6], [-19.6, 9], 7.2, 7), .7),
-    // frame: backbone, downtube, rear loop
     T(0, 'steel', sm([[86, 60], [68, 56], [50, 50], [36, 42]], false), 3.8),
     T(0, 'steel', sm([[86, 55], [74, 38], [66, 18], [54, 5]], false), 3.8),
     T(0, 'steel', sm([[36, 42], [16, 40], [-6, 34]], false), 3.0),
     T(0, 'steel', sm([[44, 11], [36, 28], [28, 40]], false), 3.2),
-    // V-twin: crankcase with two finned barrels in a 70-degree vee, air cleaner between them
     F(0, 'metal', sm([[30, 12, 1], [31, 26], [46, 31], [62, 26, 1], [64, 10], [50, 3], [36, 4]]), .9),
     F(0, 'metalDk', poly([[28, 25], [42, 27.5], [34, 46], [22, 42]]), .9),
     F(0, 'metalDk', poly([[48, 28], [62, 25], [74, 43], [62, 48]]), .9),
@@ -228,21 +216,23 @@
     F(0, 'dark', sm([[61, 47, 1], [74, 42.6, 1], [77, 46.6], [64, 52]]), .8),
     O(0, 'metalLt', 46, 15, 9), O(0, 'metal', 46, 15, 6), O(0, 'black', 46, 15, 2.4),
     O(0, 'chrome', 47, 40, 7.6), O(0, 'metal', 47, 40, 4.6),
-    F(1, 'paint', crescent(0, 0, 27.6, 31.6, 18, 168, 3.4), .8),
+    T(1, 'chrome', sm([[60, 31], [67, 22], [62, 10], [48, 6.4], [22, 5.4], [-8, 8]], false), 4.6),
+    T(1, 'chrome', sm([[40, 31], [48, 22], [44, 12], [38, 2], [20, -1], [-14, 2]], false), 4.6),
+    F(1, 'chrome', cap([20, 6], [-16, 8.6], 7.8, 8.6), .9),
+    F(1, 'black', cap([-16, 8.6], [-19.6, 9], 7.2, 7), .7),
+    F(1, 'paint', crescent(0, 0, 27.6, 31.6, 18, 168), .8),
     F(1, 'seat', sm([[46, 40.2, 1], [40, 42.2], [26, 38.6], [14, 37.8], [4, 40.4], [-10, 41.4, 1], [-9, 37.6], [4, 36.4], [26, 33.6], [42, 36.4]]), .85),
-    L(1, 'chrome', line([[36, 36.5], [34, 31.6]]), 1.2, .8), L(1, 'chrome', line([[14, 34.4], [13, 30]]), 1.2, .8),
     F(1, 'red', sm([[-23.4, 22, 1], [-21, 25.6, 1], [-19, 24, 1], [-20.8, 20.4, 1]]), .5),
     F(1, 'paint', sm([[40, 52, 1], [44, 62], [58, 68.4], [74, 68.8], [88, 64, 1], [87, 57], [74, 53], [58, 51]]), .9),
     L(1, 'white', line([[46, 62], [60, 67], [76, 66.6]]), 1.3, .6),
     L(1, 'paintDk', line([[46, 54.4], [64, 55.4], [84, 59.4]]), 2.6, .65),
     F(1, 'chrome', sm([[60, 68.6, 1], [64, 70.4], [68, 68.7, 1], [64, 68.3]]), .6),
-    F(2, 'paint', crescent(112, 0, 28.4, 32.6, 14, 152, 4), .9),
-    O(3, 'chrome', 99, 60, 8.8), O(3, 'lamp', 99, 60, 6.6), O(3, 'white', 99, 60, 2.6),
+    F(2, 'paint', crescent(112, 0, 28.4, 32.6, 14, 152)),
+    ...lamp(98.5, 58, 7.6),
     F(3, 'chrome', sm([[56, 8, 1], [78, 8, 1], [80, 5.4, 1], [54, 5.2, 1]]), .8),
   ];
 
   // ───────── Scooter 80 ─────────
-  D.rigs.scooter = rig(100, 20, [27, 43], [79, 67], [59, 4], [75, 57], [27, 36]);
   D.bikes.scooter = [
     F(1, 'paint', sm([[-15, 22, 1], [-14, 36], [-6, 44], [14, 46.4], [32, 44], [40, 38, 1], [41, 26], [44, 14], [50, 5, 1], [30, 2], [26, 8], [24, 26], [10, 28], [-4, 24]]), .9),
     F(1, 'metal', sm([[-6, 22, 1], [-4, 36], [8, 40], [22, 38, 1], [22, 26], [10, 22]]), .8),
@@ -251,32 +241,89 @@
     F(1, 'dark', sm([[46, 6, 1], [70, 5.6, 1], [70, 3.6, 1], [46, 3.6, 1]]), .5),
     F(1, 'paint', sm([[68, 6, 1], [66, 20], [66, 38], [70, 54], [78, 62, 1], [88, 64], [92, 56, 1], [86, 40], [82, 20], [82, 6, 1]]), .9),
     F(1, 'red', sm([[-18, 36, 1], [-16, 40, 1], [-14.4, 39, 1], [-16, 35, 1]]), .5),
-    F(2, 'paint', crescent(100, 0, 22, 26, 20, 145, 4), .85),
+    F(2, 'paint', crescent(100, 0, 22, 26, 20, 145)),
     F(3, 'dark', sm([[76, 58, 1], [88, 62], [98, 64], [96, 57, 1], [86, 53]]), .8),
-    O(3, 'chrome', 94, 64, 7.4), O(3, 'lamp', 94, 64, 5.4), O(3, 'white', 94, 64, 2.1),
+    ...lamp(94, 64, 6.6, 3),
   ];
 
   // ───────── BMX ─────────
-  D.rigs.bmx = rig(94, 24, [29, 49], [77, 72], [44, 0], [69, 57], [27, 36]);
   D.bikes.bmx = [
-    T(0, 'paint', sm([[0, 0], [14, 24], [31, 49]], false), 2.8),                                  // seatstay
-    T(0, 'paint', sm([[0, 0], [22, 0.6], [45, 0]], false), 3.4),                                  // chainstay
-    T(0, 'paint', sm([[45, 0], [38, 26], [31.5, 51]], false), 3.8),                               // seat tube
-    T(1, 'paint', sm([[31.5, 51], [50, 54.5], [68, 58]], false), 4.2),                            // top tube
-    T(1, 'paint', sm([[68, 54], [58, 28], [45, 1]], false), 4.6),                                 // down tube
-    F(1, 'paint', sm([[62, 46, 1], [70, 62], [75, 58, 1], [69, 49]]), .8),                        // head tube gusset
-    F(1, 'metalLt', sm([[66, 57.4, 1], [68, 62.4], [73, 60.6, 1], [72, 55.6]]), .8),              // head tube
-    T(1, 'chrome', sm([[31.5, 51], [30.4, 55.5]], false), 2.6),                                   // seat post
+    T(0, 'paint', sm([[0, 0], [14, 24], [31, 49]], false), 2.8),
+    T(0, 'paint', sm([[0, 0], [22, 0.6], [45, 0]], false), 3.4),
+    T(0, 'paint', sm([[45, 0], [38, 26], [31.5, 51]], false), 3.8),
+    T(1, 'paint', sm([[31.5, 51], [50, 54.5], [68, 58]], false), 4.2),
+    T(1, 'paint', sm([[68, 54], [58, 28], [45, 1]], false), 4.6),
+    F(1, 'paint', sm([[62, 46, 1], [70, 62], [75, 58, 1], [69, 49]]), .8),
+    F(1, 'metalLt', sm([[66, 57.4, 1], [68, 62.4], [73, 60.6, 1], [72, 55.6]]), .8),
+    T(1, 'chrome', sm([[31.5, 51], [30.4, 55.5]], false), 2.6),
     F(1, 'seat', sm([[19.5, 56, 1], [24, 58.4], [38, 57.6], [43, 55.2, 1], [38, 53.6], [24, 53.8]]), .85),
-    O(1, 'metalLt', 0, 0, 3.4), O(1, 'metalLt', 94, 0, 3.2),                                       // axle pegs
+    O(1, 'metalLt', 0, 0, 3.4), O(1, 'metalLt', 94, 0, 3.2),
   ];
 
+
+  // Fairing bikes share their anatomy: aluminium beam frame, in-line engine, belly pan, painted fairing, screen and a rising tail.
+  function superbike(o) {
+    const k = o.nose;   // x offset of the front end relative to the Sport 600
+    const out = [
+      T(0, 'metal', sm([[82 + k, 55], [66 + k * .4, 50], [52, 42], [44, 30], [43, 14]], false), 5.4),
+      T(0, 'steel', sm([[36, 48], [14, 50], [-8, 56]], false), 2.8),
+      T(0, 'steel', sm([[44, 26], [22, 47]], false), 2.6),
+      F(0, 'metalDk', sm([[32, 10, 1], [34, 24], [48, 28], [62, 24], [64, 12, 1], [54, 4], [40, 3]]), .9),
+      F(0, 'metalDk', poly([[38, 24], [60, 26], [68 + k * .3, 41], [46, 41]]), .9),
+      L(0, 'black', line([[40, 28], [61, 30]]), 1, .8), L(0, 'black', line([[42, 32.5], [63.6, 34.6]]), 1, .8), L(0, 'black', line([[44, 37], [66, 39]]), 1, .8),
+      O(0, 'metalLt', 44, 13, 7.6), O(0, 'metal', 44, 13, 5), O(0, 'black', 44, 13, 2),
+      // exhaust: collector under the engine, short titanium silencer under the tail
+      T(1, 'chrome', sm([[66, 24], [68, 12], [54, 4], [40, 2.4], [26, 5]], false), 3.8),
+      F(1, 'metalDk', cap([28, 7], [-4, 27], 10, 8.8), .9),
+      F(1, 'black', cap([-4, 26.6], [-7.4, 28.6], 8.6, 8), .7),
+      F(1, 'paint', o.tail, .9),
+      F(1, 'seat', o.seat, .8),
+      F(1, 'red', o.lamp, .5),
+      F(1, 'black', o.pan, .9),
+      F(1, 'paint', o.tank, .9),
+      F(1, 'paint', o.fairing, .95),
+      L(1, 'white', o.stripe, 1.3, .6),
+      L(1, 'black', o.vent, 1.2, .9),
+      F(1, 'glass', o.screen, .8),
+      ...(o.extra || []),
+      F(2, 'paint', crescent(o.F, 0, o.R + 2.4, o.R + 6, 20, 140), .85),
+      ...o.lights,
+    ];
+    return out;
+  }
+
+  // ───────── Sport 600 ─────────
+  D.bikes.sport = superbike({
+    nose: 0, F: 110, R: 24,
+    tail: sm([[42, 47.5], [38, 52.5], [18, 55.4], [-6, 58.2], [-21, 59.4, 1], [-19, 54], [-8, 50], [6, 45], [20, 40.5], [34, 39.5], [42, 41, 1]].map((p, i) => i === 0 ? [p[0], p[1], 1] : p)),
+    seat: sm([[36, 51, 1], [20, 54.8], [-6, 58], [-17, 58.6, 1], [-8, 56], [18, 53], [30, 51]]),
+    lamp: sm([[-23, 57.4, 1], [-20, 60.4, 1], [-18.4, 57.2, 1], [-21, 55.6, 1]]),
+    pan: sm([[98, 40, 1], [90, 26], [76, 15], [60, 8], [50, 7, 1], [50, 16], [58, 28], [74, 33], [90, 38]]),
+    tank: sm([[44, 56, 1], [48, 63], [62, 66], [74, 64], [80, 60, 1], [70, 57], [56, 55.5]]),
+    fairing: sm([[64, 46, 1], [68, 58], [80, 66], [96, 63], [106, 52, 1], [102, 42], [90, 34], [74, 28, 1], [62, 32], [60, 40]]),
+    stripe: line([[68, 50], [84, 53], [100, 49]]),
+    vent: line([[84, 44], [96, 42]]),
+    screen: sm([[76, 66, 1], [80, 76], [85, 81, 1], [93, 72], [98, 64, 1], [88, 65]]),
+    extra: [F(1, 'paintDk', sm([[84, 68, 1], [90, 72], [94, 69, 1], [88, 66]]), .6)],
+    lights: [F(2, 'dark', sm([[94, 56, 1], [104, 52], [106, 56, 1], [97, 62]]), .8), F(2, 'lamp', sm([[97, 57.6, 1], [103.6, 54.4, 1], [104.4, 56.2, 1], [98.4, 60, 1]]), .5)],
+  });
+
+  // ───────── Hyper R 1000 ─────────
+  D.bikes.hyperbike = superbike({
+    nose: 4, F: 114, R: 25,
+    tail: sm([[44, 49, 1], [40, 54], [20, 57.6], [-6, 61], [-22, 62.8, 1], [-20, 57], [-8, 52.6], [8, 46.6], [22, 41], [36, 40.6], [44, 43, 1]]),
+    seat: sm([[38, 53, 1], [20, 57.4], [-6, 60.6], [-18, 61.2, 1], [-8, 58.6], [18, 55.4], [32, 53]]),
+    lamp: sm([[-24, 60.4, 1], [-21, 63.4, 1], [-19.4, 60.2, 1], [-22, 58.6, 1]]),
+    pan: sm([[102, 40, 1], [94, 26], [80, 14], [62, 6], [52, 5, 1], [52, 15], [60, 28], [78, 33], [94, 40]]),
+    tank: sm([[46, 58, 1], [50, 65], [64, 68.6], [78, 66.6], [86, 61, 1], [74, 58.4], [58, 57]]),
+    fairing: sm([[68, 47, 1], [72, 59], [84, 67.6], [100, 65], [111, 54, 1], [107, 43], [94, 35], [78, 29, 1], [66, 33], [64, 41]]),
+    stripe: line([[72, 50], [90, 54], [106, 50]]),
+    vent: line([[86, 45], [100, 43]]),
+    screen: sm([[80, 67.6, 1], [84, 78], [90, 82.6, 1], [99, 72], [104, 65, 1], [94, 66.4]]),
+    extra: [F(1, 'black', sm([[92, 46, 1], [104, 42], [112, 43.4, 1], [105, 48], [94, 51]]), .8), X(1, 'white', 8, 53, 8, 'R')],
+    lights: [F(2, 'dark', sm([[98, 57, 1], [110, 52], [112, 56.4, 1], [101, 63]]), .8), F(2, 'lamp', sm([[101, 58.4, 1], [109, 54.6, 1], [110, 56.4, 1], [102.4, 61]]), .5)],
+  });
+
+  // ── bodies are added below, one per vehicle ──
   g.DESIGN = D;
-  g.DESIGN.roles = {
-    paint: null, paintDk: null,
-    metal: ['#C9D1D3', '#7C8A91', '#34414A'], metalLt: ['#EDF0EC', '#A3AFB3', '#5A6870'], metalDk: ['#8E9BA1', '#4A585F', '#1E282D'],
-    steel: ['#4A565D', '#232C32'], dark: ['#59666E', '#1B242A'], black: ['#363E44', '#0E1316'],
-    chrome: ['#F3F5EF', '#A3AFB3', '#5A6870'], seat: ['#5A666F', '#151D22'], tan: ['#B08A5F', '#4A3D2E'], tanLt: ['#E4C9A2'],
-    lamp: ['#FFF7D6', '#E8D79A'], white: ['#FFFFFF', '#D7DDE0'], cream: ['#F4F1DE', '#CFC7A6'], red: ['#FF6A55', '#B2271B'], green: ['#7FF29B', '#2E9E52'], orange: ['#FFB04A', '#E0742A']
-  };
 })(typeof globalThis !== 'undefined' ? globalThis : this);

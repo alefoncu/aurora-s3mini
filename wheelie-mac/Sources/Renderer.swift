@@ -404,23 +404,16 @@ final class RideRenderer {
         let rig=kind.rig,u=rig.drawingUnitsPerMetre
         func p(_ v:RideVector)->NSPoint { NSPoint(x:v.x*u,y:-v.y*u) }
         NSGraphicsContext.saveGraphicsState(); let transform=NSAffineTransform(); transform.translateX(by:x,yBy:y); transform.scale(by:scale); transform.rotate(byRadians:-angle); transform.concat()
-        var farPoses:[(RiderPose,Bool)]=[]
+        // Poses first: the far-side leg is drawn behind the bike so the bodywork covers it and only the boot shows.
+        var poses:[(RiderPose,Bool)]=[]
         if showRider {
-            if passenger && kind.supportsPassenger { farPoses.append((RiderRig.solve(vehicle:rig,lean:lean*0.3,lift:riderLift,pedalPhase:pedalPhase,passenger:true),true)) }
-            farPoses.append((RiderRig.solve(vehicle:rig,lean:lean,lift:riderLift,pedalPhase:pedalPhase,cycling:kind == .bmx,stunt:stunt,handsOff:handsOff,superman:superman),false))
+            if passenger && kind.supportsPassenger { poses.append((RiderRig.solve(vehicle:rig,lean:lean*0.3,lift:riderLift,pedalPhase:pedalPhase,passenger:true),true)) }
+            poses.append((RiderRig.solve(vehicle:rig,lean:lean,lift:riderLift,pedalPhase:pedalPhase,cycling:kind == .bmx,stunt:stunt,handsOff:handsOff,superman:superman),false))
         }
-        // The far-side leg sits behind the bike, so the bodywork covers it and only the boot shows below the engine.
-        for (pose,pass) in farPoses { drawRider(pose,units:u,kind:kind,passenger:pass,farLeg:1) }
+        for (pose,pass) in poses { drawRider(pose,units:u,kind:kind,passenger:pass,farLeg:1) }
         drawVehicle(kind:kind,rearAxle:p(rearWheelLocal ?? rig.rearAxle),frontAxle:p(frontWheelLocal ?? rig.frontAxle),frontCompression:frontCompression,rearCompression:rearCompression,rotationRear:rotation,rotationFront:frontRotation ?? rotation,pedalPhase:pedalPhase,time:time)
         drawLivery(kind:kind,units:u)
-        if showRider {
-            if passenger && kind.supportsPassenger {
-                let pose=RiderRig.solve(vehicle:rig,lean:lean*0.3,lift:riderLift,pedalPhase:pedalPhase,passenger:true)
-                drawRider(pose,units:u,kind:kind,passenger:true,farLeg:2)
-            }
-            let pose=RiderRig.solve(vehicle:rig,lean:lean,lift:riderLift,pedalPhase:pedalPhase,cycling:kind == .bmx,stunt:stunt,handsOff:handsOff,superman:superman)
-            drawRider(pose,units:u,kind:kind,passenger:false,farLeg:2)
-        }
+        for (pose,pass) in poses { drawRider(pose,units:u,kind:kind,passenger:pass,farLeg:2) }
         NSGraphicsContext.restoreGraphicsState()
     }
     /// Purchased decorations on the tail section, placed from the vehicle's own seat point so every vehicle

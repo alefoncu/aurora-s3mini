@@ -371,6 +371,10 @@ Lo que **no** se ha podido comprobar y conviene revisar jugando:
 - **Bifurcaciones:** solo existen en el modo infinito y en las rutas largas. Desde 6.18 el fantasma guarda el carril; los fantasmas antiguos lo desconocen.
 
 
+### Actualización 6.31 · motos dibujadas en Claude Design
+
+Las diez carrocerías son ahora ilustraciones vectoriales dibujadas en un lienzo de Claude Design (`Design/canvas/project/*.dc.html`) y horneadas con `node Design/bake.mjs` a `Sources/BikeShapes.swift`: lo que se ve en el lienzo es lo que se pinta en el juego (degradados de pintura con corte duro, cromados, motor con aletas, escapes, faros de perfil). La mecánica y el piloto usan el mismo acabado. Las piernas y los brazos del piloto son un solo contorno continuo, sin discos en las articulaciones.
+
 ### Actualización 6.30 · vehículos y piloto rehechos desde cero
 
 Se borró todo el arte anterior (queda en la rama `design-archive`) y se rediseñó con un método distinto. Física, solver del piloto y tests no cambian.

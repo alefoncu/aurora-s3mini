@@ -16,6 +16,27 @@ extension RideRenderer {
         cel(smoothPath(pts), c, outline: outline)
     }
 
+    /// One continuous outline through several joints (hip-knee-ankle, shoulder-elbow-hand): no joint discs, so limbs read as clothing, not as a jointed doll.
+    private func chain(_ pts: [NSPoint], _ radii: [Double], _ c: NSColor, outline: Double = 0.9) {
+        let n = pts.count
+        func tangent(_ i: Int) -> NSPoint {
+            let a = pts[max(0, i - 1)], b = pts[min(n - 1, i + 1)], dx = b.x - a.x, dy = b.y - a.y, l = max(0.001, hypot(dx, dy))
+            return NSPoint(x: dx / l, y: dy / l)
+        }
+        var left: [NSPoint] = [], right: [NSPoint] = []
+        for i in 0..<n { let t = tangent(i), nx = -t.y, ny = t.x; left.append(NSPoint(x: pts[i].x + nx * radii[i], y: pts[i].y + ny * radii[i])); right.append(NSPoint(x: pts[i].x - nx * radii[i], y: pts[i].y - ny * radii[i])) }
+        let t1 = tangent(n - 1), t0 = tangent(0)
+        var outline_: [NSPoint] = left
+        outline_.append(NSPoint(x: pts[n - 1].x + t1.x * radii[n - 1], y: pts[n - 1].y + t1.y * radii[n - 1]))
+        outline_.append(contentsOf: right.reversed())
+        outline_.append(NSPoint(x: pts[0].x - t0.x * radii[0], y: pts[0].y - t0.y * radii[0]))
+        cel(smoothPath(outline_), c, outline: outline)
+    }
+    private func mid(_ a: NSPoint, _ b: NSPoint, _ t: Double, bulge: Double = 0) -> NSPoint {
+        let dx = b.x - a.x, dy = b.y - a.y, l = max(0.001, hypot(dx, dy))
+        return NSPoint(x: a.x + dx * t - dy / l * bulge, y: a.y + dy * t + dx / l * bulge)
+    }
+
     private func drawBoot(foot: NSPoint, ankle: NSPoint, shinDir: NSPoint, u: Double, style: BikeKind, far: Bool) {
         func P(_ x: Double, _ y: Double) -> NSPoint { NSPoint(x: foot.x + x * u, y: foot.y + y * u) }
         let dim = far ? 0.3 : 0.0
@@ -50,9 +71,8 @@ extension RideRenderer {
         let ankle = NSPoint(x: foot.x - 0.012 * u, y: foot.y - 0.085 * u)
         let sx = knee.x - ankle.x, sy = knee.y - ankle.y, sl = max(0.001, hypot(sx, sy))
         drawBoot(foot: foot, ankle: ankle, shinDir: NSPoint(x: sx / sl, y: sy / sl), u: u, style: style, far: far)
-        limb(knee, ankle, 0.050 * u, 0.034 * u, bulge: 0.012 * u, at: 0.30, c)
-        limb(hip, knee, 0.088 * u, 0.054 * u, bulge: 0.010 * u, at: 0.25, c)
-        cel(disc(knee, 0.050 * u), c, outline: 0.9, depth: 0.7)
+        let thighMid = mid(hip, knee, 0.5, bulge: 0.012 * u), shinMid = mid(knee, ankle, 0.35, bulge: 0.012 * u)
+        chain([hip, thighMid, knee, shinMid, ankle], [0.088 * u, 0.074 * u, 0.052 * u, 0.046 * u, 0.034 * u], c)
         if !far {
             switch style {
             case .motocross, .sport:
@@ -171,10 +191,8 @@ extension RideRenderer {
         drawLeg(hip: hip, knee: knee, foot: foot, u: u, style: style, far: false, pants: pants)
         // Arm: sleeve with a rounded shoulder cap, elbow and a glove closed on the grip.
         let sleeve = style == .bmx ? skin : coat
-        limb(elbow, hand, 0.040 * u, 0.030 * u, bulge: 0.008 * u, at: 0.3, sleeve)
-        limb(shoulder, elbow, 0.052 * u, 0.040 * u, bulge: 0.008 * u, at: 0.3, sleeve)
-        cel(disc(shoulder, 0.054 * u), sleeve, outline: 0.9, depth: 0.7)
-        cel(disc(elbow, 0.040 * u), sleeve, outline: 0.9, depth: 0.6)
+        let upperMid = mid(shoulder, elbow, 0.5, bulge: 0.006 * u), foreMid = mid(elbow, hand, 0.45, bulge: 0.008 * u)
+        chain([shoulder, upperMid, elbow, foreMid, hand], [0.054 * u, 0.046 * u, 0.040 * u, 0.036 * u, 0.030 * u], sleeve)
         drawGlove(hand: hand, u: u, style: style, sleeve: sleeve)
     }
 }

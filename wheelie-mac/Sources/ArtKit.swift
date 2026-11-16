@@ -30,23 +30,10 @@ extension RideRenderer {
     /// Cel-shaded fill: a flat base, a hard shadow along the lower-right edge, a thin rim light on the upper-left
     /// edge and a firm ink outline. The shading follows the shape's own contour, so every part reads as volume.
     func cel(_ path: NSBezierPath, _ base: NSColor, outline: Double = 0.9, depth: Double = 1.0, shine: Bool = true) {
-        let b = path.bounds, s = max(0.7, min(2.6, min(b.width, b.height) * 0.16)) * depth
-        let ctx = NSGraphicsContext.current
-        ctx?.saveGraphicsState()
-        path.addClip()
-        darken(base, 0.34).setFill(); path.fill()
-        // Base coat: the same shape moved up-left, so the lower-right crescent stays in shadow.
-        let lit = path.copy() as! NSBezierPath
-        lit.transform(using: AffineTransform(translationByX: -s * 0.55, byY: -s * 1.35))
-        base.setFill(); lit.fill()
-        if shine {
-            // Rim light along the upper-left edge.
-            let inner = path.copy() as! NSBezierPath
-            inner.transform(using: AffineTransform(translationByX: s * 0.5, byY: s * 0.8))
-            let rim = NSBezierPath(rect: b.insetBy(dx: -4, dy: -4)); rim.append(inner); rim.windingRule = .evenOdd
-            lighten(base, 0.42).withAlphaComponent(0.85).setFill(); rim.fill()
-        }
-        ctx?.restoreGraphicsState()
+        // Vector-illustration shading: light top edge, flat base, then a hard step to a darker lower half.
+        let stops: [NSColor] = [lighten(base, 0.45), lighten(base, 0.12), base, darken(base, 0.28), darken(base, 0.5)]
+        let at: [CGFloat] = [0, 0.26, 0.58, 0.60, 1]
+        if let g = NSGradient(colors: stops, atLocations: at, colorSpace: .sRGB) { g.draw(in: path, angle: 90) } else { base.setFill(); path.fill() }
         if outline > 0 { inkColor.setStroke(); path.lineWidth = outline; path.lineJoinStyle = .round; path.stroke() }
     }
 
@@ -84,16 +71,16 @@ extension RideRenderer {
         stroke(hi, max(0.4, w * 0.18), lighten(c, 0.55).withAlphaComponent(0.85))
     }
 
-    // MARK: Baked path data (Design/bikes.js → BikeShapes.swift): absolute M/L/C/Z in y-up units, flipped here.
+    // MARK: Baked path data (Design/bikes.js → BikeShapes.swift): absolute M/L/C/Z in the game's y-down units.
     func bakedPath(_ d: String) -> NSBezierPath {
         let path = NSBezierPath()
         var nums: [Double] = [], cmd: Character = " ", token = ""
         func flush() { if !token.isEmpty { nums.append(Double(token) ?? 0); token = "" } }
         func apply() {
             switch cmd {
-            case "M": if nums.count >= 2 { path.move(to: NSPoint(x: nums[0], y: -nums[1])) }
-            case "L": var i = 0; while i + 1 < nums.count { path.line(to: NSPoint(x: nums[i], y: -nums[i + 1])); i += 2 }
-            case "C": var i = 0; while i + 5 < nums.count { path.curve(to: NSPoint(x: nums[i + 4], y: -nums[i + 5]), controlPoint1: NSPoint(x: nums[i], y: -nums[i + 1]), controlPoint2: NSPoint(x: nums[i + 2], y: -nums[i + 3])); i += 6 }
+            case "M": if nums.count >= 2 { path.move(to: NSPoint(x: nums[0], y: nums[1])) }
+            case "L": var i = 0; while i + 1 < nums.count { path.line(to: NSPoint(x: nums[i], y: nums[i + 1])); i += 2 }
+            case "C": var i = 0; while i + 5 < nums.count { path.curve(to: NSPoint(x: nums[i + 4], y: nums[i + 5]), controlPoint1: NSPoint(x: nums[i], y: nums[i + 1]), controlPoint2: NSPoint(x: nums[i + 2], y: nums[i + 3])); i += 6 }
             case "Z": path.close()
             default: break
             }

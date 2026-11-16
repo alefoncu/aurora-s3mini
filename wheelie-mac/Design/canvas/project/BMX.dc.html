@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>BMX</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0}
+</style>
+</helmet>
+<div style="width: 1200px; height: 800px; background: #DCE7EC; position: relative; overflow: hidden">
+<svg viewBox="-40 -100 189 126" width="1200" height="800" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="BMX de freestyle">
+<defs>
+<linearGradient id="gP" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#FFE08A"/><stop offset=".28" stop-color="#EDB52E"/><stop offset=".6" stop-color="#E9AD27"/><stop offset=".62" stop-color="#C58613"/><stop offset="1" stop-color="#8F5C0C"/></linearGradient>
+<linearGradient id="gCh" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#FFFFFF"/><stop offset=".3" stop-color="#C6CED1"/><stop offset=".55" stop-color="#7C8A91"/><stop offset=".72" stop-color="#E4E9EA"/><stop offset="1" stop-color="#8E9AA0"/></linearGradient>
+<linearGradient id="gMe" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#DDE3E5"/><stop offset=".5" stop-color="#9AA6AB"/><stop offset="1" stop-color="#55626A"/></linearGradient>
+<linearGradient id="gSeat" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#66737B"/><stop offset=".5" stop-color="#2A343B"/><stop offset="1" stop-color="#151C21"/></linearGradient>
+<linearGradient id="sky" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#CFE0E8"/><stop offset="1" stop-color="#EAF1F3"/></linearGradient>
+<g id="wire">
+<circle r="24" fill="#2A333A" stroke="#141B20" stroke-width=".9"/>
+<circle r="21.4" fill="none" stroke="#5B6870" stroke-width=".6" opacity=".7"/>
+<circle r="18.2" fill="#1F2A31"/>
+<path d="M3.6 0L17.2 -5.32M3.42 1.11L14.71 10.37M2.91 2.12L17.04 5.8M2.12 2.91L5.8 17.04M1.11 3.42L10.37 14.71M0 3.6L-5.32 17.2M-1.11 3.42L-.25 18M-2.12 2.91L-14.41 10.79M-2.91 2.12L-10.79 14.41M-3.42 1.11L-18 .25M-3.6 0L-17.2 5.32M-3.42 -1.11L-14.71 -10.37M-2.91 -2.12L-17.04 -5.8M-2.12 -2.91L-5.8 -17.04M-1.11 -3.42L-10.37 -14.71M0 -3.6L5.32 -17.2M1.11 -3.42L.25 -18M2.12 -2.91L14.41 -10.79M2.91 -2.12L10.79 -14.41M3.42 -1.11L18 -.25" stroke="#B7C2C7" stroke-width=".55" fill="none"/>
+<circle r="18.2" fill="none" stroke="#CBD3D6" stroke-width="2.3"/>
+<circle r="3.4" fill="#9AA6AB" stroke="#141B20" stroke-width=".7"/><circle r="1.5" fill="#20292F"/>
+</g>
+</defs>
+<rect x="-40" y="-100" width="180" height="120" fill="url(#sky)"/>
+<rect x="-40" y="24" width="180" height="12" fill="#7F8B90"/>
+<ellipse cx="47" cy="25" rx="62" ry="2" fill="#000" opacity=".16"/>
+<g id="mWheels">
+<use href="#wire" transform="translate(0 0)"/>
+<use href="#wire" transform="translate(94 0)"/>
+</g>
+<g id="mFar">
+<path d="M67 -56 L93 0" stroke="#141B20" stroke-width="5" stroke-linecap="round" fill="none"/><path d="M67 -56 L93 0" stroke="#8F5C0C" stroke-width="3.2" stroke-linecap="round" fill="none"/>
+</g>
+<g id="z0">
+<path d="M0 0 C6 -12 22 -36 31 -49" stroke="#12191D" stroke-width="4.5" fill="none" stroke-linecap="round"/><path d="M0 0 C6 -12 22 -36 31 -49" stroke="#E9AD27" stroke-width="2.8" fill="none" stroke-linecap="round"/>
+<path d="M0 0 L22 .6 L45 0" stroke="#12191D" stroke-width="5.2" fill="none" stroke-linecap="round" stroke-linejoin="round"/><path d="M0 0 L22 .6 L45 0" stroke="#E9AD27" stroke-width="3.4" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M45 0 L38 -26 L31.5 -51" stroke="#12191D" stroke-width="5.6" fill="none" stroke-linecap="round" stroke-linejoin="round"/><path d="M45 0 L38 -26 L31.5 -51" stroke="#E9AD27" stroke-width="3.8" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+</g>
+<g id="mSwing"></g>
+<g id="z1">
+<path d="M31.5 -51 L50 -54.5 L68 -58" stroke="#12191D" stroke-width="6" fill="none" stroke-linecap="round" stroke-linejoin="round"/><path d="M31.5 -51 L50 -54.5 L68 -58" stroke="#E9AD27" stroke-width="4.2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M68 -54 L58 -28 L45 -1" stroke="#12191D" stroke-width="6.4" fill="none" stroke-linecap="round" stroke-linejoin="round"/><path d="M68 -54 L58 -28 L45 -1" stroke="#E9AD27" stroke-width="4.6" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M62 -46 L70 -62 L75 -58 L69 -49 Z" fill="url(#gP)" stroke="#141B20" stroke-width=".8" stroke-linejoin="round"/>
+<path d="M66 -57.4 L68 -62.4 L73 -60.6 L72 -55.6 Z" fill="url(#gMe)" stroke="#141B20" stroke-width=".8" stroke-linejoin="round"/>
+<path d="M31.5 -51 L30.4 -55.5" stroke="#12191D" stroke-width="4.4" fill="none" stroke-linecap="round"/><path d="M31.5 -51 L30.4 -55.5" stroke="#C7CED1" stroke-width="2.6" fill="none" stroke-linecap="round"/>
+<path d="M19.5 -56 C21 -58.4 24 -58.6 24 -58.4 L38 -57.6 C41 -57.4 43 -56 43 -55.2 C43 -53.8 40 -53.6 38 -53.6 L24 -53.8 C20 -54 18.4 -54.6 19.5 -56 Z" fill="url(#gSeat)" stroke="#141B20" stroke-width=".9" stroke-linejoin="round"/>
+<circle cx="0" cy="0" r="3.4" fill="url(#gMe)" stroke="#141B20" stroke-width=".7"/><circle cx="94" cy="0" r="3.2" fill="url(#gMe)" stroke="#141B20" stroke-width=".7"/>
+<circle cx="45" cy="0" r="7.8" fill="url(#gCh)" stroke="#141B20" stroke-width=".8"/><circle cx="45" cy="0" r="2.4" fill="#D6DCDE" stroke="#141B20" stroke-width=".6"/>
+<path d="M0 -3.8 L45 -7.4M0 3.8 L45 7.4" stroke="#141B20" stroke-width="1.6" fill="none"/><path d="M0 -3.8 L45 -7.4M0 3.8 L45 7.4" stroke="#8C98A0" stroke-width=".9" fill="none"/>
+</g>
+<g id="mFork">
+<path d="M70 -60 L94 0" stroke="#141B20" stroke-width="5.4" stroke-linecap="round" fill="none"/><path d="M70 -60 L94 0" stroke="#E9AD27" stroke-width="3.6" stroke-linecap="round" fill="none"/>
+<path d="M68.4 -62 L71 -66" stroke="#141B20" stroke-width="5" fill="none"/><path d="M68.4 -62 L71 -66" stroke="#39454D" stroke-width="3.4" fill="none"/>
+<path d="M77 -72 C76 -64 74 -63 70 -63" stroke="#141B20" stroke-width="3.6" stroke-linecap="round" fill="none"/><path d="M77 -72 C76 -64 74 -63 70 -63" stroke="#C7CED1" stroke-width="2" stroke-linecap="round" fill="none"/>
+<path d="M70 -76 C72 -77 78 -77 80 -76" stroke="#141B20" stroke-width="2.8" stroke-linecap="round" fill="none"/><path d="M70 -76 C72 -77 78 -77 80 -76" stroke="#C7CED1" stroke-width="1.4" stroke-linecap="round" fill="none"/>
+<circle cx="77" cy="-72" r="3.4" fill="#141B20"/><circle cx="77" cy="-72" r="1.9" fill="#8B979D"/>
+</g>
+<g id="z2"></g>
+<g id="mBars"></g>
+<g id="z3"></g>
+<g id="mPeg">
+<path d="M38 0 L52 0" stroke="#141B20" stroke-width="4.6" stroke-linecap="round" fill="none"/><path d="M38 0 L52 0" stroke="#39454D" stroke-width="3" stroke-linecap="round" fill="none"/>
+</g>
+</svg>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1200,"height":800}}'>
+class Component extends DCLogic {
+renderVals() {
+return {};
+}
+}
+</script>
+</body>
+</html>

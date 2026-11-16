@@ -2,28 +2,17 @@ import Cocoa
 
 /// Assembles a vehicle: physics-driven mechanics from Mechanics.swift plus the designed bodywork baked from Design/bikes.js.
 extension RideRenderer {
-    private static let roles: [String: [Int]] = [
-        "metal": [0xC9D1D3, 0x7C8A91, 0x34414A], "metalLt": [0xEDF0EC, 0xA3AFB3, 0x5A6870], "metalDk": [0x8E9BA1, 0x4A585F, 0x1E282D],
-        "steel": [0x4A565D], "dark": [0x59666E, 0x1B242A], "black": [0x363E44, 0x0E1316], "chrome": [0xF3F5EF, 0xA3AFB3, 0x5A6870],
-        "seat": [0x5A666F, 0x1B242A], "tan": [0xB08A5F, 0x4A3D2E], "lamp": [0xFFF7D6, 0xE8D79A], "white": [0xFFFFFF, 0xD7DDE0], "cream": [0xF4F1DE, 0xCFC7A6],
-        "red": [0xFF6A55, 0xB2271B], "green": [0x7FF29B, 0x2E9E52], "orange": [0xFFB04A, 0xE0742A], "glass": [0xDDF2FA, 0x7FB5CC]]
-    /// The colour a role is drawn with (index 1 when there is a mid tone, else the only one).
-    func roleColor(_ role: String) -> NSColor {
-        if role == "paint" { return body }
-        if role == "paintDk" { return darken(body, 0.45) }
-        let c = RideRenderer.roles[role] ?? [0x888888]
-        return NSColor(hex: c[min(1, c.count - 1)])
+    private func artColor(_ c: ArtColor) -> NSColor {
+        guard c.paint else { return NSColor(hex: c.rgb) }
+        return c.tone >= 0 ? lighten(body, c.tone) : darken(body, -c.tone)
     }
-    private func drawLayers(_ layers: [ShapeLayer], z: Int) {
+    private func drawLayers(_ layers: [ArtLayer], z: Int) {
         for l in layers where l.z == z {
-            switch l.t {
-            case "f": cel(bakedPath(l.d), roleColor(l.role), outline: l.w)
-            case "s": tubeStroke(bakedPath(l.d), l.w, roleColor(l.role))
-            case "c": cel(disc(NSPoint(x: l.x, y: -l.y), l.r), roleColor(l.role), outline: 0.7, depth: 0.6)
-            case "l": let p = bakedPath(l.d); stroke(p, l.w, (l.role == "paintDk" ? darken(body, 0.4) : lighten(roleColor(l.role), 0.2)).withAlphaComponent(l.a))
-            case "x": text(l.str, l.x, -l.y - l.r * 0.62, l.r, roleColor(l.role), .bold, center: true)
-            default: break
-            }
+            if !l.text.isEmpty { text(l.text, l.tx, l.ty - l.size * 0.62, l.size, artColor(l.stops[0].color), .bold, center: true); continue }
+            let path = bakedPath(l.d)
+            if l.stops.count == 1 { artColor(l.stops[0].color).withAlphaComponent(l.op).setFill(); path.fill() }
+            else if l.stops.count > 1, let g = NSGradient(colors: l.stops.map { artColor($0.color).withAlphaComponent(l.op) }, atLocations: l.stops.map { CGFloat($0.at) }, colorSpace: .sRGB) { g.draw(in: path, angle: 90) }
+            if let s = l.stroke { path.lineWidth = l.sw; path.lineCapStyle = .round; path.lineJoinStyle = .round; artColor(s).withAlphaComponent(l.op).setStroke(); path.stroke() }
         }
     }
 

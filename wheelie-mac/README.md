@@ -371,6 +371,15 @@ Lo que **no** se ha podido comprobar y conviene revisar jugando:
 - **Bifurcaciones:** solo existen en el modo infinito y en las rutas largas. Desde 6.18 el fantasma guarda el carril; los fantasmas antiguos lo desconocen.
 
 
+### Actualización 6.21 · taller de diseño de motos
+
+Las ocho motos con carrocería propia (Street, Scrambler, Eléctrica, Enduro, Trial, Cruiser, Scooter y, antes, Sport e Hyper por separado) se rediseñaron en un **taller de diseño** en lugar de a ciegas en código.
+
+- **Fuente única:** `Design/bikes.js` guarda cada moto como capas de contornos suaves sobre la geometría real (distancia entre ejes, ruedas, asiento, puño y estribo del `VehicleRig`). `node Design/bake.mjs` lo hornea en `Sources/BikeShapes.swift`, y `BikeShapeRenderer.swift` lo dibuja con el cel-shading del juego.
+- **Taller:** `node Design/build-studio.mjs` genera `Design/studio.html` (todas las motos a escala, con puntos del piloto, siluetas de referencia y cambio de pintura); `Design/shot.sh <moto>` hace una captura con Chrome.
+- **Cambios visibles:** cada moto tiene ahora una línea continua depósito-asiento-cola, guardabarros apoyados en la rueda, escapes que recorren el lateral, cilindros con aletas y, en el Cruiser, V-twin real con filtro de aire; sin alforja flotante ni placas sueltas.
+- **Sin cambios:** física, solver del piloto y tests. La BMX y las dos Sport mantienen su dibujo anterior.
+
 ### Actualización 6.20 · motos y piloto diseñados desde cero
 
 Las diez motos se dibujan ahora con diseño propio (`BikeDesign.swift`) en lugar de apilar formas sueltas; la física, el solver y los tests no cambian.

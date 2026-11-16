@@ -20,16 +20,8 @@ extension RideRenderer {
             drawSportBike(rig:rig,rearAxle:rearAxle,frontAxle:frontAxle,rotationRear:rotationRear,rotationFront:rotationFront,time:time,hyper:kind == .hyperbike)
             return
         }
-        if kind == .commuter || kind == .scrambler || kind == .electric {
-            drawStandardBike(kind:kind,rig:rig,rearAxle:rearAxle,frontAxle:frontAxle,rotationRear:rotationRear)
-            return
-        }
-        if kind == .motocross || kind == .trials {
-            drawOffroadBike(kind:kind,rig:rig,rearAxle:rearAxle,frontAxle:frontAxle,rotationRear:rotationRear)
-            return
-        }
-        if kind == .cruiser {
-            drawCruiserBike(rig:rig,rearAxle:rearAxle,frontAxle:frontAxle,rotationRear:rotationRear)
+        if hasShapedBody(kind) {
+            drawShapedBike(kind:kind,rig:rig,rearAxle:rearAxle,frontAxle:frontAxle,rotationRear:rotationRear)
             return
         }
         if kind == .bmx {

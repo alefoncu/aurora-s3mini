@@ -371,6 +371,10 @@ Lo que **no** se ha podido comprobar y conviene revisar jugando:
 - **Bifurcaciones:** solo existen en el modo infinito y en las rutas largas. Desde 6.18 el fantasma guarda el carril; los fantasmas antiguos lo desconocen.
 
 
+### Actualización 6.33 · proporciones y masa de moto real
+
+Contrastadas con fotos reales de motos de calle: las motos eran esqueléticas (depósito fino, motor pequeño, faro chico). Ahora el depósito es más profundo, el motor ocupa el triángulo del cuadro, el faro es mayor y el asiento más grueso (Street, Scrambler, Cruiser, Eléctrica, Enduro y Trial).
+
 ### Actualización 6.32 · revisión estructural de las motos
 
 Revisión una a una buscando piezas flotantes: depósito apoyado en el tubo del cuadro, asiento sobre los railes, tubo de dirección visible, guardabarros traseros sujetos con soportes, silenciador con su abrazadera, placas y tapas unidas al cuadro, batería colgada del cuadro en la Eléctrica, V-twin con escapes coherentes en la Cruiser y carenado de la Sport e Hyper por encima de la horquilla con el depósito apoyado en la cola.

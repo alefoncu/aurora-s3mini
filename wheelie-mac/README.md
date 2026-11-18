@@ -371,6 +371,12 @@ Lo que **no** se ha podido comprobar y conviene revisar jugando:
 - **Bifurcaciones:** solo existen en el modo infinito y en las rutas largas. Desde 6.18 el fantasma guarda el carril; los fantasmas antiguos lo desconocen.
 
 
+### Actualización 6.36 · deportivas rediseñadas
+
+Revisión visual de los diez vehículos y del piloto (lienzo de Claude Design con capturas en la misma pose). La Sport 600 y la Hyper R 1000 salían del mismo calco y tenían un carenado de una pieza hasta casi el suelo que ocultaba el motor, más un silencioso enorme cruzando la rueda trasera. Ahora comparten generador (`Design/bodies/supersport.py`, en unidades del juego): carenado superior que termina en la rodilla, quilla separada, cuatro cilindros y cárter a la vista y cúpula apoyada en el carenado. La Sport lleva silencioso corto sobre el basculante; la Hyper, escape bajo el motor, alerones en el morro y guardabarros negro. Física, anclajes del piloto y resto de motos sin cambios.
+
+Pendiente de la revisión: tapa lateral de la Enduro demasiado abultada, colín de la Volt sin subchasis visible, postura de ataque en las deportivas (los puños altos enderezan el torso), cuello del piloto y brazo lejano.
+
 ### Actualización 6.35 · App Intents
 
 Atajos, Spotlight y Siri reconocen cuatro acciones de la app: **Salir a rodar** (con moto y ruta opcionales), **Misiones de hoy**, **Mi mejor puntuación** y **Abrir el Centro del piloto**, con frases como «Salir a rodar con Wheelie Ride». `build.sh` compila con el módulo `WheelieRide`, pide los valores constantes al compilador y genera `Metadata.appintents` con `appintentsmetadataprocessor`, así que funciona con firma ad hoc. Si el procesador falla, la app se instala igualmente sin Atajos. No verificado en Atajos o Spotlight de este Mac: solo el paquete de metadatos y la firma.

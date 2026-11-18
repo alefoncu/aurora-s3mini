@@ -18,7 +18,7 @@ import java.util.*;
 
 /** Flat paged home screen: squircle icons, translucent dock, no app drawer. */
 public class HomeActivity extends Activity {
-    private static final int COLS = 4, ROWS = 3;
+    private int cols = 4, rows = 3;
     /** Preferred order / dock candidates, first match wins. */
     private static final String[][] DOCK = {
         {"com.scratch.iosphone", "com.android.dialer"},
@@ -69,6 +69,7 @@ public class HomeActivity extends Activity {
     /** strength 0 = light glass (cards, dock), 1 = denser glass for sheets that hold controls. */
     private Glass glass(View v, float rDp, int strength, float[] radii) {
         int tint = strength == 0 ? (night ? 0x3CFFFFFF : 0x5CFFFFFF) : (night ? 0xA0191746 : 0xA6FFFFFF);
+        if (Aura.hc) tint = strength == 0 ? (night ? 0xC0191746 : 0xD8FFFFFF) : (night ? 0xE6191746 : 0xF2FFFFFF);
         Glass gl = new Glass(v, rDp * d, radii, tint, dockStroke, Math.max(1f, d));
         gl.dark = night;
         return gl;
@@ -118,6 +119,9 @@ public class HomeActivity extends Activity {
     protected void onCreate(Bundle b) {
         super.onCreate(b);
         pm = getPackageManager();
+        Aura.load(this); Aura.syncSky(this);
+        if (Aura.simple) { cols = 3; rows = 2; }
+        cellScale = baseScale();
         usage = new AppIndex.Usage(this);
         night = (getResources().getConfiguration().uiMode & android.content.res.Configuration.UI_MODE_NIGHT_MASK)
                 == android.content.res.Configuration.UI_MODE_NIGHT_YES;
@@ -129,6 +133,13 @@ public class HomeActivity extends Activity {
         boxFill = night ? 0x29FFFFFF : 0xB3FFFFFF;
         boxStroke = night ? 0x38FFFFFF : 0xFFFFFFFF;
         dotColor = night ? Color.WHITE : 0xFF14123A;
+        if (Aura.hc) {   // high contrast: opaque secondary text, denser glass, stronger edges
+            subColor = night ? 0xFFE6E6FF : 0xFF14123A;
+            dockFill = night ? 0x80FFFFFF : 0xCCFFFFFF;
+            dockStroke = night ? 0xCCFFFFFF : 0xCC14123A;
+            boxFill = night ? 0x66FFFFFF : 0xF2FFFFFF;
+            boxStroke = night ? 0xCCFFFFFF : 0xCC14123A;
+        }
         d = getResources().getDisplayMetrics().density;
         w = getResources().getDisplayMetrics().widthPixels;
         h = getResources().getDisplayMetrics().heightPixels;
@@ -144,7 +155,7 @@ public class HomeActivity extends Activity {
         TextClock time = headTime = new TextClock(this);
         time.setFormat24Hour("HH:mm");
         time.setFormat12Hour("h:mm");
-        time.setTypeface(Typeface.create("sans-serif-thin", Typeface.NORMAL));
+        time.setTypeface(Aura.thin());
         time.setTextSize(TypedValue.COMPLEX_UNIT_SP, 64);
         time.setShadowLayer(6f, 0, 2, 0x40000000);
         time.setTextColor(labelColor);
@@ -154,7 +165,7 @@ public class HomeActivity extends Activity {
         TextClock date = headDate = new TextClock(this);
         date.setFormat24Hour("EEEE, d 'de' MMMM");
         date.setFormat12Hour("EEEE, d 'de' MMMM");
-        date.setTypeface(Typeface.create("sans-serif-light", Typeface.NORMAL));
+        date.setTypeface(Aura.light());
         date.setTextSize(TypedValue.COMPLEX_UNIT_SP, 14);
         date.setTextColor(subColor);
         date.setShadowLayer(4f, 0, 1, 0x40000000);
@@ -162,7 +173,25 @@ public class HomeActivity extends Activity {
         date.setPadding((int) (26 * d), 0, 0, 0);
         root.addView(date, new FrameLayout.LayoutParams(w, (int) (22 * d), Gravity.TOP) {{ topMargin = statusH + (int) (68 * d); }});
 
-        int gridTop = statusH + (int) (104 * d);
+        headPhrase = new TextView(this);
+        headPhrase.setText(Aura.phrase());
+        headPhrase.setTypeface(Aura.hand());
+        headPhrase.setTextSize(TypedValue.COMPLEX_UNIT_SP, 13);
+        headPhrase.setTextColor(subColor);
+        headPhrase.setSingleLine(); headPhrase.setEllipsize(TextUtils_END);
+        headPhrase.setPadding((int) (26 * d), 0, (int) (20 * d), 0);
+        headPhrase.setGravity(Gravity.LEFT | Gravity.CENTER_VERTICAL);
+        root.addView(headPhrase, new FrameLayout.LayoutParams(w, (int) (20 * d), Gravity.TOP) {{ topMargin = statusH + (int) (88 * d); }});
+        headSky = new TextView(this);
+        headSky.setTypeface(Aura.light());
+        headSky.setTextSize(TypedValue.COMPLEX_UNIT_SP, 12);
+        headSky.setTextColor(subColor);
+        headSky.setGravity(Gravity.RIGHT | Gravity.CENTER_VERTICAL);
+        headSky.setPadding(0, 0, (int) (22 * d), 0);
+        root.addView(headSky, new FrameLayout.LayoutParams(w, (int) (22 * d), Gravity.TOP) {{ topMargin = statusH + (int) (68 * d); }});
+        refreshSky();
+        time.setOnClickListener(v -> { Aura.hap(v, Aura.CONFIRM); bounce(v); });
+        int gridTop = statusH + (int) (112 * d);
         int dockH = (int) (76 * d), dockMargin = (int) (10 * d);
         int dotsH = (int) (20 * d);
         gridH = h - gridTop - dockH - dockMargin * 2 - dotsH;
@@ -170,8 +199,19 @@ public class HomeActivity extends Activity {
         pager = new PagerView(this);
         root.addView(pager, new FrameLayout.LayoutParams(w, gridH, Gravity.TOP) {{ topMargin = gridTop; }});
 
+        pageLabel = new TextView(this);
+        pageLabel.setTextColor(labelColor);
+        pageLabel.setTextSize(TypedValue.COMPLEX_UNIT_SP, 13);
+        pageLabel.setTypeface(Aura.light());
+        pageLabel.setPadding((int) (14 * d), (int) (5 * d), (int) (14 * d), (int) (5 * d));
+        pageLabel.setBackground(glass(pageLabel, 14, null));
+        pageLabel.setAlpha(0f);
+        pageLabel.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
+        root.addView(pageLabel, new FrameLayout.LayoutParams(-2, -2, Gravity.BOTTOM | Gravity.CENTER_HORIZONTAL) {{ bottomMargin = dockH + dockMargin * 2 + (int) (26 * d); }});
         dots = new LinearLayout(this);
         dots.setGravity(Gravity.CENTER);
+        dots.setOnLongClickListener(v -> { Aura.hap(v, Aura.WARN); renamePage(pager.page()); return true; });
+        dots.setContentDescription("Páginas. Mantén pulsado para poner nombre a la página actual");
         dots.setPadding((int) (8 * d), 0, (int) (8 * d), 0);
         dots.setBackground(glass(dots, 10, null));
         root.addView(dots, new FrameLayout.LayoutParams(-2, (int) (18 * d), Gravity.BOTTOM | Gravity.CENTER_HORIZONTAL) {{ bottomMargin = dockH + dockMargin * 2 + (int) (1 * d); }});
@@ -182,10 +222,10 @@ public class HomeActivity extends Activity {
         dock.setBackground(glass(dock, 30, null));
         root.addView(dock, new FrameLayout.LayoutParams(w - (int) (16 * d), dockH, Gravity.BOTTOM | Gravity.CENTER_HORIZONTAL) {{ bottomMargin = dockMargin; }});
 
-        doneBtn = pill("Listo");
+        doneBtn = pill("Listo", "ok");
         doneBtn.setOnClickListener(v -> setEditing(false));
         root.addView(doneBtn, new FrameLayout.LayoutParams(-2, -2, Gravity.TOP | Gravity.RIGHT) {{ topMargin = statusH + (int) (6 * d); rightMargin = (int) (20 * d); }});
-        restoreBtn = pill("Mostrar ocultas");
+        restoreBtn = pill("Mostrar ocultas", "eye");
         restoreBtn.setOnClickListener(v -> { getSharedPreferences("home", MODE_PRIVATE).edit().putString("hidden", "").apply(); setEditing(true); reload(); });
         root.addView(restoreBtn, new FrameLayout.LayoutParams(-2, -2, Gravity.TOP | Gravity.RIGHT) {{ topMargin = statusH + (int) (46 * d); rightMargin = (int) (20 * d); }});
 
@@ -207,10 +247,11 @@ public class HomeActivity extends Activity {
     }
 
     private boolean resumed; private long resumedAt;
-    @Override protected void onPause() { resumed = false; wasPaused = true; AuroraField.launcherVisible = false; super.onPause(); }
+    @Override protected void onPause() { stopTilt(); resumed = false; wasPaused = true; AuroraField.launcherVisible = false; super.onPause(); }
     @Override protected void onResume() {
         super.onResume();
         AuroraField.launcherVisible = true;
+        startTilt();
         resumed = true; resumedAt = SystemClock.uptimeMillis();
         refreshToday();
         if (wasPaused) { wasPaused = false; popCurrent(); }
@@ -238,7 +279,7 @@ public class HomeActivity extends Activity {
         recreate();
     }
 
-    @Override public void onBackPressed() { if (swLayer != null) hideSwitcher(); else if (ccLayer != null) hideControl(); else if (folderLayer != null) closeFolder(); else if (searchLayer != null) hideSearch(); else if (editing) setEditing(false); }
+    @Override public void onBackPressed() { if (accLayer != null) hideAccess(); else if (extraLayer != null) closeExtra(); else if (swLayer != null) hideSwitcher(); else if (ccLayer != null) hideControl(); else if (folderLayer != null) closeFolder(); else if (searchLayer != null) hideSearch(); else if (editing) setEditing(false); }
 
     private float downX, downY;
     private List<App> allApps = new ArrayList<>();
@@ -250,6 +291,7 @@ public class HomeActivity extends Activity {
     private String lastQuery = "";
     private boolean firstBuild = true;
     private TextClock headTime, headDate;
+    private TextView headPhrase, headSky;
     private LinearLayout todayCol;
     private boolean animateNext = true, wasPaused;
     private TextView calView, batView, stoView, ramView, alarmView, noteView, musicView, torchBtn;
@@ -297,7 +339,7 @@ public class HomeActivity extends Activity {
                 && e.getY() > h * 0.30f && e.getY() < h - 130 * d && Math.abs(e.getX() - downX) < 10 * d && Math.abs(e.getY() - downY) < 10 * d) {
             long now = SystemClock.uptimeMillis();
             // double tap on an empty part of the home screen (not on an icon) locks the phone
-            if (now - lastTap < 350 && tapOnEmpty(e.getX(), e.getY())) { lastTap = 0; lockScreen(); }
+            if (now - lastTap < 350 && tapOnEmpty(e.getX(), e.getY())) { lastTap = 0; doubleTapAction(); }
             else lastTap = now;
         }
         if (e.getAction() == MotionEvent.ACTION_DOWN) { downX = e.getX(); downY = e.getY(); }
@@ -338,19 +380,23 @@ public class HomeActivity extends Activity {
         wTemp = new TextView(this);
         wTemp.setTextColor(labelColor);
         wTemp.setTextSize(TypedValue.COMPLEX_UNIT_SP, 30);
-        wTemp.setTypeface(Typeface.create("sans-serif-thin", Typeface.NORMAL));
+        wTemp.setTypeface(Aura.thin());
         wTemp.setIncludeFontPadding(false);
         wrow.addView(wTemp);
+        wrow.addView(new View(this), new LinearLayout.LayoutParams(0, 1, 1f));
+        wSpark = new Spark(this, d, subColor);
+        wrow.addView(wSpark, new LinearLayout.LayoutParams((int) (54 * d), (int) (26 * d)));
         wbox.addView(wrow, new LinearLayout.LayoutParams(-1, -2) {{ topMargin = (int) (4 * d); }});
         wDesc = new TextView(this);
         wDesc.setTextColor(subColor);
         wDesc.setTextSize(TypedValue.COMPLEX_UNIT_SP, 11);
-        wDesc.setTypeface(Typeface.create("sans-serif-light", Typeface.NORMAL));
+        wDesc.setTypeface(Aura.light());
         wDesc.setSingleLine(); wDesc.setEllipsize(TextUtils_END);
         wbox.addView(wDesc);
         wbox.setOnClickListener(v -> openPkg("com.scratch.iosweather"));
         wbox.setOnLongClickListener(v -> { refreshWeather(true); return true; });
         weatherBox = wbox;
+        if (Aura.cardHidden("tiempo")) wbox.setVisibility(View.GONE);
         LinearLayout st = halfBox(row1, "ESTADO", false);
         LinearLayout rings = new LinearLayout(this);
         rings.setOrientation(LinearLayout.HORIZONTAL);
@@ -366,11 +412,13 @@ public class HomeActivity extends Activity {
             cell.addView(rs[i], new LinearLayout.LayoutParams((int) (38 * d), (int) (38 * d)));
             TextView nm = new TextView(this);
             nm.setText(names[i]); nm.setTextColor(subColor); nm.setTextSize(TypedValue.COMPLEX_UNIT_SP, 9);
-            nm.setTypeface(Typeface.create("sans-serif-light", Typeface.NORMAL));
+            nm.setTypeface(Aura.light());
             cell.addView(nm);
             rings.addView(cell, new LinearLayout.LayoutParams(0, -2, 1f));
         }
         st.addView(rings, new LinearLayout.LayoutParams(-1, -2) {{ topMargin = (int) (6 * d); }});
+        if (Aura.cardHidden("estado")) st.setVisibility(View.GONE);
+        if (Aura.cardHidden("tiempo") && Aura.cardHidden("estado")) row1.setVisibility(View.GONE);
         batView = new TextView(this); stoView = new TextView(this); ramView = new TextView(this);   // detail texts are not shown on the compact page
         batBar = rs[0]; stoBar = rs[1]; ramBar = rs[2];
         // --- row 2: agenda | notes
@@ -378,25 +426,28 @@ public class HomeActivity extends Activity {
         LinearLayout agenda = halfBox(row2, "AGENDA", true);
         alarmView = new TextView(this);
         alarmView.setTextColor(labelColor); alarmView.setTextSize(TypedValue.COMPLEX_UNIT_SP, 13);
-        alarmView.setTypeface(Typeface.create("sans-serif-light", Typeface.NORMAL));
+        alarmView.setTypeface(Aura.light());
         alarmView.setSingleLine(); alarmView.setEllipsize(TextUtils_END);
         alarmView.setPadding(0, (int) (5 * d), 0, 0);
         agenda.addView(alarmView);
         calView = new TextView(this);
         calView.setTextColor(subColor); calView.setTextSize(TypedValue.COMPLEX_UNIT_SP, 12);
-        calView.setTypeface(Typeface.create("sans-serif-light", Typeface.NORMAL));
+        calView.setTypeface(Aura.light());
         calView.setMaxLines(2); calView.setEllipsize(TextUtils_END);
         calView.setPadding(0, (int) (3 * d), 0, 0);
         agenda.addView(calView);
         agenda.setOnClickListener(v -> openPkg("com.scratch.ioscalendar"));
+        if (Aura.cardHidden("agenda")) agenda.setVisibility(View.GONE);
         LinearLayout notes = halfBox(row2, "NOTAS", false);
         noteView = new TextView(this);
         noteView.setTextColor(labelColor); noteView.setTextSize(TypedValue.COMPLEX_UNIT_SP, 12);
-        noteView.setTypeface(Typeface.create("sans-serif-light", Typeface.NORMAL));
+        noteView.setTypeface(Aura.hand());
         noteView.setMaxLines(3); noteView.setEllipsize(TextUtils_END);
         noteView.setPadding(0, (int) (5 * d), 0, 0);
         notes.addView(noteView);
         notes.setOnClickListener(v -> openPkg("com.scratch.iosnotes"));
+        if (Aura.cardHidden("notas")) notes.setVisibility(View.GONE);
+        if (Aura.cardHidden("agenda") && Aura.cardHidden("notas")) row2.setVisibility(View.GONE);
         notes.setOnLongClickListener(v -> { confirmClearNotes(); return true; });
         musicView = new TextView(this);   // not shown on the compact page
         refreshToday();
@@ -431,13 +482,23 @@ public class HomeActivity extends Activity {
         return box;
     }
 
-    private TextView quickButton(String text, View.OnClickListener l) {
+    private TextView quickButton(String text, String pkg, View.OnClickListener l) {
         TextView t = new TextView(this);
+        String kind = Glyphs.kindFor(pkg);
+        if (kind != null) {
+            int px = (int) (22 * d);
+            Bitmap gb = Bitmap.createBitmap(px, px, Bitmap.Config.ARGB_8888);
+            Glyphs.draw(new Canvas(gb), kind, px, labelColor);
+            android.graphics.drawable.BitmapDrawable bd = new android.graphics.drawable.BitmapDrawable(getResources(), gb);
+            bd.setBounds(0, 0, px, px);
+            t.setCompoundDrawables(null, bd, null, null);
+            t.setCompoundDrawablePadding((int) (3 * d));
+        }
         t.setText(text);
         t.setGravity(Gravity.CENTER);
         t.setTextColor(labelColor);
         t.setTextSize(TypedValue.COMPLEX_UNIT_SP, 13);
-        t.setTypeface(Typeface.create("sans-serif-light", Typeface.NORMAL));
+        t.setTypeface(Aura.light());
         t.setPadding(0, (int) (9 * d), 0, (int) (9 * d));
         GradientDrawable g = new GradientDrawable();
         g.setColor(boxFill); g.setStroke(Math.max(1, (int) d), boxStroke); g.setCornerRadius(18 * d);
@@ -487,12 +548,12 @@ public class HomeActivity extends Activity {
         n.setText(name);
         n.setTextColor(labelColor);
         n.setTextSize(TypedValue.COMPLEX_UNIT_SP, 15);
-        n.setTypeface(Typeface.create("sans-serif-light", Typeface.NORMAL));
+        n.setTypeface(Aura.light());
         r.addView(n, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
         TextView v = new TextView(this);
         v.setTextColor(subColor);
         v.setTextSize(TypedValue.COMPLEX_UNIT_SP, 14);
-        v.setTypeface(Typeface.create("sans-serif-light", Typeface.NORMAL));
+        v.setTypeface(Aura.light());
         v.setGravity(Gravity.RIGHT);
         r.addView(v, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT));
         box.addView(r);
@@ -522,7 +583,7 @@ public class HomeActivity extends Activity {
         TextView t = new TextView(this);
         t.setTextColor(labelColor);
         t.setTextSize(TypedValue.COMPLEX_UNIT_SP, sp);
-        t.setTypeface(Typeface.create("sans-serif-light", Typeface.NORMAL));
+        t.setTypeface(Aura.light());
         t.setLineSpacing(0, 1.15f);
         t.setMinHeight((int) (minH * d));
         t.setPadding(0, (int) (6 * d), 0, 0);
@@ -535,7 +596,7 @@ public class HomeActivity extends Activity {
         t.setText(s);
         t.setTextColor(labelColor);
         t.setTextSize(TypedValue.COMPLEX_UNIT_SP, 34);
-        t.setTypeface(Typeface.create("sans-serif-thin", Typeface.NORMAL));
+        t.setTypeface(Aura.thin());
         box.addView(t);
         return t;
     }
@@ -545,7 +606,7 @@ public class HomeActivity extends Activity {
         t.setText(s);
         t.setTextColor(labelColor);
         t.setTextSize(TypedValue.COMPLEX_UNIT_SP, 15);
-        t.setTypeface(Typeface.create("sans-serif-light", Typeface.NORMAL));
+        t.setTypeface(Aura.light());
         box.addView(t);
         return t;
     }
@@ -601,8 +662,9 @@ public class HomeActivity extends Activity {
         if (hr >= 17 && hr < 22) boost.put("com.scratch.ioscalendar", 6f);
         final java.util.function.ToDoubleFunction<App> score = a -> usage.suggest(a.pkg) + (boost.containsKey(a.pkg) ? boost.get(a.pkg) : 0f);
         java.util.Collections.sort(all, (x, y) -> Double.compare(score.applyAsDouble(y), score.applyAsDouble(x)));
-        String greet = hr < 6 ? "BUENAS NOCHES" : hr < 13 ? "BUENOS D\u00cdAS" : hr < 21 ? "BUENAS TARDES" : "BUENAS NOCHES";
+        String greet = Aura.greeting(hr);
         if (headset) greet = "CON AURICULARES";
+        if (Aura.focus) greet = "MODO FOCO";
         ((TextView) sugBox.getChildAt(0)).setText(greet);
         List<App> top = new ArrayList<>();
         Set<String> seen = new HashSet<>();
@@ -622,12 +684,13 @@ public class HomeActivity extends Activity {
             View c = cell(a, true);
             sugRow.addView(c, new LinearLayout.LayoutParams(0, -2, 1f));
         }
-        cellScale = 1f;
+        cellScale = baseScale();
     }
 
     private LinearLayout weatherBox;
     private TextView wTitle, wTemp, wDesc;
     private ImageView wIcon;
+    private Spark wSpark;
     private boolean wBusy;
     private int wGen;
 
@@ -637,6 +700,7 @@ public class HomeActivity extends Activity {
         wTemp.setText(w.temp + "\u00b0");
         wDesc.setText(w.desc + " \u00b7 " + w.hi + "\u00b0/" + w.lo + "\u00b0");
         wIcon.setImageBitmap(Tiles.make(w.kind(), (int) (30 * d), labelColor));
+        if (wSpark != null) wSpark.load(Aura.p(this).getString("hourly", ""));
     }
 
     /** Shows the cached weather at once and refreshes it in the background when it is older than 30 minutes. */
@@ -650,6 +714,7 @@ public class HomeActivity extends Activity {
         final int gen = ++wGen;
         new Thread(() -> {
             final Weather n = Weather.fetch(city);
+            if (n != null) { double[] hr = Weather.hourly(n.lat, n.lon); if (hr != null) { StringBuilder hs = new StringBuilder(); for (double hv : hr) hs.append(hs.length() > 0 ? "," : "").append(hv); p.edit().putString("hourly", hs.toString()).apply(); } }
             runOnUiThread(() -> {
                 if (gen != wGen) return;
                 wBusy = false;
@@ -680,6 +745,7 @@ public class HomeActivity extends Activity {
 
     private void refreshToday() {
         if (batView == null) return;
+        refreshSky();
         refreshWeather(false);
         refreshSuggestions();
         Intent b = registerReceiver(null, new IntentFilter(Intent.ACTION_BATTERY_CHANGED));
@@ -713,6 +779,7 @@ public class HomeActivity extends Activity {
                 }
             } catch (Exception e) { /* Notas not installed */ } finally { if (cur != null) cur.close(); }
             noteView.setText(sb.toString());
+            emptyIcon(noteView, n == 0 ? "notes" : null);
             if (n == 0) { noteView.setText("Escribe «nota …» en la búsqueda"); noteView.setAlpha(0.55f); } else noteView.setAlpha(1f);
         }
         if (musicBox != null) {
@@ -722,7 +789,8 @@ public class HomeActivity extends Activity {
         }
         if (alarmView != null) {
             android.app.AlarmManager.AlarmClockInfo ci = ((android.app.AlarmManager) getSystemService(ALARM_SERVICE)).getNextAlarmClock();
-            if (ci == null) alarmView.setText("Sin alarmas");
+            emptyIcon(alarmView, ci == null ? "sleep" : null);
+            if (ci == null) alarmView.setText("Sin alarmas \u00b7 calma");
             else {
                 long t = ci.getTriggerTime();
                 Calendar a = Calendar.getInstance(); a.setTimeInMillis(t);
@@ -760,8 +828,9 @@ public class HomeActivity extends Activity {
                     }
                 } catch (Exception ignored) { } finally { if (c != null) c.close(); }
             }
-            final String out = sb.length() > 0 ? sb.toString() : (can ? "Sin eventos próximos" : "Sin acceso al calendario");
-            ui.post(() -> { if (calView != null) calView.setText(out); });
+            final String out = sb.length() > 0 ? sb.toString() : (can ? "Nada a la vista \u00b7 d\u00eda libre" : "Sin acceso al calendario");
+            final boolean none = sb.length() == 0 && can;
+            ui.post(() -> { if (calView != null) { calView.setText(out); emptyIcon(calView, none ? "freeday" : null); } });
         }).start();
     }
 
@@ -782,7 +851,7 @@ public class HomeActivity extends Activity {
         searchBox.setHintTextColor(subColor);
         searchBox.setTextColor(labelColor);
         searchBox.setTextSize(TypedValue.COMPLEX_UNIT_SP, 18);
-        searchBox.setTypeface(Typeface.create("sans-serif-light", Typeface.NORMAL));
+        searchBox.setTypeface(Aura.light());
         searchBox.setSingleLine();
         searchBox.setPadding((int) (20 * d), (int) (14 * d), (int) (20 * d), (int) (14 * d));
         searchBox.setBackground(glass(searchBox, 28, night ? 1 : 0, null));
@@ -903,6 +972,7 @@ public class HomeActivity extends Activity {
             }
             return out;
         }
+        out.addAll(auraItems(nq));
         if (nq.equals("rutinas") || nq.equals("automatizaciones")) {
             Smart.Item st = new Smart.Item("\u2699", 0xFF8B5CF6, "Rutinas activas", Routines.describe(this).replace("\n", "  \u00b7  "));
             out.add(st);
@@ -1029,7 +1099,7 @@ public class HomeActivity extends Activity {
         txt.setOrientation(LinearLayout.VERTICAL);
         TextView t = new TextView(this);
         t.setText(title); t.setTextColor(labelColor); t.setTextSize(TypedValue.COMPLEX_UNIT_SP, 17);
-        t.setTypeface(Typeface.create("sans-serif-light", Typeface.NORMAL)); t.setSingleLine();
+        t.setTypeface(Aura.light()); t.setSingleLine();
         TextView u = new TextView(this);
         u.setText(sub); u.setTextColor(subColor); u.setTextSize(TypedValue.COMPLEX_UNIT_SP, 13); u.setSingleLine();
         txt.addView(t); txt.addView(u);
@@ -1047,7 +1117,7 @@ public class HomeActivity extends Activity {
         c.drawRoundRect(new RectF(0, 0, s, s), s * 0.25f, s * 0.25f, p);
         p.setColor(Color.WHITE);
         p.setTextAlign(Paint.Align.CENTER);
-        p.setTypeface(Typeface.create("sans-serif-light", Typeface.NORMAL));
+        p.setTypeface(Aura.light());
         p.setTextSize(s * 0.5f);
         c.drawText(it.glyph, s / 2f, s / 2f - (p.descent() + p.ascent()) / 2f, p);
         return b;
@@ -1081,6 +1151,20 @@ public class HomeActivity extends Activity {
         try {
             if (it.intent != null) { startActivity(it.intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)); return; }
             String sp = it.special == null ? "" : it.special;
+            if (sp.equals("breathe")) { showBreath(); return; }
+            if (sp.equals("aura")) { showAccess(); return; }
+            if (sp.equals("tour")) { showTour(); return; }
+            if (sp.equals("hourly")) { showHourly(); return; }
+            if (sp.equals("day")) { showDay(); return; }
+            if (sp.equals("calm")) { toggleCalm(); return; }
+            if (sp.startsWith("opt:")) {
+                String k = sp.substring(4);
+                boolean now = !Aura.p(this).getBoolean("opt_" + k, false);
+                Aura.set(this, "opt_" + k, now);
+                Toast.makeText(this, (k.equals("focus") ? "Modo foco" : k.equals("simple") ? "Modo sencillo" : "Modo tinta") + (now ? " activado" : " desactivado"), Toast.LENGTH_SHORT).show();
+                recreate();
+                return;
+            }
             if (sp.startsWith("copy:")) {
                 ((ClipboardManager) getSystemService(CLIPBOARD_SERVICE)).setPrimaryClip(ClipData.newPlainText("resultado", sp.substring(5)));
                 Toast.makeText(this, "Copiado: " + sp.substring(5), Toast.LENGTH_SHORT).show();
@@ -1170,7 +1254,7 @@ public class HomeActivity extends Activity {
         p.setColor(palette[Math.abs(name.hashCode()) % palette.length]);
         c.drawCircle(s / 2f, s / 2f, s / 2f, p);
         p.setColor(Color.WHITE);
-        p.setTypeface(Typeface.create("sans-serif-light", Typeface.NORMAL));
+        p.setTypeface(Aura.light());
         p.setTextSize(s * 0.46f);
         p.setTextAlign(Paint.Align.CENTER);
         String l = name.isEmpty() ? "?" : name.substring(0, 1).toUpperCase();
@@ -1242,6 +1326,7 @@ public class HomeActivity extends Activity {
             final List<App> hiddenApps = new ArrayList<>();
             List<String> hide = new ArrayList<>(Arrays.asList(getSharedPreferences("home", MODE_PRIVATE).getString("hidden", "").split("\n")));
             hide.add("org.cyanogenmod.audiofx");
+        if (Aura.focus) for (App fa : byPkg.values()) if (distracting(fa.pkg)) hide.add(fa.pkg);
             for (String hp : hide) if (!hp.isEmpty()) { App ha = byPkg.remove(hp); if (ha != null) hiddenApps.add(ha); }
             List<App> grid = new ArrayList<>();
             for (String p : FIRST) { App a = byPkg.remove(p); if (a != null) grid.add(a); }
@@ -1254,6 +1339,7 @@ public class HomeActivity extends Activity {
             final List<App> flat = new ArrayList<>(grid);
             applyFolders(grid, dockFolderIds);
             applySavedOrder(grid);
+            if (Aura.simple && grid.size() > cols * rows) grid.subList(cols * rows, grid.size()).clear();
             allApps = new ArrayList<>(); for (App a : dockApps) { if (a.kids != null) allApps.addAll(a.kids); else allApps.add(a); } allApps.addAll(flat); allApps.addAll(hiddenApps);
             // Publish usable icons before the expensive package metadata index is built.
             for (App a : allApps) { a.norm = Fuzzy.norm(a.label); a.doc = a.norm; }
@@ -1272,7 +1358,7 @@ public class HomeActivity extends Activity {
 
     private void build(List<App> grid, List<App> dockApps) {
         curGrid = grid; curDock = dockApps;
-        int per = COLS * ROWS;
+        int per = cols * rows;
         int pages = Math.max(1, (grid.size() + per - 1) / per);
         int cur = pager.page();
         if (firstBuild) { cur = 1; firstBuild = false; }
@@ -1281,9 +1367,9 @@ public class HomeActivity extends Activity {
         for (int p = 0; p < pages; p++) {
             GridLayout g = new GridLayout(this);
             g.setClipChildren(false); g.setClipToPadding(false);
-            g.setColumnCount(COLS);
-            g.setRowCount(ROWS);
-            int cw = w / COLS, ch = gridH / ROWS;
+            g.setColumnCount(cols);
+            g.setRowCount(rows);
+            int cw = w / cols, ch = gridH / rows;
             final int base = p * per;
             g.setOnDragListener((v, e) -> {
                 if (e.getAction() == DragEvent.ACTION_DRAG_LOCATION) {
@@ -1297,11 +1383,11 @@ public class HomeActivity extends Activity {
                     return true;
                 }
                 if (e.getAction() == DragEvent.ACTION_DROP && e.getLocalState() instanceof App) {
-                    int col = Math.max(0, Math.min(COLS - 1, (int) (e.getX() / cw)));
-                    int row = Math.max(0, Math.min(ROWS - 1, (int) (e.getY() / ch)));
+                    int col = Math.max(0, Math.min(cols - 1, (int) (e.getX() / cw)));
+                    int row = Math.max(0, Math.min(rows - 1, (int) (e.getY() / ch)));
                     float fx = (e.getX() - col * cw) / cw, fy = (e.getY() - row * ch) / ch;
                     boolean onIcon = Math.abs(fx - 0.5f) < 0.28f && fy < 66 * d / ch;
-                    drop((App) e.getLocalState(), base + row * COLS + col, onIcon);
+                    drop((App) e.getLocalState(), base + row * cols + col, onIcon);
                 }
                 return true;
             });
@@ -1339,7 +1425,11 @@ public class HomeActivity extends Activity {
             dots.addView(dot, new LinearLayout.LayoutParams((int) (7 * d), (int) (7 * d)) {{ leftMargin = rightMargin = (int) (4 * d); }});
         }
         pager.setOnPage(pg -> {
-            for (int i = 0; i < dots.getChildCount(); i++) { View dv = dots.getChildAt(i); float sc = i == pg ? 1.25f : 1f; dv.animate().alpha(i == pg ? 1f : 0.4f).scaleX(sc).scaleY(sc).setDuration(200).start(); }
+            for (int i = 0; i < dots.getChildCount(); i++) { View dv = dots.getChildAt(i); float sc = i == pg ? 1.25f : 1f; dv.animate().alpha(i == pg ? 1f : 0.4f).scaleX(sc).scaleY(sc).setDuration(Aura.dur(this, 200)).start();
+                if (dv.getBackground() instanceof GradientDrawable) ((GradientDrawable) dv.getBackground()).setColor(i == pg && !Aura.hc ? pageAccent(pg) : dotColor); }
+            if (pg != lastPg) showPageLabel(pg);
+            if (pg != lastPg) { Aura.blip(this, pg > lastPg ? 0.8f : -0.8f, pg > lastPg ? 700 : 560); lastPg = pg; }
+            if (dots.getChildCount() > 0) pager.announceForAccessibility(pageName(pg) + (pg == 0 ? "" : ", página " + pg + " de " + (dots.getChildCount() - 1)));
             if (pg == 0) popToday();
         });
         pager.setOnScroll(x -> { // the clock and date glide away more slowly than the page
@@ -1351,9 +1441,12 @@ public class HomeActivity extends Activity {
             float a = 1f - Math.min(1f, k / w) * 0.7f;
             if (headTime != null) { headTime.setTranslationX(-k * 0.35f); headTime.setAlpha(a); }
             if (headDate != null) { headDate.setTranslationX(-k * 0.35f); headDate.setAlpha(a); }
+            if (headPhrase != null) { headPhrase.setTranslationX(-x * 0.35f); headPhrase.setAlpha(Math.max(0f, 1f - x / (float) w)); }   // phrase of the day lives on the Today page only
+            if (headSky != null) { headSky.setTranslationX(-k * 0.35f); headSky.setAlpha(a); }
         });
         final int fc = cur;
         pager.post(() -> pager.goToNow(fc));
+        if (tourCheck) { tourCheck = false; if (!Aura.p(this).getBoolean("tour_done", false)) ui.postDelayed(this::showTour, 1400); }
         sugKey = "";
         refreshSuggestions();
         if (animateNext) { animateNext = false; pager.post(this::popCurrent); }
@@ -1534,7 +1627,7 @@ public class HomeActivity extends Activity {
     }
 
     private void drop(App dragged, int idx, boolean onIcon) {
-        dock.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY);
+        Aura.hap(dock, Aura.CONFIRM);
         List<App> g = curGrid;
         if (g == null) return;
         App target = idx < g.size() ? g.get(idx) : null;
@@ -1575,7 +1668,7 @@ public class HomeActivity extends Activity {
         title.setText(f.label);
         title.setTextColor(labelColor);
         title.setTextSize(TypedValue.COMPLEX_UNIT_SP, 20);
-        title.setTypeface(Typeface.create("sans-serif-light", Typeface.NORMAL));
+        title.setTypeface(Aura.light());
         title.setGravity(Gravity.CENTER);
         title.setOnClickListener(v -> renameFolder(f));
         panel.addView(title, new LinearLayout.LayoutParams(-1, -2));
@@ -1591,12 +1684,13 @@ public class HomeActivity extends Activity {
         boolean e0 = editing; editing = false;
         for (final App kid : f.kids) {
             View c = cell(kid, true);
-            c.setOnLongClickListener(v -> { v.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS); removeFromFolder(f, kid); return true; });
+            c.setOnLongClickListener(v -> { Aura.hap(v, Aura.WARN); removeFromFolder(f, kid); return true; });
             GridLayout.LayoutParams lp = new GridLayout.LayoutParams();
             lp.width = cw; lp.height = (int) (84 * d);
             g.addView(c, lp);
         }
         editing = e0;
+        for (int gi = 0; gi < g.getChildCount(); gi++) pop(g.getChildAt(gi), 90 + gi * 45L);
         panel.addView(g, new LinearLayout.LayoutParams(-2, -2) {{ topMargin = (int) (10 * d); gravity = Gravity.CENTER_HORIZONTAL; }});
         folderLayer.addView(panel, new FrameLayout.LayoutParams(w - (int) (32 * d), -2, Gravity.CENTER));
         content.addView(folderLayer, new FrameLayout.LayoutParams(-1, -1));
@@ -1654,7 +1748,7 @@ public class HomeActivity extends Activity {
 
     private void setEditing(boolean on) {
         editing = on;
-        if (dock != null) dock.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS);
+        if (dock != null) Aura.hap(dock, Aura.WARN);
         if (doneBtn != null) doneBtn.setVisibility(on ? View.VISIBLE : View.GONE);
         if (restoreBtn != null) restoreBtn.setVisibility(on && !getSharedPreferences("home", MODE_PRIVATE).getString("hidden", "").isEmpty() ? View.VISIBLE : View.GONE);
         if (curGrid != null) build(curGrid, curDock);
@@ -1672,12 +1766,23 @@ public class HomeActivity extends Activity {
         });
     }
 
-    private TextView pill(String text) {
+    private android.graphics.drawable.Drawable glyphDrawable(String kind, int sizeDp, int color) {
+        int px = (int) (sizeDp * d);
+        android.graphics.drawable.BitmapDrawable bd = new android.graphics.drawable.BitmapDrawable(getResources(), Icons.glyph(kind, px, color));
+        bd.setBounds(0, 0, px, px);
+        return bd;
+    }
+
+    private TextView pill(String text) { return pill(text, null); }
+
+    private TextView pill(String text, String icon) {
         TextView t = new TextView(this);
         t.setText(text);
+        if (icon != null) { t.setCompoundDrawables(glyphDrawable(icon, 18, labelColor), null, null, null); t.setCompoundDrawablePadding((int) (8 * d)); }
         t.setTextColor(labelColor);
         t.setTextSize(TypedValue.COMPLEX_UNIT_SP, 14);
         t.setPadding((int) (16 * d), (int) (6 * d), (int) (16 * d), (int) (6 * d));
+        t.setMinHeight((int) (44 * d)); t.setGravity(Gravity.CENTER_VERTICAL);
         GradientDrawable g = new GradientDrawable();
         g.setColor(boxFill); g.setStroke(Math.max(1, (int) d), boxStroke); g.setCornerRadius(20 * d);
         t.setBackground(g);
@@ -1741,7 +1846,7 @@ public class HomeActivity extends Activity {
             try { st[0] = f.flip(); } catch (Exception e) { Toast.makeText(this, "No disponible", Toast.LENGTH_SHORT).show(); return; }
             style.run();
             box.announceForAccessibility(box.getContentDescription());
-            box.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY);
+            Aura.hap(box, Aura.CONFIRM);
             c.animate().cancel(); c.setScaleX(0.88f); c.setScaleY(0.88f);
             c.animate().scaleX(1f).scaleY(1f).setDuration(300).setInterpolator(new android.view.animation.OvershootInterpolator(3f)).start();
         });
@@ -1832,15 +1937,17 @@ public class HomeActivity extends Activity {
             getSharedPreferences("home", MODE_PRIVATE).edit().putBoolean("aurora_reduced", on).apply();
             return on;
         }), new LinearLayout.LayoutParams(0, -2, 1f));
-        tiles2.addView(new View(this), new LinearLayout.LayoutParams(0, 1, 1f));
+        tiles2.addView(ccTile("access", "Aura", false, () -> { hideControl(); ui.postDelayed(this::showAccess, 120); return false; }), new LinearLayout.LayoutParams(0, -2, 1f));
         panel.addView(tiles2);
 
         panel.addView(ccLabel("BRILLO"));
         int br = 128;
         try { br = Settings.System.getInt(getContentResolver(), Settings.System.SCREEN_BRIGHTNESS); } catch (Exception ignored) { }
         panel.addView(ccSlider("Brillo", 255, br, new SeekBar.OnSeekBarChangeListener() {
+            private int step = -1;
             @Override public void onProgressChanged(SeekBar sb, int p, boolean user) {
                 if (!user) return;
+                if (p / 24 != step) { step = p / 24; Aura.hap(sb, Aura.TICK); }
                 try {
                     Settings.System.putInt(getContentResolver(), Settings.System.SCREEN_BRIGHTNESS_MODE, Settings.System.SCREEN_BRIGHTNESS_MODE_MANUAL);
                     Settings.System.putInt(getContentResolver(), Settings.System.SCREEN_BRIGHTNESS, Math.max(8, p));
@@ -1856,7 +1963,7 @@ public class HomeActivity extends Activity {
         panel.addView(ccLabel("VOLUMEN"));
         final android.media.AudioManager am = (android.media.AudioManager) getSystemService(AUDIO_SERVICE);
         panel.addView(ccSlider("Volumen multimedia", am.getStreamMaxVolume(android.media.AudioManager.STREAM_MUSIC), am.getStreamVolume(android.media.AudioManager.STREAM_MUSIC), new SeekBar.OnSeekBarChangeListener() {
-            @Override public void onProgressChanged(SeekBar sb, int p, boolean user) { if (user) am.setStreamVolume(android.media.AudioManager.STREAM_MUSIC, p, 0); }
+            @Override public void onProgressChanged(SeekBar sb, int p, boolean user) { if (user) { am.setStreamVolume(android.media.AudioManager.STREAM_MUSIC, p, 0); Aura.hap(sb, Aura.TICK); } }
             @Override public void onStartTrackingTouch(SeekBar sb) { }
             @Override public void onStopTrackingTouch(SeekBar sb) { }
         }));
@@ -1867,7 +1974,7 @@ public class HomeActivity extends Activity {
         String[][] q = {{"Calc.", "com.scratch.ioscalc"}, {"Cámara", "com.scratch.ioscamera"}, {"Reloj", "com.scratch.iosclock"}, {"Grabadora", "com.scratch.iosrecorder"}};
         for (int i = 0; i < q.length; i++) {
             final String pk = q[i][1];
-            quick.addView(quickButton(q[i][0], v -> { hideControl(); openPkg(pk); }), new LinearLayout.LayoutParams(0, -2, 1f) {{ rightMargin = (int) (4 * d); leftMargin = (int) (4 * d); }});
+            quick.addView(quickButton(q[i][0], pk, v -> { hideControl(); openPkg(pk); }), new LinearLayout.LayoutParams(0, -2, 1f) {{ rightMargin = (int) (4 * d); leftMargin = (int) (4 * d); }});
         }
         panel.addView(quick);
 
@@ -1905,7 +2012,7 @@ public class HomeActivity extends Activity {
         if (open) {
             ccLayer.animate().alpha(1f).setDuration(200).start();
             ccPanel.animate().translationY(0f).setDuration(420).setInterpolator(new android.view.animation.OvershootInterpolator(1.1f)).start();
-            ccPanel.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY);
+            Aura.hap(ccPanel, Aura.CONFIRM);
         } else hideControl();
     }
 
@@ -1965,6 +2072,7 @@ public class HomeActivity extends Activity {
     }
 
     private float cellScale = 1f;
+    private float baseScale() { return Aura.simple ? 1.3f : 1f; }
 
     private View cell(App a, boolean label) {
         LinearLayout c = new LinearLayout(this);
@@ -2016,22 +2124,24 @@ public class HomeActivity extends Activity {
             t.setTextColor(labelColor);
             if (night) t.setShadowLayer(3f, 0, 1, 0x80000000);
             t.setTextSize(TypedValue.COMPLEX_UNIT_SP, 11);
-            t.setTypeface(Typeface.create("sans-serif-light", Typeface.NORMAL));
+            t.setTypeface(Aura.light());
             t.setSingleLine();
             t.setEllipsize(TextUtils_END);
             t.setGravity(Gravity.CENTER);
                         c.addView(t, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT) {{ topMargin = (int) (3 * d); }});
         }
-        c.setOnClickListener(v -> { if (editing) return; if (a.kids != null) openFolder(a); else launch(a, iv); });
+        c.setContentDescription(a.kids != null ? "Carpeta " + a.label + ", " + a.kids.size() + " apps" : a.label);
+        iv.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
+        c.setOnClickListener(v -> { if (editing) return; Aura.hap(v, Aura.TICK); if (a.kids != null) openFolder(a); else launch(a, iv); });
         if (editing) wobble(c);
         c.setOnLongClickListener(v -> {
-            v.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS);
+            Aura.hap(v, Aura.WARN);
             v.setAlpha(1f);
             return v.startDrag(null, new View.DragShadowBuilder(v), a, 0);
         });
         c.setOnTouchListener((v, e) -> {
             if (e.getAction() == MotionEvent.ACTION_DOWN) v.animate().cancel(); 
-            if (e.getAction() == MotionEvent.ACTION_DOWN) v.animate().scaleX(0.9f).scaleY(0.9f).setStartDelay(0).setDuration(90).setInterpolator(new android.view.animation.DecelerateInterpolator()).start();
+            if (e.getAction() == MotionEvent.ACTION_DOWN) v.animate().scaleX(0.92f).scaleY(0.92f).setStartDelay(0).setDuration(90).setInterpolator(new android.view.animation.DecelerateInterpolator()).start();
             else if (e.getAction() == MotionEvent.ACTION_UP || e.getAction() == MotionEvent.ACTION_CANCEL)
                 v.animate().scaleX(1f).scaleY(1f).setStartDelay(0).setDuration(300).setInterpolator(new android.view.animation.OvershootInterpolator(3f)).start();
             return false;
@@ -2098,13 +2208,18 @@ public class HomeActivity extends Activity {
         swLayer.setAlpha(0f);
         TextView title = new TextView(this);
         title.setText("Multitarea"); title.setTextColor(labelColor); title.setTextSize(TypedValue.COMPLEX_UNIT_SP, 28);
-        title.setTypeface(Typeface.create("sans-serif-thin", Typeface.NORMAL));
+        title.setTypeface(Aura.thin());
         swLayer.addView(title, new FrameLayout.LayoutParams(-2, -2, Gravity.TOP | Gravity.CENTER_HORIZONTAL) {{ topMargin = (int) (52 * d); }});
         final List<Object[]> recents = recentApps();
         if (recents.isEmpty()) {
+            LinearLayout empty = new LinearLayout(this);
+            empty.setOrientation(LinearLayout.VERTICAL);
+            empty.setGravity(Gravity.CENTER_HORIZONTAL);
+            empty.addView(doodleView("recents", 96));
             TextView none = new TextView(this);
             none.setText("Aún no hay apps recientes"); none.setTextColor(subColor); none.setTextSize(TypedValue.COMPLEX_UNIT_SP, 16);
-            swLayer.addView(none, new FrameLayout.LayoutParams(-2, -2, Gravity.CENTER));
+            empty.addView(none, new LinearLayout.LayoutParams(-2, -2) {{ topMargin = (int) (10 * d); }});
+            swLayer.addView(empty, new FrameLayout.LayoutParams(-2, -2, Gravity.CENTER));
         } else {
             final HorizontalScrollView hs = new HorizontalScrollView(this);
             hs.setHorizontalScrollBarEnabled(false);
@@ -2138,8 +2253,8 @@ public class HomeActivity extends Activity {
         }
         content.addView(swLayer, new FrameLayout.LayoutParams(-1, -1));
         swLayer.animate().alpha(1f).setDuration(220).start();
-        for (View v : new View[]{pager, dock, headTime, headDate, dots}) if (v != null) v.animate().scaleX(0.9f).scaleY(0.9f).alpha(0.35f).setDuration(260).setInterpolator(new android.view.animation.DecelerateInterpolator(2f)).start();
-        swLayer.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY);
+        for (View v : new View[]{pager, dock, headTime, headDate, headPhrase, headSky, dots}) if (v != null) v.animate().scaleX(0.9f).scaleY(0.9f).alpha(0.35f).setDuration(260).setInterpolator(new android.view.animation.DecelerateInterpolator(2f)).start();
+        Aura.hap(swLayer, Aura.CONFIRM);
     }
 
     private View switcherCard(final App a, long when, final LinearLayout row) {
@@ -2170,17 +2285,25 @@ public class HomeActivity extends Activity {
         card.addView(ic, new LinearLayout.LayoutParams((int) (84 * d), (int) (84 * d)));
         TextView name = new TextView(this);
         name.setText(a.label); name.setTextColor(labelColor); name.setTextSize(TypedValue.COMPLEX_UNIT_SP, 20);
-        name.setTypeface(Typeface.create("sans-serif-light", Typeface.NORMAL)); name.setSingleLine(); name.setGravity(Gravity.CENTER);
+        name.setTypeface(Aura.light()); name.setSingleLine(); name.setGravity(Gravity.CENTER);
         card.addView(name, new LinearLayout.LayoutParams(-1, -2) {{ topMargin = (int) (16 * d); }});
         TextView t = new TextView(this);
         t.setText(ago(when)); t.setTextColor(subColor); t.setTextSize(TypedValue.COMPLEX_UNIT_SP, 13);
         card.addView(t);
+        Bitmap icb = cache.get(a.pkg);
+        if (icb != null) {
+            View accent = new View(this);
+            GradientDrawable ag = new GradientDrawable();
+            ag.setColor(0xFF000000 | dominant(icb)); ag.setCornerRadius(2 * d);
+            accent.setBackground(ag);
+            card.addView(accent, new LinearLayout.LayoutParams((int) (44 * d), (int) (3 * d)) {{ topMargin = (int) (10 * d); }});
+        }
         View gap = new View(this);
         card.addView(gap, new LinearLayout.LayoutParams(1, 0, 1f));
-        TextView open = pill("Abrir");
+        TextView open = pill("Abrir", "open");
         open.setOnClickListener(v -> { hideSwitcher(); launch(a, card); });
         card.addView(open, new LinearLayout.LayoutParams(-1, -2) {{ bottomMargin = (int) (8 * d); }});
-        TextView split = pill("Dividir pantalla");
+        TextView split = pill("Dividir pantalla", "split");
         split.setOnClickListener(v -> { hideSwitcher(); splitWith(a, card); });
         card.addView(split, new LinearLayout.LayoutParams(-1, -2));
         for (TextView p : new TextView[]{open, split}) { p.setGravity(Gravity.CENTER); p.setVisibility(View.VISIBLE); }
@@ -2223,7 +2346,7 @@ public class HomeActivity extends Activity {
         if (swLayer == null) return;
         final FrameLayout l = swLayer;
         swLayer = null;
-        for (View v : new View[]{pager, dock, headTime, headDate, dots}) if (v != null) v.animate().scaleX(1f).scaleY(1f).alpha(1f).setDuration(320).setInterpolator(new android.view.animation.OvershootInterpolator(1.6f)).start();
+        for (View v : new View[]{pager, dock, headTime, headDate, headPhrase, headSky, dots}) if (v != null) v.animate().scaleX(1f).scaleY(1f).alpha(1f).setDuration(320).setInterpolator(new android.view.animation.OvershootInterpolator(1.6f)).start();
         l.animate().alpha(0f).setDuration(180).withEndAction(() -> { if (l.getParent() != null) ((ViewGroup) l.getParent()).removeView(l); }).start();
     }
 
@@ -2232,6 +2355,769 @@ public class HomeActivity extends Activity {
         if (SplitService.inst == null) { Toast.makeText(this, "Activa «Aurora multitarea» en Accesibilidad", Toast.LENGTH_LONG).show(); launch(a, from); return; }
         launch(a, from);
         ui.postDelayed(() -> { if (!SplitService.splitScreen()) Toast.makeText(this, "Esta app no admite pantalla dividida", Toast.LENGTH_SHORT).show(); }, 1100);
+    }
+
+    // ---- Aura: options, sky, tilt, breathing, hourly chart, tour (docs/roadmap-adas.md) ---------------------------------
+
+    private FrameLayout accLayer, extraLayer;
+    private Runnable extraCancel;
+    private boolean accDirty, tourCheck = true;
+    private int lastPg = 1;
+    private TextView pageLabel;
+    private final Runnable hideLabel = () -> { if (pageLabel != null) pageLabel.animate().alpha(0f).setDuration(Aura.dur(this, 260)).start(); };
+
+    private String pageName(int pg) {
+        for (String line : Aura.p(this).getString("page_names", "").split("\n")) {
+            int bar = line.indexOf('|');
+            if (bar > 0 && line.substring(0, bar).equals(String.valueOf(pg))) return line.substring(bar + 1);
+        }
+        return pg == 0 ? "Hoy" : pg == 1 ? "Inicio" : "Página " + pg;
+    }
+
+    private void showPageLabel(int pg) {
+        if (pageLabel == null) return;
+        pageLabel.setText(pageName(pg));
+        pageLabel.removeCallbacks(hideLabel);
+        pageLabel.animate().cancel();
+        pageLabel.setAlpha(0f);
+        pageLabel.animate().alpha(1f).setDuration(Aura.dur(this, 160)).start();
+        pageLabel.postDelayed(hideLabel, 1500);
+    }
+
+    private void renamePage(final int pg) {
+        final EditText et = new EditText(this);
+        et.setText(pageName(pg));
+        et.setSingleLine();
+        et.setTextColor(0xFF14123A);
+        et.selectAll();
+        new android.app.AlertDialog.Builder(this, android.R.style.Theme_DeviceDefault_Light_Dialog_Alert)
+            .setTitle("Nombre de la página").setView(et)
+            .setNegativeButton("Cancelar", null)
+            .setNeutralButton("Restablecer", (dlg, w2) -> savePageName(pg, ""))
+            .setPositiveButton("Guardar", (dlg, w2) -> savePageName(pg, et.getText().toString().replace("|", " ").replace("\n", " ").trim()))
+            .show();
+    }
+
+    private void savePageName(int pg, String name) {
+        StringBuilder sb = new StringBuilder();
+        for (String line : Aura.p(this).getString("page_names", "").split("\n")) {
+            int bar = line.indexOf('|');
+            if (bar > 0 && !line.substring(0, bar).equals(String.valueOf(pg))) sb.append(line).append('\n');
+        }
+        if (!name.isEmpty()) sb.append(pg).append('|').append(name).append('\n');
+        Aura.p(this).edit().putString("page_names", sb.toString()).apply();
+        showPageLabel(pg);
+    }
+
+    private int pageAccent(int pg) {
+        int[] pal = new int[5];
+        AuroraField.palette(AuroraField.hourNow(), pal);
+        int c = 0xFF000000 | pal[2 + (pg % 3)];
+        return night ? c : (0xFF000000 | AuroraField.mix(c & 0xFFFFFF, 0x14123A, 0.35f));
+    }
+
+    /** Small hairline illustration to the left of an empty-state line; null kind removes it. */
+    private void emptyIcon(TextView t, String kind) {
+        if (t == null) return;
+        if (kind == null) { t.setCompoundDrawables(null, null, null, null); return; }
+        int px = (int) (26 * d);
+        android.graphics.drawable.BitmapDrawable bd = new android.graphics.drawable.BitmapDrawable(getResources(), Icons.doodle(kind, px, subColor, pageAccent(1)));
+        bd.setBounds(0, 0, px, px);
+        t.setCompoundDrawables(bd, null, null, null);
+        t.setCompoundDrawablePadding((int) (7 * d));
+    }
+
+    private ImageView doodleView(String kind, int dp) {
+        ImageView iv = new ImageView(this);
+        iv.setImageBitmap(Icons.doodle(kind, (int) (dp * d), subColor, pageAccent(1)));
+        iv.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
+        return iv;
+    }
+
+    private void refreshSky() {
+        if (headSky == null) return;
+        Weather wz = Weather.cached(Aura.p(this));
+        double[] s = Aura.sun(wz.lat, wz.lon, Calendar.getInstance());
+        headSky.setText(s == null ? "" : "Sol " + Aura.hm(s[0]) + " – " + Aura.hm(s[1]));
+    }
+
+    private void bounce(final View v) {
+        v.setPivotX(0f); v.setPivotY(v.getHeight() / 2f);
+        v.animate().cancel();
+        v.animate().scaleX(1.12f).scaleY(1.12f).setDuration(Aura.dur(this, 120)).withEndAction(() ->
+            v.animate().scaleX(1f).scaleY(1f).setDuration(Aura.dur(this, 420)).setInterpolator(new android.view.animation.OvershootInterpolator(4f)).start()).start();
+    }
+
+    private static boolean distracting(String p) {
+        if (p.equals("com.android.vending") || p.equals("org.lineageos.jelly") || p.equals("com.android.chrome")) return true;
+        for (String k : new String[]{"facebook", "instagram", "twitter", "tiktok", "youtube", "netflix", "snapchat", "reddit", "twitch"}) if (p.contains(k)) return true;
+        return false;
+    }
+
+    private void doubleTapAction() {
+        if ("lock".equals(Aura.dtap)) lockScreen();
+        else if ("search".equals(Aura.dtap)) showSearch();
+    }
+
+    // tilt: parallax of the dock and dots, shake makes the icons wiggle
+    private android.hardware.SensorManager sensors;
+    private float tiltX;
+    private long lastShake;
+    private final android.hardware.SensorEventListener tiltL = new android.hardware.SensorEventListener() {
+        @Override public void onSensorChanged(android.hardware.SensorEvent e) {
+            float ax = e.values[0], ay = e.values[1], az = e.values[2];
+            tiltX += (ax - tiltX) * 0.15f;
+            Glass.tilt = tiltX;
+            if (dock != null && swLayer == null && ccLayer == null) { dock.setTranslationX(-tiltX * 0.45f * d); if (dots != null) dots.setTranslationX(-tiltX * 0.25f * d); }
+            double g = Math.sqrt(ax * ax + ay * ay + az * az) / 9.81;
+            long now = SystemClock.uptimeMillis();
+            if (g > 2.5 && now - lastShake > 1800 && searchLayer == null && ccLayer == null && swLayer == null && !editing) { lastShake = now; wiggleIcons(); }
+        }
+        @Override public void onAccuracyChanged(android.hardware.Sensor s, int a) { }
+    };
+
+    private void startTilt() {
+        if (Aura.calm(this)) return;
+        try {
+            sensors = (android.hardware.SensorManager) getSystemService(SENSOR_SERVICE);
+            android.hardware.Sensor acc = sensors.getDefaultSensor(android.hardware.Sensor.TYPE_ACCELEROMETER);
+            if (acc != null) sensors.registerListener(tiltL, acc, android.hardware.SensorManager.SENSOR_DELAY_UI);
+        } catch (Exception ignored) { }
+    }
+
+    private void stopTilt() {
+        try { if (sensors != null) sensors.unregisterListener(tiltL); } catch (Exception ignored) { }
+        if (dock != null) dock.setTranslationX(0f);
+        if (dots != null) dots.setTranslationX(0f);
+        Glass.tilt = 0f;
+    }
+
+    private void wiggleIcons() {
+        View pv = pager == null ? null : pager.pageView(pager.page());
+        List<View> cells = new ArrayList<>();
+        if (pv instanceof GridLayout) for (int i = 0; i < ((GridLayout) pv).getChildCount(); i++) cells.add(((GridLayout) pv).getChildAt(i));
+        for (int i = 0; i < dock.getChildCount(); i++) cells.add(dock.getChildAt(i));
+        if (cells.isEmpty()) return;
+        Aura.hap(dock, Aura.TICK);
+        int i = 0;
+        for (final View c : cells) {
+            final float deg = (i++ % 2 == 0) ? 7f : -7f;
+            c.animate().cancel();
+            c.animate().rotation(deg).setDuration(90).withEndAction(() -> c.animate().rotation(0f).setDuration(520).setInterpolator(new android.view.animation.OvershootInterpolator(4f)).start()).start();
+        }
+    }
+
+    // ---- search answers for the new features ----
+    private List<Smart.Item> auraItems(String nq) {
+        List<Smart.Item> out = new ArrayList<>();
+        java.util.Set<String> sky = new HashSet<>(Arrays.asList("luna", "fase lunar", "fases de la luna", "cielo", "amanecer", "atardecer", "sol", "puesta de sol", "salida del sol", "cuando amanece", "cuando anochece"));
+        if (sky.contains(nq)) {
+            Weather wz = Weather.cached(Aura.p(this));
+            double ph = Aura.moonPhase(System.currentTimeMillis());
+            out.add(new Smart.Item("☾", 0xFF6366F1, Aura.moonName(ph) + " · " + Aura.moonPercent(ph) + " %", "Iluminada hoy · calculado en el teléfono"));
+            double[] s = Aura.sun(wz.lat, wz.lon, Calendar.getInstance());
+            if (s != null) {
+                int mins = (int) Math.round((s[1] - s[0]) * 60);
+                out.add(new Smart.Item("☀", 0xFFF59E0B, "Sol " + Aura.hm(s[0]) + " – " + Aura.hm(s[1]), (wz.ok ? wz.city : "Madrid") + " · " + (mins / 60) + " h " + (mins % 60) + " min de luz · " + Aura.seasonName()));
+            }
+        }
+        if (nq.equals("salud") || nq.equals("salud del telefono") || nq.equals("estado del telefono") || nq.equals("como esta el telefono")) {
+            Object[] hl = Aura.health(this);
+            int sc = (Integer) hl[0];
+            out.add(new Smart.Item("♥", sc >= 70 ? 0xFF22C55E : sc >= 45 ? 0xFFF59E0B : 0xFFEF4444, "Salud del teléfono: " + sc + "/100", (String) hl[1]));
+        }
+        if (nq.equals("pantalla") || nq.equals("tiempo de pantalla") || nq.equals("uso") || nq.equals("cuanto he usado el telefono")) {
+            Object[] st = Aura.screenTime(this);
+            if (st == null) out.add(new Smart.Item("⌛", 0xFF94A3B8, "Sin acceso al uso de apps", "Falta el permiso de uso (docs/restore.md)"));
+            else {
+                long mins = (Long) st[0];
+                @SuppressWarnings("unchecked") Map<String, Long> by = (Map<String, Long>) st[1];
+                List<Map.Entry<String, Long>> es = new ArrayList<>(by.entrySet());
+                Collections.sort(es, (x, y) -> Long.compare(y.getValue(), x.getValue()));
+                StringBuilder sb = new StringBuilder();
+                for (int i = 0; i < es.size() && i < 3; i++) {
+                    String nm = es.get(i).getKey();
+                    for (App a : allApps) if (a.pkg.equals(nm)) { nm = a.label; break; }
+                    sb.append(i > 0 ? " · " : "").append(nm).append(' ').append(es.get(i).getValue() / 60000).append(" min");
+                }
+                out.add(new Smart.Item("⌛", 0xFF6366F1, "Hoy: " + (mins / 60) + " h " + (mins % 60) + " min de pantalla", sb.length() == 0 ? "Sin uso registrado todavía" : sb.toString()));
+            }
+        }
+        if (nq.equals("mi dia") || nq.equals("agenda") || nq.equals("mi agenda") || nq.equals("hoy")) {
+            { Smart.Item it = new Smart.Item("\u25cb", 0xFF3B82F6, "Ver mi día en una línea de tiempo", "Eventos, alarma, amanecer y atardecer"); it.special = "day"; out.add(it); }
+            if (alarmView != null) out.add(new Smart.Item("⏰", 0xFF4F46E5, String.valueOf(alarmView.getText()), "Próxima alarma"));
+            if (calView != null) out.add(new Smart.Item("▦", 0xFFDC2626, String.valueOf(calView.getText()).replace("\n", "  ·  "), "Próximos eventos"));
+            Weather wz = Weather.cached(Aura.p(this));
+            if (wz.ok) out.add(new Smart.Item("☁", 0xFF38BDF8, wz.temp + "° " + wz.desc, wz.city + " · máx " + wz.hi + "° mín " + wz.lo + "°"));
+        }
+        if (nq.equals("notificaciones") || nq.equals("resumen de notificaciones") || nq.equals("que me he perdido") || nq.equals("pendientes")) {
+            int tot = 0;
+            List<Map.Entry<String, Integer>> es = new ArrayList<>(BadgeService.counts.entrySet());
+            Collections.sort(es, (x, y) -> y.getValue() - x.getValue());
+            StringBuilder sb = new StringBuilder();
+            int shown = 0;
+            for (Map.Entry<String, Integer> e : es) {
+                tot += e.getValue();
+                String nm = e.getKey();
+                for (App a : allApps) if (a.pkg.equals(nm)) { nm = a.label; break; }
+                if (shown++ < 4) sb.append(sb.length() > 0 ? " \u00b7 " : "").append(nm).append(' ').append(e.getValue());
+            }
+            out.add(new Smart.Item("\u2709", tot == 0 ? 0xFF22C55E : 0xFFEF4444, tot == 0 ? "Sin notificaciones pendientes" : tot + " notificaciones en " + es.size() + " apps", tot == 0 ? "Todo al día" : sb.toString()));
+        }
+        if (nq.equals("modo tranquilo") || nq.equals("tranquilo") || nq.equals("calma")) { Smart.Item it = new Smart.Item("\u263d", 0xFF6366F1, Aura.p(this).getBoolean("opt_calm", false) ? "Salir del modo tranquilo" : "Activar modo tranquilo", "Vibración, modo foco y resumen al terminar"); it.special = "calm"; out.add(it); }
+        if (nq.equals("frase") || nq.equals("frase del dia")) out.add(new Smart.Item("❝", 0xFFEC4899, Aura.phrase(), "Frase del día"));
+        if (nq.equals("respirar") || nq.equals("respira") || nq.equals("respiracion")) { Smart.Item it = new Smart.Item("◎", 0xFF14B8A6, "Respirar un minuto", "Inspira 4 s · sostén 2 s · espira 4 s"); it.special = "breathe"; out.add(it); }
+        if (nq.equals("accesibilidad") || nq.equals("aura") || nq.equals("ajustes aura") || nq.equals("contraste") || nq.equals("alto contraste") || nq.equals("movimiento")) { Smart.Item it = new Smart.Item("☺", 0xFF3B82F6, "Aura: accesibilidad y ajustes", "Contraste, movimiento, háptica, tarjetas"); it.special = "aura"; out.add(it); }
+        if (nq.equals("tutorial") || nq.equals("tour") || nq.equals("ayuda") || nq.equals("como se usa")) { Smart.Item it = new Smart.Item("?", 0xFF8B5CF6, "Ver el tutorial", "Los gestos en cuatro pasos"); it.special = "tour"; out.add(it); }
+        if (nq.equals("tiempo por horas") || nq.equals("horas") || nq.equals("grafica") || nq.equals("temperatura") || nq.equals("tiempo hoy")) { Smart.Item it = new Smart.Item("≈", 0xFF0EA5E9, "Tiempo hora a hora", "Gráfica de hoy"); it.special = "hourly"; out.add(it); }
+        if (nq.equals("foco") || nq.equals("modo foco") || nq.equals("concentracion")) { Smart.Item it = new Smart.Item("◉", 0xFFF59E0B, (Aura.focus ? "Salir del modo foco" : "Activar modo foco"), "Oculta redes, navegador y tienda de la rejilla"); it.special = "opt:focus"; out.add(it); }
+        if (nq.equals("modo sencillo") || nq.equals("sencillo") || nq.equals("simple")) { Smart.Item it = new Smart.Item("▣", 0xFF22C55E, (Aura.simple ? "Salir del modo sencillo" : "Activar modo sencillo"), "Seis apps grandes, sin distracciones"); it.special = "opt:simple"; out.add(it); }
+        if (nq.equals("tinta") || nq.equals("modo tinta") || nq.equals("monocromo") || nq.equals("blanco y negro")) { Smart.Item it = new Smart.Item("◐", 0xFF64748B, (Aura.mono ? "Volver al color" : "Activar modo tinta"), "Aurora en escala de grises: calma y menos batería"); it.special = "opt:mono"; out.add(it); }
+        return out;
+    }
+
+    // ---- Aura sheet ----
+    private interface Flag { void set(boolean on); }
+    private interface Pick { void pick(int index); }
+
+    private LinearLayout accRow(String title, String sub, final View trailing, final Runnable tap) {
+        LinearLayout r = new LinearLayout(this);
+        r.setOrientation(LinearLayout.HORIZONTAL);
+        r.setGravity(Gravity.CENTER_VERTICAL);
+        r.setMinimumHeight((int) (56 * d));
+        r.setPadding((int) (16 * d), (int) (6 * d), (int) (12 * d), (int) (6 * d));
+        GradientDrawable g = new GradientDrawable();
+        g.setColor(boxFill); g.setStroke(Math.max(1, (int) d), boxStroke); g.setCornerRadius(18 * d);
+        r.setBackground(g);
+        LinearLayout tx = new LinearLayout(this);
+        tx.setOrientation(LinearLayout.VERTICAL);
+        TextView t = new TextView(this);
+        t.setText(title); t.setTextColor(labelColor); t.setTextSize(TypedValue.COMPLEX_UNIT_SP, 16); t.setTypeface(Aura.light());
+        tx.addView(t);
+        if (sub != null) {
+            TextView u = new TextView(this);
+            u.setText(sub); u.setTextColor(subColor); u.setTextSize(TypedValue.COMPLEX_UNIT_SP, 12); u.setTypeface(Aura.light());
+            tx.addView(u);
+        }
+        Bitmap ib = rowIcon(title, (int) (24 * d));
+        if (ib != null) {
+            ImageView iv = new ImageView(this);
+            iv.setImageBitmap(ib);
+            iv.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
+            r.addView(iv, new LinearLayout.LayoutParams((int) (24 * d), (int) (24 * d)) {{ rightMargin = (int) (12 * d); }});
+        }
+        r.addView(tx, new LinearLayout.LayoutParams(0, -2, 1f));
+        if (trailing != null) r.addView(trailing, new LinearLayout.LayoutParams(-2, -2) {{ leftMargin = (int) (10 * d); }});
+        if (tap != null) { r.setClickable(true); r.setFocusable(true); r.setOnClickListener(v -> tap.run()); }
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, -2);
+        lp.bottomMargin = (int) (8 * d);
+        r.setLayoutParams(lp);
+        return r;
+    }
+
+    private Bitmap rowIcon(String title, int s) {
+        String k;
+        switch (title) {
+            case "Alto contraste": k = "contrast"; break;
+            case "Texto más legible": k = "text"; break;
+            case "Movimiento reducido": k = "motion"; break;
+            case "Háptica": k = "haptic"; break;
+            case "Sonidos sutiles": k = "sound"; break;
+            case "Ocultar contenido en el bloqueo": k = "lock"; break;
+            case "Modo tinta": k = "sparkle"; break;
+            case "Paleta de estación": k = "season"; break;
+            case "Doble toque en el fondo": k = "tap"; break;
+            case "Modo foco": k = "focus"; break;
+            case "Modo sencillo": k = "simple"; break;
+            case "Tiempo": return Tiles.make("partly", s, labelColor);
+            case "Estado del teléfono": k = "grid"; break;
+            case "Agenda": k = "day"; break;
+            case "Notas": k = "cards"; break;
+            case "Respirar un minuto": return Tiles.make("breathe", s, labelColor);
+            case "Tiempo hora a hora": k = "chart"; break;
+            case "Ver el tutorial": k = "tour"; break;
+            default: return null;
+        }
+        return Icons.glyph(k, s, labelColor);
+    }
+
+    private TextView statePill(String text, boolean on) {
+        TextView p = new TextView(this);
+        p.setText(text);
+        p.setTextSize(TypedValue.COMPLEX_UNIT_SP, 13);
+        p.setTypeface(Aura.light());
+        p.setPadding((int) (12 * d), (int) (6 * d), (int) (12 * d), (int) (6 * d));
+        GradientDrawable g = new GradientDrawable();
+        g.setCornerRadius(16 * d);
+        if (on) { g.setColor(night ? 0xFF7BA7FF : 0xFF3B6BEA); p.setTextColor(night ? 0xFF14123A : Color.WHITE); }
+        else { g.setColor(0x00000000); g.setStroke(Math.max(1, (int) d), subColor); p.setTextColor(subColor); }
+        p.setBackground(g);
+        return p;
+    }
+
+    private View accToggle(final String title, String sub, boolean on, final boolean rebuild, final Flag f) {
+        final boolean[] st = {on};
+        final TextView[] pill = {statePill(on ? "Sí" : "No", on)};
+        final LinearLayout[] row = new LinearLayout[1];
+        row[0] = accRow(title, sub, pill[0], () -> {
+            st[0] = !st[0];
+            f.set(st[0]);
+            if (rebuild) accDirty = true;
+            ViewGroup par = (ViewGroup) pill[0].getParent();
+            TextView np = statePill(st[0] ? "Sí" : "No", st[0]);
+            int at = par.indexOfChild(pill[0]);
+            par.removeView(pill[0]);
+            par.addView(np, at, new LinearLayout.LayoutParams(-2, -2) {{ leftMargin = (int) (10 * d); }});
+            pill[0] = np;
+            row[0].setContentDescription(title + ", " + (st[0] ? "activado" : "desactivado"));
+            row[0].announceForAccessibility(row[0].getContentDescription());
+            Aura.hap(row[0], Aura.CONFIRM);
+        });
+        row[0].setContentDescription(title + ", " + (on ? "activado" : "desactivado"));
+        return row[0];
+    }
+
+    private View accCycle(final String title, String sub, final String[] labels, int idx, final Pick f) {
+        final int[] cur = {idx};
+        final TextView pill = statePill(labels[idx], true);
+        final LinearLayout[] row = new LinearLayout[1];
+        row[0] = accRow(title, sub, pill, () -> {
+            cur[0] = (cur[0] + 1) % labels.length;
+            pill.setText(labels[cur[0]]);
+            f.pick(cur[0]);
+            row[0].setContentDescription(title + ", " + labels[cur[0]]);
+            row[0].announceForAccessibility(row[0].getContentDescription());
+            Aura.hap(row[0], Aura.TICK);
+        });
+        row[0].setContentDescription(title + ", " + labels[idx]);
+        return row[0];
+    }
+
+    private TextView accSection(String t) {
+        TextView v = new TextView(this);
+        v.setText(t); v.setTextColor(subColor); v.setTextSize(TypedValue.COMPLEX_UNIT_SP, 11); v.setLetterSpacing(0.12f);
+        v.setPadding((int) (4 * d), (int) (16 * d), 0, (int) (6 * d));
+        return v;
+    }
+
+    private void showAccess() {
+        if (accLayer != null) return;
+        ViewGroup content = (ViewGroup) findViewById(android.R.id.content);
+        accLayer = new FrameLayout(this);
+        accLayer.setBackground(darkGlass(new Glass(accLayer, 0, null, night ? 0xEB141238 : 0xF0F6F5FF, 0, 0)));
+        accLayer.setOnClickListener(v -> hideAccess());
+        ScrollView sv = new ScrollView(this);
+        sv.setVerticalScrollBarEnabled(false);
+        LinearLayout col = new LinearLayout(this);
+        col.setOrientation(LinearLayout.VERTICAL);
+        int pad = (int) (18 * d);
+        col.setPadding(pad, (int) (40 * d), pad, (int) (28 * d));
+        TextView title = new TextView(this);
+        title.setText("Aura"); title.setTextColor(labelColor); title.setTextSize(TypedValue.COMPLEX_UNIT_SP, 32); title.setTypeface(Aura.thin());
+        col.addView(title);
+        TextView sub = new TextView(this);
+        sub.setText("Accesibilidad, movimiento y tarjetas de Hoy"); sub.setTextColor(subColor); sub.setTextSize(TypedValue.COMPLEX_UNIT_SP, 13); sub.setTypeface(Aura.light());
+        col.addView(sub);
+
+        col.addView(accSection("ACCESIBILIDAD"));
+        col.addView(accToggle("Alto contraste", "Cristal más opaco, bordes y texto más fuertes", Aura.hc, true, on -> Aura.set(this, "opt_hc", on)));
+        col.addView(accToggle("Texto más legible", "Pesos de letra más gruesos en todo el launcher", Aura.legible, true, on -> Aura.set(this, "opt_legible", on)));
+        col.addView(accToggle("Movimiento reducido", Aura.calm(this) && !Aura.motionOff ? "Activo por ajuste del sistema" : "Sin resortes, sacudidas ni paralaje", Aura.motionOff, true, on -> {
+            Aura.set(this, "opt_motion_off", on);
+            getSharedPreferences("home", MODE_PRIVATE).edit().putBoolean("aurora_reduced", on).apply();
+            AuroraField.reduced = on;
+        }));
+        col.addView(accCycle("Háptica", "Intensidad de las vibraciones del launcher", new String[]{"Apagada", "Suave", "Normal"}, Aura.haptic, i -> Aura.set(this, "opt_haptic", i)));
+
+        col.addView(accToggle("Sonidos sutiles", "Un tono suave con panorámica al cambiar de página", Aura.p(this).getBoolean("opt_sounds", false), false, on -> Aura.set(this, "opt_sounds", on)));
+        col.addView(accToggle("Ocultar contenido en el bloqueo", "Las notificaciones no muestran texto en la pantalla de bloqueo", !Aura.lockPrivate(this), false, on -> {
+            if (!Aura.setLockPrivate(this, !on)) Toast.makeText(this, "Falta un permiso: adb shell pm grant com.scratch.ios7launcher android.permission.WRITE_SECURE_SETTINGS", Toast.LENGTH_LONG).show();
+        }));
+
+        col.addView(accSection("MOVIMIENTO DEL AURORA"));
+        TextView lbl = new TextView(this);
+        lbl.setText("Intensidad: " + Aura.motion + " %"); lbl.setTextColor(labelColor); lbl.setTextSize(TypedValue.COMPLEX_UNIT_SP, 14); lbl.setTypeface(Aura.light());
+        col.addView(lbl);
+        final TextView lblF = lbl;
+        col.addView(ccSlider("Intensidad del movimiento del aurora", 100, Aura.motion, new SeekBar.OnSeekBarChangeListener() {
+            @Override public void onProgressChanged(SeekBar sb, int p, boolean user) { if (user) lblF.setText("Intensidad: " + p + " %"); }
+            @Override public void onStartTrackingTouch(SeekBar sb) { }
+            @Override public void onStopTrackingTouch(SeekBar sb) { Aura.set(HomeActivity.this, "opt_motion", sb.getProgress()); }
+        }));
+        col.addView(accToggle("Modo tinta", "Aurora en escala de grises: calma y menos distracción", Aura.mono, false, on -> Aura.set(this, "opt_mono", on)));
+        col.addView(accToggle("Paleta de estación", "Un matiz de " + Aura.seasonName() + " sobre el aurora", Aura.season, false, on -> Aura.set(this, "opt_season", on)));
+
+        col.addView(accSection("GESTOS Y MODOS"));
+        final String[] dt = {"lock", "search", "none"};
+        int di = Math.max(0, Arrays.asList(dt).indexOf(Aura.dtap));
+        col.addView(accCycle("Doble toque en el fondo", "Qué hace al tocar dos veces un hueco", new String[]{"Bloquear", "Buscar", "Nada"}, di, i -> Aura.set(this, "opt_dtap", dt[i])));
+        col.addView(accToggle("Modo foco", "Oculta navegador, tienda y redes de la rejilla", Aura.focus, true, on -> Aura.set(this, "opt_focus", on)));
+        col.addView(accToggle("Modo sencillo", "Seis apps grandes y nada más", Aura.simple, true, on -> Aura.set(this, "opt_simple", on)));
+
+        col.addView(accSection("TARJETAS DE HOY"));
+        String[][] cards = {{"tiempo", "Tiempo"}, {"estado", "Estado del teléfono"}, {"agenda", "Agenda"}, {"notas", "Notas"}};
+        for (final String[] cd : cards) col.addView(accToggle(cd[1], null, !Aura.cardHidden(cd[0]), true, on -> { if (on == Aura.cardHidden(cd[0])) Aura.toggleCard(this, cd[0]); }));
+
+        col.addView(accSection("MÁS"));
+        col.addView(accRow("Respirar un minuto", "Círculo guiado con el aurora", null, () -> { hideAccess(); ui.postDelayed(this::showBreath, 200); }));
+        col.addView(accRow("Tiempo hora a hora", "Gráfica de temperatura de hoy", null, () -> { hideAccess(); ui.postDelayed(this::showHourly, 200); }));
+        col.addView(accRow("Ver el tutorial", "Los gestos en cuatro pasos", null, () -> { hideAccess(); ui.postDelayed(this::showTour, 200); }));
+        TextView close = pill("Cerrar", "close");
+        close.setVisibility(View.VISIBLE);
+        close.setGravity(Gravity.CENTER);
+        close.setOnClickListener(v -> hideAccess());
+        col.addView(close, new LinearLayout.LayoutParams(-1, -2) {{ topMargin = (int) (10 * d); }});
+        sv.addView(col, new FrameLayout.LayoutParams(-1, -2));
+        accLayer.addView(sv, new FrameLayout.LayoutParams(-1, -1));
+        View strip = new View(this);
+        strip.setBackgroundColor(night ? 0xFF14123A : 0xFF8A97EE);
+        accLayer.addView(strip, new FrameLayout.LayoutParams(-1, (int) (24 * d), Gravity.TOP));
+        content.addView(accLayer, new FrameLayout.LayoutParams(-1, -1));
+        accLayer.setAlpha(0f);
+        accLayer.setTranslationY(Aura.calm(this) ? 0 : 30 * d);
+        accLayer.animate().alpha(1f).translationY(0f).setDuration(Aura.dur(this, 240)).setInterpolator(new android.view.animation.DecelerateInterpolator(2f)).start();
+        accLayer.announceForAccessibility("Aura, accesibilidad y ajustes");
+    }
+
+    private void hideAccess() {
+        if (accLayer == null) return;
+        final FrameLayout l = accLayer;
+        accLayer = null;
+        final boolean dirty = accDirty;
+        accDirty = false;
+        l.animate().alpha(0f).setDuration(Aura.dur(this, 180)).withEndAction(() -> { if (l.getParent() != null) ((ViewGroup) l.getParent()).removeView(l); if (dirty && !isDestroyed()) recreate(); }).start();
+    }
+
+    // ---- shared overlay for breathing / hourly chart / tour ----
+    private FrameLayout openExtra() {
+        ViewGroup content = (ViewGroup) findViewById(android.R.id.content);
+        final FrameLayout l = new FrameLayout(this);
+        l.setBackground(darkGlass(new Glass(l, 0, null, night ? 0xEB141238 : 0xF0F6F5FF, 0, 0)));
+        l.setOnClickListener(v -> closeExtra());
+        content.addView(l, new FrameLayout.LayoutParams(-1, -1));
+        l.setAlpha(0f);
+        l.animate().alpha(1f).setDuration(Aura.dur(this, 220)).start();
+        extraLayer = l;
+        return l;
+    }
+
+    private void closeExtra() {
+        if (extraLayer == null) return;
+        final FrameLayout l = extraLayer;
+        extraLayer = null;
+        if (extraCancel != null) { extraCancel.run(); extraCancel = null; }
+        l.animate().alpha(0f).setDuration(Aura.dur(this, 200)).withEndAction(() -> { if (l.getParent() != null) ((ViewGroup) l.getParent()).removeView(l); }).start();
+    }
+
+    private TextView extraText(FrameLayout l, String s, int sp, boolean thin, int gravity, int top) {
+        TextView t = new TextView(this);
+        t.setText(s); t.setTextColor(labelColor); t.setTextSize(TypedValue.COMPLEX_UNIT_SP, sp); t.setTypeface(thin ? Aura.thin() : Aura.light());
+        t.setGravity(Gravity.CENTER);
+        l.addView(t, new FrameLayout.LayoutParams(-2, -2, gravity) {{ topMargin = top; }});
+        return t;
+    }
+
+    private void showBreath() {
+        if (extraLayer != null) return;
+        final FrameLayout l = openExtra();
+        final View circle = new View(this);
+        GradientDrawable gd = new GradientDrawable(GradientDrawable.Orientation.TL_BR, new int[]{pageAccent(1), pageAccent(2)});
+        gd.setShape(GradientDrawable.OVAL);
+        circle.setBackground(gd);
+        circle.setAlpha(0.85f);
+        int sz = (int) (120 * d);
+        l.addView(circle, new FrameLayout.LayoutParams(sz, sz, Gravity.CENTER));
+        final TextView t = extraText(l, "Prepárate", 30, true, Gravity.CENTER, (int) (190 * d));
+        extraText(l, "Toca para terminar", 12, false, Gravity.BOTTOM | Gravity.CENTER_HORIZONTAL, 0).setPadding(0, 0, 0, (int) (40 * d));
+        final String[] names = {"Inspira", "Sostén", "Espira"};
+        final int[] ms = {4000, 2000, 4000};
+        final float[] sc = {1.7f, 1.7f, 1f};
+        final int[] step = {0};
+        final Runnable[] run = new Runnable[1];
+        run[0] = () -> {
+            if (extraLayer != l) return;
+            int k = step[0]++;
+            if (k >= 18) { t.setText("Listo. Gracias por parar."); Aura.hap(l, Aura.CONFIRM); ui.postDelayed(this::closeExtra, 2000); return; }
+            int ph = k % 3;
+            t.setText(names[ph]);
+            t.announceForAccessibility(names[ph]);
+            Aura.hap(l, ph == 1 ? Aura.TICK : Aura.CONFIRM);
+            if (ph != 1) circle.animate().scaleX(sc[ph]).scaleY(sc[ph]).setDuration(Aura.dur(this, ms[ph])).setInterpolator(new android.view.animation.AccelerateDecelerateInterpolator()).start();
+            ui.postDelayed(run[0], ms[ph]);
+        };
+        extraCancel = () -> ui.removeCallbacks(run[0]);
+        ui.postDelayed(run[0], 800);
+    }
+
+    /** Smooth temperature curve that draws itself; marks the current hour. */
+    private static final class HourChart extends View {
+        double[] data; float prog = 1f; final int line, fill, text; final float d; final boolean thinFont;
+        final Paint p = new Paint(Paint.ANTI_ALIAS_FLAG);
+        HourChart(Context c, float d, int line, int text) { super(c); this.d = d; this.line = line; this.text = text; this.fill = (line & 0xFFFFFF) | 0x38000000; this.thinFont = false; }
+        @Override protected void onDraw(Canvas c) {
+            if (data == null || data.length < 2) return;
+            float L = 14 * d, R = 14 * d, T = 34 * d, B = 28 * d, W = getWidth() - L - R, H = getHeight() - T - B;
+            double mn = 1e9, mx = -1e9;
+            for (double v : data) { mn = Math.min(mn, v); mx = Math.max(mx, v); }
+            if (mx - mn < 4) { mx += 2; mn -= 2; }
+            int n = data.length;
+            float[] xs = new float[n], ys = new float[n];
+            for (int i = 0; i < n; i++) { xs[i] = L + W * i / (n - 1f); ys[i] = (float) (T + H * (1 - (data[i] - mn) / (mx - mn))); }
+            Path path = new Path(), area = new Path();
+            path.moveTo(xs[0], ys[0]);
+            for (int i = 1; i < n; i++) { float mxm = (xs[i - 1] + xs[i]) / 2; path.cubicTo(mxm, ys[i - 1], mxm, ys[i], xs[i], ys[i]); }
+            area.addPath(path); area.lineTo(xs[n - 1], T + H + 6 * d); area.lineTo(xs[0], T + H + 6 * d); area.close();
+            c.save();
+            c.clipRect(0, 0, L + W * prog + 2 * d, getHeight());
+            p.setStyle(Paint.Style.FILL); p.setColor(fill); c.drawPath(area, p);
+            p.setStyle(Paint.Style.STROKE); p.setStrokeWidth(2.4f * d); p.setStrokeCap(Paint.Cap.ROUND); p.setColor(line); c.drawPath(path, p);
+            c.restore();
+            p.setStyle(Paint.Style.FILL); p.setTextSize(11 * d); p.setColor(text); p.setTextAlign(Paint.Align.CENTER);
+            for (int h = 0; h < n; h += 6) c.drawText(String.format("%02d h", h), xs[h], getHeight() - 8 * d, p);
+            int imax = 0, imin = 0;
+            for (int i = 0; i < n; i++) { if (data[i] > data[imax]) imax = i; if (data[i] < data[imin]) imin = i; }
+            for (int i : new int[]{imax, imin}) if (xs[i] <= L + W * prog) c.drawText(Math.round(data[i]) + "°", xs[i], ys[i] + (i == imax ? -8 * d : 18 * d), p);
+            int now = Math.min(n - 1, Calendar.getInstance().get(Calendar.HOUR_OF_DAY));
+            if (xs[now] <= L + W * prog) {
+                p.setColor(line); c.drawCircle(xs[now], ys[now], 5 * d, p);
+                p.setColor(Color.WHITE); c.drawCircle(xs[now], ys[now], 2.2f * d, p);
+                p.setColor(text); p.setTextSize(12 * d); c.drawText("ahora " + Math.round(data[now]) + "°", xs[now], T - 10 * d, p);
+            }
+        }
+    }
+
+    private void showHourly() {
+        if (extraLayer != null) return;
+        final FrameLayout l = openExtra();
+        final Weather wz = Weather.cached(Aura.p(this));
+        extraText(l, "Hoy, hora a hora", 26, true, Gravity.TOP | Gravity.CENTER_HORIZONTAL, (int) (56 * d));
+        extraText(l, wz.ok ? wz.city : "Madrid", 13, false, Gravity.TOP | Gravity.CENTER_HORIZONTAL, (int) (96 * d)).setTextColor(subColor);
+        final HourChart ch = new HourChart(this, d, pageAccent(1), subColor);
+        l.addView(ch, new FrameLayout.LayoutParams(-1, (int) (260 * d), Gravity.CENTER_VERTICAL));
+        ch.setContentDescription("Gráfica de temperatura de hoy");
+        final TextView st = extraText(l, "Cargando…", 13, false, Gravity.BOTTOM | Gravity.CENTER_HORIZONTAL, 0);
+        st.setTextColor(subColor); st.setPadding(0, 0, 0, (int) (60 * d));
+        final SharedPreferences sp = Aura.p(this);
+        final String saved = sp.getString("hourly", "");
+        if (!saved.isEmpty()) {
+            String[] t = saved.split(",");
+            ch.data = new double[t.length];
+            for (int i = 0; i < t.length; i++) ch.data[i] = Double.parseDouble(t[i]);
+            ch.invalidate();
+            st.setText("Último dato guardado · actualizando…");
+        }
+        new Thread(() -> {
+            final double[] hr = Weather.hourly(wz.lat, wz.lon);
+            ui.post(() -> {
+                if (extraLayer != l) return;
+                if (hr == null) {
+                    st.setText(saved.isEmpty() ? "Sin conexión: no hay datos guardados" : "Sin conexión · mostrando el último dato guardado");
+                    if (!saved.isEmpty()) animateChart(ch);
+                    else l.addView(doodleView("offline", 110), new FrameLayout.LayoutParams(-2, -2, Gravity.CENTER));
+                    return;
+                }
+                StringBuilder sb = new StringBuilder();
+                for (double v : hr) sb.append(sb.length() > 0 ? "," : "").append(v);
+                sp.edit().putString("hourly", sb.toString()).apply();
+                ch.data = hr;
+                st.setText("Toca para cerrar");
+                animateChart(ch);
+            });
+        }).start();
+    }
+
+    private void animateChart(final HourChart ch) {
+        if (Aura.calm(this)) { ch.prog = 1f; ch.invalidate(); return; }
+        android.animation.ValueAnimator va = android.animation.ValueAnimator.ofFloat(0f, 1f);
+        va.setDuration(900);
+        va.setInterpolator(new android.view.animation.DecelerateInterpolator(1.6f));
+        va.addUpdateListener(a -> { ch.prog = (Float) a.getAnimatedValue(); ch.invalidate(); });
+        va.start();
+        final android.animation.ValueAnimator vv = va;
+        Runnable prev = extraCancel;
+        extraCancel = () -> { vv.cancel(); if (prev != null) prev.run(); };
+    }
+
+
+    /** Tiny temperature curve for the weather card (today's hourly cache). */
+    private static final class Spark extends View {
+        double[] data; final float d; final Paint p = new Paint(Paint.ANTI_ALIAS_FLAG);
+        Spark(Context c, float d, int color) { super(c); this.d = d; p.setColor(color); p.setStyle(Paint.Style.STROKE); p.setStrokeWidth(1.6f * d); p.setStrokeCap(Paint.Cap.ROUND); setImportantForAccessibility(IMPORTANT_FOR_ACCESSIBILITY_NO); }
+        void load(String csv) {
+            if (csv == null || csv.isEmpty()) return;
+            try { String[] t = csv.split(","); double[] v = new double[t.length]; for (int i = 0; i < t.length; i++) v[i] = Double.parseDouble(t[i]); data = v; invalidate(); } catch (Exception ignored) { }
+        }
+        @Override protected void onDraw(Canvas c) {
+            if (data == null || data.length < 2) return;
+            double mn = 1e9, mx = -1e9;
+            for (double v : data) { mn = Math.min(mn, v); mx = Math.max(mx, v); }
+            if (mx - mn < 3) { mx += 1.5; mn -= 1.5; }
+            float pad = 3 * d, W = getWidth() - 2 * pad, H = getHeight() - 2 * pad;
+            Path path = new Path();
+            float lx = 0, ly = 0;
+            for (int i = 0; i < data.length; i++) {
+                float x = pad + W * i / (data.length - 1f), y = (float) (pad + H * (1 - (data[i] - mn) / (mx - mn)));
+                if (i == 0) path.moveTo(x, y); else path.cubicTo((lx + x) / 2, ly, (lx + x) / 2, y, x, y);
+                lx = x; ly = y;
+            }
+            c.drawPath(path, p);
+            int now = Math.min(data.length - 1, Calendar.getInstance().get(Calendar.HOUR_OF_DAY));
+            p.setStyle(Paint.Style.FILL);
+            c.drawCircle(pad + W * now / (data.length - 1f), (float) (pad + H * (1 - (data[now] - mn) / (mx - mn))), 2.4f * d, p);
+            p.setStyle(Paint.Style.STROKE);
+        }
+    }
+
+    /** Vertical timeline of today: events, next alarm, sunrise and sunset. */
+    private void showDay() {
+        if (extraLayer != null) return;
+        final FrameLayout l = openExtra();
+        extraText(l, "Mi día", 28, true, Gravity.TOP | Gravity.CENTER_HORIZONTAL, (int) (56 * d));
+        extraText(l, new java.text.SimpleDateFormat("EEEE, d 'de' MMMM", Locale.getDefault()).format(new Date()), 13, false, Gravity.TOP | Gravity.CENTER_HORIZONTAL, (int) (98 * d)).setTextColor(subColor);
+        final ScrollView sv = new ScrollView(this);
+        sv.setVerticalScrollBarEnabled(false);
+        final LinearLayout col = new LinearLayout(this);
+        col.setOrientation(LinearLayout.VERTICAL);
+        col.setPadding((int) (24 * d), (int) (8 * d), (int) (24 * d), (int) (30 * d));
+        sv.addView(col, new FrameLayout.LayoutParams(-1, -2));
+        l.addView(sv, new FrameLayout.LayoutParams(-1, -1) {{ topMargin = (int) (130 * d); }});
+        final boolean can = checkSelfPermission(android.Manifest.permission.READ_CALENDAR) == PackageManager.PERMISSION_GRANTED;
+        final Weather wz = Weather.cached(Aura.p(this));
+        new Thread(() -> {
+            final List<Object[]> rows = new ArrayList<>();   // {hour, title, kind}
+            Calendar st = Calendar.getInstance();
+            st.set(Calendar.HOUR_OF_DAY, 0); st.set(Calendar.MINUTE, 0); st.set(Calendar.SECOND, 0); st.set(Calendar.MILLISECOND, 0);
+            long t0 = st.getTimeInMillis(), t1 = t0 + 24L * 3600 * 1000;
+            if (can) {
+                android.database.Cursor c = null;
+                try {
+                    c = android.provider.CalendarContract.Instances.query(getContentResolver(), new String[]{android.provider.CalendarContract.Instances.TITLE, android.provider.CalendarContract.Instances.BEGIN, android.provider.CalendarContract.Instances.ALL_DAY}, t0, t1);
+                    while (c != null && c.moveToNext()) {
+                        Calendar b = Calendar.getInstance(); b.setTimeInMillis(c.getLong(1));
+                        boolean all = c.getInt(2) == 1;
+                        rows.add(new Object[]{all ? -1.0 : b.get(Calendar.HOUR_OF_DAY) + b.get(Calendar.MINUTE) / 60.0, (all ? "Todo el día" : "") + (all ? " \u00b7 " : "") + c.getString(0), "event"});
+                    }
+                } catch (Exception ignored) { } finally { if (c != null) c.close(); }
+            }
+            android.app.AlarmManager.AlarmClockInfo ci = ((android.app.AlarmManager) getSystemService(ALARM_SERVICE)).getNextAlarmClock();
+            if (ci != null && ci.getTriggerTime() < t1) { Calendar b = Calendar.getInstance(); b.setTimeInMillis(ci.getTriggerTime()); rows.add(new Object[]{b.get(Calendar.HOUR_OF_DAY) + b.get(Calendar.MINUTE) / 60.0, "Alarma", "alarm"}); }
+            double[] sun = Aura.sun(wz.lat, wz.lon, Calendar.getInstance());
+            if (sun != null) { rows.add(new Object[]{sun[0], "Amanecer", "sun"}); rows.add(new Object[]{sun[1], "Atardecer", "sun"}); }
+            Collections.sort(rows, (x, y) -> Double.compare((Double) x[0], (Double) y[0]));
+            ui.post(() -> {
+                if (extraLayer != l) return;
+                Calendar nowC = Calendar.getInstance();
+                double nowH = nowC.get(Calendar.HOUR_OF_DAY) + nowC.get(Calendar.MINUTE) / 60.0;
+                boolean marked = false;
+                for (Object[] r : rows) {
+                    double hr = (Double) r[0];
+                    if (!marked && hr >= nowH) { col.addView(dayRow("Ahora", "", "now", true)); marked = true; }
+                    col.addView(dayRow(hr < 0 ? "" : Aura.hm(hr), (String) r[1], (String) r[2], false));
+                }
+                if (!marked) col.addView(dayRow("Ahora", "", "now", true));
+                if (rows.isEmpty()) {
+                    ImageView dz = doodleView("freeday", 96);
+                    col.addView(dz, new LinearLayout.LayoutParams(-2, -2) {{ gravity = Gravity.CENTER_HORIZONTAL; topMargin = (int) (16 * d); }});
+                    col.addView(dayRow("", can ? "Nada a la vista \u00b7 día libre" : "Sin acceso al calendario", "event", false));
+                }
+            });
+        }).start();
+    }
+
+    private View dayRow(String time, String title, String kind, boolean now) {
+        LinearLayout r = new LinearLayout(this);
+        r.setOrientation(LinearLayout.HORIZONTAL);
+        r.setMinimumHeight((int) (50 * d));
+        TextView t = new TextView(this);
+        t.setText(time); t.setTextColor(now ? pageAccent(1) : subColor); t.setTextSize(TypedValue.COMPLEX_UNIT_SP, 13); t.setTypeface(Aura.light()); t.setGravity(Gravity.RIGHT | Gravity.TOP);
+        r.addView(t, new LinearLayout.LayoutParams((int) (52 * d), -2));
+        FrameLayout rail = new FrameLayout(this);
+        View line = new View(this);
+        line.setBackgroundColor(night ? 0x44FFFFFF : 0x3314123A);
+        rail.addView(line, new FrameLayout.LayoutParams(Math.max(1, (int) (1.5f * d)), -1, Gravity.CENTER_HORIZONTAL));
+        View dot = new View(this);
+        GradientDrawable g = new GradientDrawable();
+        g.setShape(GradientDrawable.OVAL);
+        g.setColor(now ? pageAccent(1) : kind.equals("alarm") ? 0xFF4F46E5 : kind.equals("sun") ? 0xFFF59E0B : 0xFFDC2626);
+        dot.setBackground(g);
+        int ds = (int) ((now ? 12 : 10) * d);
+        rail.addView(dot, new FrameLayout.LayoutParams(ds, ds, Gravity.CENTER_HORIZONTAL | Gravity.TOP) {{ topMargin = (int) (3 * d); }});
+        r.addView(rail, new LinearLayout.LayoutParams((int) (30 * d), -1));
+        TextView n = new TextView(this);
+        n.setText(title); n.setTextColor(labelColor); n.setTextSize(TypedValue.COMPLEX_UNIT_SP, 16); n.setTypeface(Aura.light());
+        r.addView(n, new LinearLayout.LayoutParams(0, -2, 1f));
+        r.setContentDescription((time.isEmpty() ? "" : time + ", ") + (title.isEmpty() ? "ahora" : title));
+        return r;
+    }
+
+    /** Calm mode: ringer to vibrate (the policy needed for silent is not grantable), focus on, previous ringer remembered. */
+    private void toggleCalm() {
+        SharedPreferences sp = Aura.p(this);
+        android.media.AudioManager am = (android.media.AudioManager) getSystemService(AUDIO_SERVICE);
+        boolean on = !sp.getBoolean("opt_calm", false);
+        if (on) {
+            sp.edit().putInt("calm_prev_ringer", am.getRingerMode()).apply();
+            am.setRingerMode(android.media.AudioManager.RINGER_MODE_VIBRATE);
+        } else am.setRingerMode(sp.getInt("calm_prev_ringer", android.media.AudioManager.RINGER_MODE_NORMAL));
+        sp.edit().putBoolean("opt_calm", on).apply();
+        Aura.set(this, "opt_focus", on);
+        Toast.makeText(this, on ? "Modo tranquilo: vibración y foco. Di «notificaciones» al terminar" : "Modo tranquilo desactivado", Toast.LENGTH_LONG).show();
+        recreate();
+    }
+
+    // ---- first-run tour with a ghost finger ----
+    private void showTour() {
+        if (extraLayer != null) return;
+        Aura.p(this).edit().putBoolean("tour_done", true).apply();
+        final FrameLayout l = openExtra();
+        final String[][] steps = {
+            {"Desliza hacia los lados", "Cambia de página. Mantén pulsados los puntos de abajo para ponerle nombre."},
+            {"Sube desde el dock", "Un gesto desde abajo abre el Centro de control."},
+            {"Pulsa Inicio otra vez", "En la página principal abre Multitarea, con pantalla dividida."},
+            {"Desliza hacia arriba para buscar", "Apps, contactos, cuentas, el tiempo y hasta «respirar»."}};
+        final TextView ttl = extraText(l, steps[0][0], 26, true, Gravity.TOP | Gravity.CENTER_HORIZONTAL, (int) (70 * d));
+        final TextView sub = extraText(l, steps[0][1], 14, false, Gravity.TOP | Gravity.CENTER_HORIZONTAL, (int) (116 * d));
+        sub.setTextColor(subColor); sub.setPadding((int) (30 * d), 0, (int) (30 * d), 0);
+        final FrameLayout stage = new FrameLayout(this);
+        GradientDrawable sg = new GradientDrawable();
+        sg.setColor(boxFill); sg.setStroke(Math.max(1, (int) d), boxStroke); sg.setCornerRadius(26 * d);
+        stage.setBackground(sg);
+        l.addView(stage, new FrameLayout.LayoutParams((int) (250 * d), (int) (260 * d), Gravity.CENTER) {{ topMargin = (int) (20 * d); }});
+        final View ghost = new View(this);
+        GradientDrawable gg = new GradientDrawable();
+        gg.setShape(GradientDrawable.OVAL); gg.setColor(0xB3FFFFFF); gg.setStroke((int) (2 * d), night ? 0xFF7BA7FF : 0xFF3B6BEA);
+        ghost.setBackground(gg);
+        stage.addView(ghost, new FrameLayout.LayoutParams((int) (46 * d), (int) (46 * d), Gravity.CENTER));
+        final TextView next = pill("Siguiente", "next");
+        next.setVisibility(View.VISIBLE); next.setGravity(Gravity.CENTER);
+        l.addView(next, new FrameLayout.LayoutParams((int) (200 * d), -2, Gravity.BOTTOM | Gravity.CENTER_HORIZONTAL) {{ bottomMargin = (int) (60 * d); }});
+        final int[] at = {0};
+        final android.animation.ObjectAnimator[] an = new android.animation.ObjectAnimator[1];
+        final Runnable[] play = new Runnable[1];
+        play[0] = () -> {
+            if (an[0] != null) an[0].cancel();
+            ghost.setTranslationX(0f); ghost.setTranslationY(0f); ghost.setScaleX(1f); ghost.setScaleY(1f); ghost.setAlpha(1f);
+            ttl.setText(steps[at[0]][0]); sub.setText(steps[at[0]][1]);
+            sub.announceForAccessibility(steps[at[0]][0] + ". " + steps[at[0]][1]);
+            next.setText(at[0] == steps.length - 1 ? "Empezar" : "Siguiente");
+            String prop; float a0, a1;
+            switch (at[0]) {
+                case 0: prop = "translationX"; a0 = 80 * d; a1 = -80 * d; break;
+                case 1: prop = "translationY"; a0 = 100 * d; a1 = -60 * d; break;
+                case 3: prop = "translationY"; a0 = 60 * d; a1 = -70 * d; break;
+                default: prop = "scaleX"; a0 = 1f; a1 = 1.5f; break;
+            }
+            an[0] = android.animation.ObjectAnimator.ofFloat(ghost, prop, a0, a1);
+            an[0].setDuration(Aura.calm(this) ? 1 : 1100);
+            an[0].setRepeatCount(android.animation.ValueAnimator.INFINITE);
+            an[0].setRepeatMode(at[0] == 2 ? android.animation.ValueAnimator.REVERSE : android.animation.ValueAnimator.RESTART);
+            an[0].setInterpolator(new android.view.animation.AccelerateDecelerateInterpolator());
+            if (at[0] == 2) an[0].addUpdateListener(v -> ghost.setScaleY(ghost.getScaleX()));
+            an[0].start();
+        };
+        extraCancel = () -> { if (an[0] != null) an[0].cancel(); };
+        next.setOnClickListener(v -> { Aura.hap(v, Aura.TICK); if (at[0] >= steps.length - 1) closeExtra(); else { at[0]++; play[0].run(); } });
+        play[0].run();
     }
 
     // ---- icons ------------------------------------------------------------
@@ -2375,7 +3261,7 @@ public class HomeActivity extends Activity {
             set(p);
         }
         void goToNow(int p) { p = Math.min(p, Math.max(0, strip.getChildCount() - 1)); scrollTo(p * pageW, 0); set(p); }
-        private void set(int p) { if (p != cur) performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK); if (p != cur || cb != null) { cur = p; if (cb != null) cb.on(p); } }
+        private void set(int p) { if (p != cur) Aura.hap(this, Aura.TICK); if (p != cur || cb != null) { cur = p; if (cb != null) cb.on(p); } }
         private float bandX0;
         /** Rubber band: past the first or last page the content follows the finger with resistance and springs back. */
         private void band(MotionEvent e) {

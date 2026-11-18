@@ -61,6 +61,21 @@ final class Tiles {
                 }
                 break;
             }
+            case "access": {
+                c.drawCircle(24 * u, 24 * u, 17 * u, p);
+                c.drawCircle(24 * u, 16.5f * u, 2.4f * u, p);
+                c.drawLine(15 * u, 22 * u, 33 * u, 22 * u, p);
+                c.drawLine(24 * u, 22 * u, 24 * u, 29 * u, p);
+                c.drawLine(24 * u, 29 * u, 19.5f * u, 35 * u, p);
+                c.drawLine(24 * u, 29 * u, 28.5f * u, 35 * u, p);
+                break;
+            }
+            case "breathe": {
+                c.drawCircle(24 * u, 24 * u, 6 * u, p);
+                c.drawCircle(24 * u, 24 * u, 12 * u, p);
+                c.drawCircle(24 * u, 24 * u, 18 * u, p);
+                break;
+            }
             case "rot": {
                 // one clean circular arrow with a small phone inside
                 c.drawRoundRect(new RectF(19.4f * u, 14.2f * u, 28.6f * u, 33.8f * u), 2.4f * u, 2.4f * u, p);

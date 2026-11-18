@@ -18,6 +18,7 @@ final class Weather {
     static final long MAX_AGE = 30 * 60 * 1000L;
     String city = "", desc = "";
     int temp, hi, lo, code, rain = -1;   // rain: today's max precipitation probability %, -1 unknown
+    double lat = 40.4168, lon = -3.7038;   // saved with the forecast; Madrid until the first fetch
     boolean day = true, ok;
     long ts;
 
@@ -28,7 +29,7 @@ final class Weather {
         try {
             JSONObject o = new JSONObject(j);
             w.city = o.getString("city"); w.temp = o.getInt("t"); w.hi = o.getInt("hi"); w.lo = o.getInt("lo");
-            w.code = o.getInt("code"); w.day = o.getBoolean("day"); w.ts = o.getLong("ts"); w.rain = o.optInt("pp", -1); w.ok = true; w.desc = describe(w.code);
+            w.code = o.getInt("code"); w.day = o.getBoolean("day"); w.ts = o.getLong("ts"); w.rain = o.optInt("pp", -1); w.lat = o.optDouble("lat", w.lat); w.lon = o.optDouble("lon", w.lon); w.ok = true; w.desc = describe(w.code);
         } catch (Exception e) { w.ok = false; }
         return w;
     }
@@ -50,7 +51,7 @@ final class Weather {
                     + "&current=temperature_2m,weather_code,is_day&daily=temperature_2m_max,temperature_2m_min,precipitation_probability_max&timezone=auto&forecast_days=1"));
             JSONObject cur = f.getJSONObject("current"), day = f.getJSONObject("daily");
             Weather w = new Weather();
-            w.city = r.getString("name");
+            w.city = r.getString("name"); w.lat = r.getDouble("latitude"); w.lon = r.getDouble("longitude");
             w.temp = (int) Math.round(cur.getDouble("temperature_2m"));
             w.code = cur.getInt("weather_code");
             w.day = cur.getInt("is_day") == 1;
@@ -66,8 +67,19 @@ final class Weather {
     void save(SharedPreferences p) {
         try {
             p.edit().putString("weather", new JSONObject().put("city", city).put("t", temp).put("hi", hi).put("lo", lo)
-                    .put("code", code).put("day", day).put("ts", ts).put("pp", rain).toString()).apply();
+                    .put("code", code).put("day", day).put("ts", ts).put("pp", rain).put("lat", lat).put("lon", lon).toString()).apply();
         } catch (Exception e) { }
+    }
+
+    /** Blocking: today's 24 hourly temperatures, or null. */
+    static double[] hourly(double lat, double lon) {
+        try {
+            JSONArray t = new JSONObject(get("https://api.open-meteo.com/v1/forecast?latitude=" + lat + "&longitude=" + lon
+                    + "&hourly=temperature_2m&timezone=auto&forecast_days=1")).getJSONObject("hourly").getJSONArray("temperature_2m");
+            double[] out = new double[Math.min(24, t.length())];
+            for (int i = 0; i < out.length; i++) out[i] = t.getDouble(i);
+            return out;
+        } catch (Exception e) { return null; }
     }
 
     private static String get(String u) throws Exception {

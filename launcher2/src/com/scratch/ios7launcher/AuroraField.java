@@ -18,6 +18,10 @@ final class AuroraField {
     static volatile long lastFrame;
     /** Reduced motion: the wallpaper redraws once a second instead of ~15 times (saves battery, calmer). */
     static volatile boolean reduced;
+    /** Options from Aura: "ink" monochrome, motion strength 0..1, seasonal tint, and dawn/dusk shifts toward the real sun (hours). */
+    static volatile boolean mono, seasonOn;
+    static volatile float motionK = 1f, dawnShift, duskShift;
+    static volatile int seasonTarget = 0x7DB3FF;
 
     private static final float[] SIN = new float[1024];
     static { for (int i = 0; i < 1024; i++) SIN[i] = (float) Math.sin(i * 2 * Math.PI / 1024); }
@@ -31,13 +35,14 @@ final class AuroraField {
 
     /** Palette for a fractional hour of the day, blended between keyframes so nothing ever "switches". */
     static void palette(float hour, int[] out) {
-        float[] h = {0f, 5f, 7f, 10f, 16f, 18.5f, 21f, 24f};
+        float[] h = {0f, 5f + dawnShift, 7f + dawnShift, 10f, 16f, 18.5f + duskShift, 21f + duskShift, 24f};
         int[][][] k = {NIGHT, NIGHT, DAWN, DAY, DAY, DUSK, NIGHT, NIGHT};
         int i = 0;
         while (i < h.length - 2 && hour >= h[i + 1]) i++;
         float f = (hour - h[i]) / (h[i + 1] - h[i]);
         f = f * f * (3 - 2 * f);
         for (int c = 0; c < 5; c++) out[c] = mix(k[i][0][c], k[i + 1][0][c], f);
+        if (seasonOn) for (int c = 0; c < 5; c++) out[c] = mix(out[c], seasonTarget, 0.07f);
     }
 
     static int mix(int a, int b, float f) {
@@ -69,7 +74,8 @@ final class AuroraField {
 
     /** Fills px (W*H) with the field at time t seconds. pan: page offset 0..1, tx/ty: device tilt in g (about -1..1). */
     static void render(int[] px, float t, float pan, float tx, float ty, int[] pal, float speed) {
-        final float tt = t * speed;
+        final float tt = t * speed * (motionK < 0.05f ? 0.05f : motionK);
+        final float sat = mono ? 0.04f : 1.38f;
         final float tr = (pal[0] >> 16) & 255, tg = (pal[0] >> 8) & 255, tb = pal[0] & 255;
         final float br = (pal[1] >> 16) & 255, bg = (pal[1] >> 8) & 255, bb = pal[1] & 255;
         final float ar = (pal[2] >> 16) & 255, ag = (pal[2] >> 8) & 255, ab = pal[2] & 255;
@@ -96,7 +102,7 @@ final class AuroraField {
                 r += (cr - r) * w2; g += (cg - g) * w2; b += (cb - b) * w2;
                 r += (dr - r) * w3; g += (dg - g) * w3; b += (db - b) * w3;
                 final float l = 0.30f * r + 0.59f * g + 0.11f * b;      // saturation boost: the glass and the sky look richer
-                r = l + (r - l) * 1.38f; g = l + (g - l) * 1.38f; b = l + (b - l) * 1.38f;
+                r = l + (r - l) * sat; g = l + (g - l) * sat; b = l + (b - l) * sat;
                 final int ri = r < 0 ? 0 : r > 255 ? 255 : (int) r, gi = g < 0 ? 0 : g > 255 ? 255 : (int) g, bi = b < 0 ? 0 : b > 255 ? 255 : (int) b;
                 px[i] = 0xFF000000 | (ri << 16) | (gi << 8) | bi;
             }

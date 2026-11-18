@@ -37,6 +37,9 @@ final class Glass extends Drawable {
     private final Paint f = new Paint(Paint.ANTI_ALIAS_FLAG), s = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Path sp = new Path();
     private LinearGradient hl;
+    /** Device tilt in m/s^2 (x axis); rotates the top highlight a few degrees so the glass seems to catch the light. */
+    static volatile float tilt;
+    private final Matrix hm = new Matrix();
 
     @Override protected void onBoundsChange(Rect b) {
         rf.set(b);
@@ -169,7 +172,7 @@ final class Glass extends Drawable {
             float a = Math.max(0f, Math.min(0.62f, (lum - 0.38f) * 1.9f));
             if (a > 0.01f) { veil.setColor(Color.argb((int) (a * 255), 0x14, 0x12, 0x38)); c.drawRect(rf, veil); }
         }
-        if (hl != null) { f.setShader(hl); c.drawRect(rf, f); }
+        if (hl != null) { hm.setRotate(tilt * 1.6f, rf.centerX(), rf.top); hl.setLocalMatrix(hm); f.setShader(hl); c.drawRect(rf, f); }
         c.restore();
         c.drawPath(sp, s);
     }

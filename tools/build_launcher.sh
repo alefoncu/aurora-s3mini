@@ -2,9 +2,12 @@
 # Builds, signs and installs the launcher (sources in ~/ios-reskin/launcher2).
 set -e
 cd ~/ios-reskin/launcher2
-JAVAC=/opt/homebrew/Cellar/openjdk@17/17.0.21.0.3/bin/javac
-BT=~/Library/Android/sdk/build-tools/30.0.3
-AJ=~/Library/Android/sdk/platforms/android-25/android.jar
+# Toolchain discovery: prefer the pinned versions, otherwise use whatever is installed (new build-tools need JDK 17+).
+SDK=~/Library/Android/sdk
+for j in /opt/homebrew/opt/openjdk@17 /opt/homebrew/Cellar/openjdk@17/*; do [ -x "$j/bin/javac" ] && { export JAVA_HOME="$j"; export PATH="$j/bin:$PATH"; break; }; done
+JAVAC=$(command -v javac)
+BT=$SDK/build-tools/30.0.3; [ -d "$BT" ] || BT=$(ls -d $SDK/build-tools/* | sort -V | tail -1)
+AJ=$SDK/platforms/android-25/android.jar; [ -f "$AJ" ] || AJ=$(ls -d $SDK/platforms/android-*/ | sort -V | tail -1)android.jar
 rm -rf build dex res.zip base.apk out.apk aligned.apk Launcher2.apk
 mkdir -p build/classes dex
 out=$($JAVAC --release 8 -cp $AJ -d build/classes src/com/scratch/ios7launcher/*.java 2>&1) || { echo "$out"; echo "javac failed: not installing" >&2; exit 1; }

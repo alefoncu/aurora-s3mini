@@ -57,6 +57,7 @@ public class AuroraWallpaper extends WallpaperService {
 
         @Override public void onCreate(SurfaceHolder h) {
             super.onCreate(h);
+            Aura.load(AuroraWallpaper.this); Aura.syncSky(AuroraWallpaper.this);
             holder = h;
             a = Bitmap.createBitmap(AuroraField.W, AuroraField.H, Bitmap.Config.ARGB_8888);
             b = Bitmap.createBitmap(AuroraField.W, AuroraField.H, Bitmap.Config.ARGB_8888);
@@ -223,7 +224,8 @@ public class AuroraWallpaper extends WallpaperService {
                     int lvl = bi == null ? 100 : bi.getIntExtra("level", 100) * 100 / Math.max(1, bi.getIntExtra("scale", 100));
                     boolean plugged = bi != null && bi.getIntExtra("plugged", 0) != 0;
                     interval = (lvl < 15 && !plugged) ? 160 : 66;
-                    AuroraField.reduced = getSharedPreferences("home", Context.MODE_PRIVATE).getBoolean("aurora_reduced", false);
+                    Aura.load(AuroraWallpaper.this); Aura.syncSky(AuroraWallpaper.this);
+                    AuroraField.reduced = getSharedPreferences("home", Context.MODE_PRIVATE).getBoolean("aurora_reduced", false) || Aura.calm(AuroraWallpaper.this);
                 }
                 long spent = SystemClock.uptimeMillis() - start;
                 statN++; statSum += spent;

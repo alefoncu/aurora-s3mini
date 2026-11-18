@@ -371,6 +371,12 @@ Lo que **no** se ha podido comprobar y conviene revisar jugando:
 - **Bifurcaciones:** solo existen en el modo infinito y en las rutas largas. Desde 6.18 el fantasma guarda el carril; los fantasmas antiguos lo desconocen.
 
 
+### Actualización 6.35 · App Intents
+
+Atajos, Spotlight y Siri reconocen cuatro acciones de la app: **Salir a rodar** (con moto y ruta opcionales), **Misiones de hoy**, **Mi mejor puntuación** y **Abrir el Centro del piloto**, con frases como «Salir a rodar con Wheelie Ride». `build.sh` compila con el módulo `WheelieRide`, pide los valores constantes al compilador y genera `Metadata.appintents` con `appintentsmetadataprocessor`, así que funciona con firma ad hoc. Si el procesador falla, la app se instala igualmente sin Atajos. No verificado en Atajos o Spotlight de este Mac: solo el paquete de metadatos y la firma.
+
+**Medición de rendimiento corregida:** el README decía que no había problema; con el Mac bajo mucha carga se midieron ~55 fps en el valle y ~41 con tres rivales. El coste está en el dibujo vectorial de cada moto por CPU (~15 ms por rival). Widget real, Game Center y Metal siguen sin hacerse.
+
 ### Actualización 6.34 · inspirada en los Apple Design Awards 2026
 
 Basada en lo que premió Apple (accesibilidad de Guitar Wiz y Pine Hearts, háptica de PowerWash Simulator, Liquid Glass de Moonlitt y Tide Guide, secretos de Blue Prince, puzles de Is This Seat Taken?). Menús: Visualización > **Accesibilidad y controles…** (⌥⌘A) y **Centro del piloto…** (⌥⌘J).

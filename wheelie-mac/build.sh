@@ -3,7 +3,16 @@ set -euo pipefail
 cd "${0:A:h}"
 APP="$PWD/build/Wheelie Ride.app"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
-xcrun swiftc -O -target "$(uname -m)-apple-macos13.0" -framework Cocoa -framework AVFoundation -framework GameController -framework CoreHaptics -framework CoreSpotlight Sources/*.swift -o "$APP/Contents/MacOS/WheelieRide"
+# Absolute source paths and a module name: the App Intents metadata processor matches the compiler's constant values by path.
+SOURCES=("$PWD"/Sources/*.swift)
+INTENTS="$PWD/build/intents"
+mkdir -p "$INTENTS"
+echo '["AppIntent","EntityQuery","AppEntity","TransientEntity","AppEnum","AppShortcutProviding","AppShortcutsProvider","AnyResolverProviding","AppIntentsPackage","DynamicOptionsProvider","_IntentValueRepresentable","_AssistantIntentsProvider"]' > "$INTENTS/gather.json"
+xcrun swiftc -O -wmo -module-name WheelieRide -target "$(uname -m)-apple-macos13.0" -framework Cocoa -framework AVFoundation -framework GameController -framework CoreHaptics -framework CoreSpotlight -framework AppIntents "${SOURCES[@]}" \
+  -emit-const-values -Xfrontend -const-gather-protocols-file -Xfrontend "$INTENTS/gather.json" -Xfrontend -emit-const-values-path -Xfrontend "$INTENTS/WheelieRide.swiftconstvalues" \
+  -o "$APP/Contents/MacOS/WheelieRide"
+# The driver also drops the constant values next to the binary; they must not ship inside the signed bundle.
+rm -f "$APP/Contents/MacOS/WheelieRide.swiftconstvalues"
 cat > "$APP/Contents/Info.plist" <<'PLIST'
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -13,8 +22,8 @@ cat > "$APP/Contents/Info.plist" <<'PLIST'
 <key>CFBundleName</key><string>Wheelie Ride</string>
 <key>CFBundleDisplayName</key><string>Wheelie Ride</string>
 <key>CFBundlePackageType</key><string>APPL</string>
-<key>CFBundleShortVersionString</key><string>6.34</string>
-<key>CFBundleVersion</key><string>34</string>
+<key>CFBundleShortVersionString</key><string>6.35</string>
+<key>CFBundleVersion</key><string>35</string>
 <key>CFBundleIconFile</key><string>AppIcon</string>
 <key>LSMinimumSystemVersion</key><string>13.0</string>
 <key>NSHighResolutionCapable</key><true/>
@@ -24,6 +33,16 @@ cat > "$APP/Contents/Info.plist" <<'PLIST'
 PLIST
 if [[ -f Assets/AppIcon.icns ]]; then cp Assets/AppIcon.icns "$APP/Contents/Resources/"; fi
 cp Assets/valley.png Assets/dunes.png "$APP/Contents/Resources/"
+# App Intents (Atajos, Spotlight, Siri). If the processor fails the app still installs, just without them.
+printf '%s\n' "${SOURCES[@]}" > "$INTENTS/sources.txt"; echo "$INTENTS/WheelieRide.swiftconstvalues" > "$INTENTS/consts.txt"; : > "$INTENTS/empty.txt"
+if xcrun appintentsmetadataprocessor --output "$INTENTS/out.appintents" --toolchain-dir "$(xcode-select -p)/Toolchains/XcodeDefault.xctoolchain" --module-name WheelieRide \
+    --sdk-root "$(xcrun --sdk macosx --show-sdk-path)" --xcode-version "$(xcodebuild -version | awk '/Build version/{print $3}')" --platform-family macOS --deployment-target 13.0 \
+    --target-triple "$(uname -m)-apple-macos13.0" --source-file-list "$INTENTS/sources.txt" --swift-const-vals-list "$INTENTS/consts.txt" \
+    --metadata-file-list "$INTENTS/empty.txt" --static-metadata-file-list "$INTENTS/empty.txt" --no-app-shortcuts-localization >/dev/null 2>&1 && [[ -d "$INTENTS/out.appintents/Metadata.appintents" ]]; then
+  ditto "$INTENTS/out.appintents/Metadata.appintents" "$APP/Contents/Resources/Metadata.appintents"
+else
+  echo 'Aviso: no se pudieron generar los metadatos de App Intents; la app se instala sin Atajos.' >&2
+fi
 codesign --force --sign "${SIGN_IDENTITY:--}" "$APP"
 if [[ "${1:-}" == "--install" ]]; then
   INSTALL="$HOME/Applications/Wheelie Ride.app"

@@ -211,7 +211,7 @@ final class RideBackdrop {
 final class RideOverlay {
     let root = CALayer()
     private var height = 0.0, width = 1280.0
-    private var mist: CALayer?, flash: CALayer?
+    private var mist: CALayer?, flash: CALayer?, tint: CALayer?
     init() { root.anchorPoint = .zero; root.position = .zero; root.masksToBounds = true }
     func configure(width: Double = 1280, height: Double) {
         let h = height.rounded(); guard h != self.height || width != self.width else { return }
@@ -226,7 +226,14 @@ final class RideOverlay {
         gradient(CGRect(x: 0, y: 0, width: width, height: 130), .clear, NSColor.black.withAlphaComponent(0.50))
         let mist = CALayer(); mist.frame = CGRect(x: 0, y: 0, width: width, height: h); mist.backgroundColor = NSColor(hex: 0xD5DCE0).cgColor; mist.opacity = 0; mist.actions = RideBackdrop.noActions
         let flash = CALayer(); flash.frame = mist.frame; flash.backgroundColor = NSColor(hex: 0xF4F8FF).cgColor; flash.opacity = 0; flash.actions = RideBackdrop.noActions
-        root.addSublayer(mist); root.addSublayer(flash); self.mist = mist; self.flash = flash
+        let tint = CALayer(); tint.frame = mist.frame; tint.opacity = 0; tint.actions = RideBackdrop.noActions
+        root.addSublayer(tint); root.addSublayer(mist); root.addSublayer(flash); self.mist = mist; self.flash = flash; self.tint = tint
+        CATransaction.commit()
+    }
+    /// A soft colour wash over the scene: dawn, noon and dusk as the route advances.
+    func setTint(_ color: NSColor, opacity: Double) {
+        CATransaction.begin(); CATransaction.setDisableActions(true)
+        tint?.backgroundColor = color.cgColor; tint?.opacity = Float(max(0, min(1, opacity.isFinite ? opacity : 0)))
         CATransaction.commit()
     }
     /// Fog over the world (a light veil) and the lightning flash, both as opacities of static layers.

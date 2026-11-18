@@ -236,7 +236,7 @@ import Foundation
             check((survived[.assisted] ?? 0)==fleet && (survived[.assisted] ?? 0)>=(survived[.normal] ?? 0),"Assisted survives a leaning hop everywhere: \(survived)")
             check(crashTime[.assisted]!>crashTime[.normal]! && crashTime[.normal]!>crashTime[.realistic]!,"Tilt tolerance grows with assistance: \(crashTime)")
             check(wear[.assisted]!<wear[.normal]! && wear[.normal]!<wear[.realistic]!,"Tyre wear grows with difficulty: \(wear)")
-            check(BikePhysics.Assist.allCases.map(\.coinMultiplier)==[0.75,1,1.25] && BikePhysics.Assist.allCases.allSatisfy { !$0.detail.isEmpty },"Mode descriptions and multipliers")
+            check(BikePhysics.Assist.allCases.map(\.coinMultiplier)==[0.75,1,1.25,0.5] && BikePhysics.Assist.allCases.allSatisfy { !$0.detail.isEmpty },"Mode descriptions and multipliers")
         }
         // Rain: a wet road lengthens braking, bounded and sanitised.
         do {

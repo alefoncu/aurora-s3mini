@@ -8,7 +8,7 @@ extension RideView {
         report=RunReport(); reported=false; runNotes.removeAll(); riderHandsOff=0; riderSuperman=0; supermanTime=0; lastSupermanTime=0; airborneWas=false
         tutorial=RideTutorial(); tutorialToast=""; tutorialToastAge=99; lapTimes.removeAll(); lapStart=0
         toasts.removeAll(); toastedIDs.removeAll(); toastClock=0; lastBanked=0; lastMultiplier=1
-        weather=WeatherState(); lastWeatherTime=0; bike.wetness=0
+        weather=WeatherState(); lastWeatherTime=0; bike.wetness=0; samples.removeAll(); sampleClock=0; contentSettled=false
     }
     /// One rival in a duel, three on the circuit (around the chosen level), each with its own vehicle and seed.
     func startRival() {

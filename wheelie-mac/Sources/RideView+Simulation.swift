@@ -14,9 +14,17 @@ extension RideView {
         if mode == .riding || mode == .crashing { animationTime += dt }
         if mode == .riding {
             let previousFront=bike.frontWheelPosition,previousRear=bike.rearWheelPosition,previousSpeed=bike.speed,previousVertical=bike.verticalVelocity
-            bike.update(dt,throttle:held(.throttle),brake:held(.brake),leanBack:held(.leanBack),leanForward:held(.leanForward),jump:held(.jump),frontBrake:held(.frontBrake),rearBrake:held(.rearBrake),trick:held(.stunt),spin:spinHeld,noHands:noHandsHeld)
+            let inputs=effectiveInputs()
+            bike.update(dt,throttle:inputs.throttle,brake:held(.brake),leanBack:inputs.back,leanForward:inputs.forward,jump:held(.jump),frontBrake:held(.frontBrake),rearBrake:held(.rearBrake),trick:held(.stunt),spin:spinHeld,noHands:noHandsHeld)
             elapsed += dt
             updateWeather()
+            checkSecrets()
+            sampleClock+=dt
+            if sampleClock>=0.25 && samples.count<2400 {
+                sampleClock=0
+                let air = !bike.frontContact && !bike.rearContact
+                samples.append(RunSample(distance:bike.distance,speed:bike.speed,trick: air ? 3 : bike.isStoppie ? 2 : (bike.rearContact && !bike.frontContact && bike.angle>0.2) ? 1 : 0))
+            }
             updateRival(dt)
             updateScoring(dt)
             challenges.update(frame:ghostSnapshot(),distance:bike.distance,wheelie:bike.wheelieDistance,
@@ -42,13 +50,14 @@ extension RideView {
                     let ground=BikePhysics.ground(Double(world),route:bike.route),kind=BikePhysics.obstacleKind(at:world)
                     let weight=kind == .barrel ? 1.2 : kind == .log ? 0.8 : 1.0
                     if sweptWheelHit(previousFront,bike.frontWheelPosition,obstacle:RideVector(Double(world),ground),radius:bike.kind.rig.wheelRadius,shape:kind) {
-                        bike.strikeObstacle(front:true,severity:min(1.5,(0.25+bike.speed/18)*weight)); knockedCones.insert(world); audio.impact(); emitDust(count:5)
+                        bike.strikeObstacle(front:true,severity:min(1.5,(0.25+bike.speed/18)*weight)); knockedCones.insert(world); audio.impact(); emitDust(count:5); feedback.play(.obstacle)
                     } else if sweptWheelHit(previousRear,bike.rearWheelPosition,obstacle:RideVector(Double(world),ground),radius:bike.kind.rig.wheelRadius,shape:kind) {
-                        bike.strikeObstacle(front:false,severity:min(1.5,(0.2+bike.speed/20)*weight)); knockedCones.insert(world); audio.impact(); emitDust(count:5)
+                        bike.strikeObstacle(front:false,severity:min(1.5,(0.2+bike.speed/20)*weight)); knockedCones.insert(world); audio.impact(); emitDust(count:5); feedback.play(.obstacle)
                     }
                 }
             }
-            if bike.landingImpact>0.7 { emitDust(count:min(15,Int(bike.landingImpact*3))); audio.impact() }
+            if bike.landingImpact>0.7 { emitDust(count:min(15,Int(bike.landingImpact*3))); audio.impact(); feedback.play(.landing(bike.landingImpact)); announceLanding() }
+            updateFeedback(dt)
             dustClock += dt
             if dustClock>0.06 && bike.speed>2 && bike.rearContact { emitDust(count:abs(bike.rearSlip)>0.2 ? 4 : bike.route==0 ? 1 : 2); dustClock=0 }
             if !bike.crashed {
@@ -65,8 +74,8 @@ extension RideView {
                     let companion=RiderRig.solve(vehicle:bike.kind.rig,lean:riderLean*0.3,lift:riderLift,passenger:true)
                     passengerRagdoll=RiderRagdoll(pose:companion,origin:bike.chassisPosition,pitch:bike.pitch,velocity:velocity,angularVelocity:spin,route:bike.route)
                 }
-                score.crash(); mode = .crashing; crashTime=0; clearInput(); audio.impact(); emitDust(count:16); saveRun(); syncState()
-            } else if bike.finished { score.finishRun(); playerFinishTime=elapsed; racePosition=RideRace.position(player:playerEntry,rivals:rivalEntries); challenges.raceWon = !rivalRuns.isEmpty && racePosition<=(challengeKind == .circuit ? 2 : 1); mode = .result; clearInput(); saveRun(); syncState() }
+                score.crash(); mode = .crashing; crashTime=0; clearInput(); audio.impact(); emitDust(count:16); feedback.play(.crash); announce("Caída. \(Int(bike.distance)) metros."); saveRun(); syncState()
+            } else if bike.finished { score.finishRun(); playerFinishTime=elapsed; racePosition=RideRace.position(player:playerEntry,rivals:rivalEntries); challenges.raceWon = !rivalRuns.isEmpty && racePosition<=(challengeKind == .circuit ? 2 : 1); mode = .result; clearInput(); feedback.play(.finish); announce("Ruta completada. \(score.total) puntos."); saveRun(); syncState() }
         } else if mode == .crashing {
             bike.update(dt,throttle:false,brake:false,leanBack:false,leanForward:false)
             let wheel=bike.kind.rig.wheelRadius*0.95
@@ -104,7 +113,7 @@ extension RideView {
     }
     func updateCamera(_ dt:Double) {
         // Keep roughly 0.65 s of road ahead at high speed for every vehicle.
-        let zoom=min(1,max(0.15,13/max(13,bike.speed)))
+        let zoom=access.reduceMotion ? 1 : min(1,max(0.15,13/max(13,bike.speed)))
         art.metresToPixels += (RideScene.metresToPixels*zoom-art.metresToPixels)*(1-exp(-dt*2.5))
         let target=(BikePhysics.ground(bike.x,route:bike.route,lane:bike.lane)+max(0,bike.height-0.35)*0.35)*art.metresToPixels
         cameraY += (target-cameraY)*min(1,dt*5)
@@ -130,7 +139,8 @@ extension RideView {
         return false
     }
     func emitDust(count:Int) {
-        for _ in 0..<count where dust.count<90 {
+        let count=access.reduceMotion ? min(count,1) : count
+        for _ in 0..<count where dust.count<(access.reduceMotion ? 12 : 90) {
             let life=Double.random(in:0.35...0.9),rear=bike.rearWheelPosition
             dust.append(Dust(x:rear.x-0.08,y:max(0,rear.y-bike.kind.rig.wheelRadius-BikePhysics.ground(rear.x,route:bike.route)),vx:Double.random(in:-1.0 ... -0.15),vy:Double.random(in:0.1...0.6),life:life,maxLife:life))
         }

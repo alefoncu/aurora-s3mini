@@ -371,6 +371,19 @@ Lo que **no** se ha podido comprobar y conviene revisar jugando:
 - **Bifurcaciones:** solo existen en el modo infinito y en las rutas largas. Desde 6.18 el fantasma guarda el carril; los fantasmas antiguos lo desconocen.
 
 
+### Actualización 6.34 · inspirada en los Apple Design Awards 2026
+
+Basada en lo que premió Apple (accesibilidad de Guitar Wiz y Pine Hearts, háptica de PowerWash Simulator, Liquid Glass de Moonlitt y Tide Guide, secretos de Blue Prince, puzles de Is This Seat Taken?). Menús: Visualización > **Accesibilidad y controles…** (⌥⌘A) y **Centro del piloto…** (⌥⌘J).
+
+- **Accesibilidad:** respeta Reducir movimiento, Aumentar contraste y Diferenciar sin color del sistema (y se pueden activar solo para el juego); texto del marcador normal/grande/muy grande; símbolos ▲ ▼ ★ ⚠ además del color; anuncios de VoiceOver (caballito cada 25 m, aterrizajes, caída, meta, pasos del tutorial) y valor de velocidad y distancia; teclas redefinibles con detección de conflictos; ayudas de teclas siempre, solo las primeras salidas o nunca.
+- **Sensación:** háptica del trackpad (aterrizaje, punto de equilibrio del caballito, golpe, caída, meta, marcha) y **mando de juego** (RT/A gas, LT/B frenos, stick o cruceta inclinan, X salta, Y voltereta, LB invertido, RB sin manos, Menú pausa, pulsadores de stick = marchas) con vibración. El gas del mando es digital (umbral), la física no lee valores analógicos.
+- **Ayudas:** equilibrio asistido (empuja el peso antes de volcar) y dificultad **Relajado** (gas automático, sin cronómetro, sin desgaste, casi sin caídas).
+- **Interfaz:** panel de pausa y resultado en Liquid Glass (macOS 26 o posterior; material clásico en versiones anteriores), gráfica de velocidad con bandas de caballito, invertido y aire al terminar, y luz del día que va del amanecer al atardecer a lo largo de la ruta (no en modo noche).
+- **Juego:** 15 estrellas ocultas (3 por ruta, se cogen saltando) con notas; diario del piloto de 10 páginas; 6 retos de taller (moto, ruta y suspensión fijas); marcadores locales por ruta (top 10).
+- **Sistema:** menú del Dock con las misiones de hoy; enlaces `wheelieride://start?vehicle=sport&route=2`, `://garage`, `://center` (usables desde Atajos); motos y rutas indexadas en Spotlight; `today.json` en Application Support con las misiones y los totales.
+
+**Fuera de alcance, y por qué:** Metal/MetalFX (el dibujo ya compone en GPU con Core Animation y no hay problema de rendimiento que lo justifique); widget de escritorio real, App Intents y Game Center (requieren extensión, perfil de aprovisionamiento y firma de desarrollador que este build con `swiftc` y firma ad hoc no tiene). Se dejan sus equivalentes locales: Dock, enlaces, Spotlight, `today.json` y marcadores locales.
+
 ### Actualización 6.33 · proporciones y masa de moto real
 
 Contrastadas con fotos reales de motos de calle: las motos eran esqueléticas (depósito fino, motor pequeño, faro chico). Ahora el depósito es más profundo, el motor ocupa el triángulo del cuadro, el faro es mayor y el asiento más grueso (Street, Scrambler, Cruiser, Eléctrica, Enduro y Trial).

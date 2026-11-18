@@ -4,6 +4,15 @@ import Cocoa
 extension RideView {
     func hud() {
         let W=sceneWidth,cx=W/2
+        art.textScale=access.textScale; defer { art.textScale=1 }
+        let relaxed=difficulty == .relaxed,rs=access.textScale
+        /// With larger text the stacked readouts need more room: lines below the first block move down in proportion.
+        func ly(_ y:Double)->Double { y<=75 ? y : 75+(y-75)*rs }
+        if access.highContrast {
+            // Dark plates behind the corner readouts so white text keeps its contrast over any sky.
+            art.box(18,14,186*(1+(rs-1)*0.6),ly(150)-14,NSColor.black.withAlphaComponent(0.55),12)
+            art.box(W-184,14,170,(rivalRuns.isEmpty ? 66 : 100)*rs,NSColor.black.withAlphaComponent(0.55),12)
+        }
         art.text("\(Int(bike.distance)) m",28,24,23,.white,.semibold,mono:true)
         let finish=BikePhysics.finish,level=1+Int(max(0,bike.x)/600)
         func km(_ metres:Double)->String { let m=Int(metres); return m>=1000 ? "\(m/1000).\(String(format:"%03d",m%1000)) m" : "\(m) m" }
@@ -11,12 +20,13 @@ extension RideView {
         art.box(29,75,145,2,NSColor.white.withAlphaComponent(0.22),1)
         let barFraction = bike.endless ? bike.x.truncatingRemainder(dividingBy:600)/600 : BikePhysics.circuit ? bike.x.truncatingRemainder(dividingBy:1200)/1200 : bike.x/finish
         art.box(29,75,145*max(0,min(1,barFraction)),2,.white,1)
-        art.text(String(format:"%02d:%04.1f",Int(elapsed)/60,elapsed.truncatingRemainder(dividingBy:60)),(W-92),28,18,.white,.medium,center:true,mono:true)
+        if !relaxed { art.text(String(format:"%02d:%04.1f",Int(elapsed)/60,elapsed.truncatingRemainder(dividingBy:60)),(W-92),28,18,.white,.medium,center:true,mono:true) }
         if bike.rearContact && !bike.frontContact && bike.wheelieDistance>0.2 {
             art.text("Caballito",cx,27,11,NSColor.white.withAlphaComponent(0.75),.medium,center:true)
             art.text("\(Int(bike.wheelieDistance)) m",cx,45,25,.white,.semibold,center:true,mono:true)
             art.box(cx-56,83,112,2,NSColor.white.withAlphaComponent(0.25),1)
             art.box(cx-56,83,112*min(1,bike.angle/1.72),2,bike.angle>1.4 ? .systemOrange : .white,1)
+            if bike.angle>1.4 && access.noColorOnly { art.text("¡Límite!",cx,90,10,.white,.bold,center:true) }
         }
         if bike.isStoppie && bike.stoppieDistance>0.2 {
             art.text("Invertido",cx,27,11,NSColor.white.withAlphaComponent(0.75),.medium,center:true)
@@ -24,33 +34,33 @@ extension RideView {
             art.box(cx-56,83,112,2,NSColor.white.withAlphaComponent(0.25),1)
             art.box(cx-56,83,112*min(1,-bike.angle/1.1),2,bike.angle < -0.85 ? .systemOrange : .white,1)
         }
-        if challengeKind != .free && challengeKind != .tutorial && challengeKind != .circuit { art.text(challenges.progressText,28,117,12,.white,.medium) }
+        if challengeKind != .free && challengeKind != .tutorial && challengeKind != .circuit { art.text(challenges.progressText,28,ly(117),12,.white,.medium) }
         if ghostEnabled,let ghost=challenges.ghostFrame(at:elapsed) {
             if let delta=challenges.timeDelta(elapsed:elapsed,atDistance:bike.x) {
-                art.text(String(format:"Fantasma %+.1f s",delta),(W-95),62,11,delta<=0 ? NSColor.systemGreen : NSColor.systemOrange,.semibold,center:true,mono:true)
-            } else { art.text(String(format:"Fantasma %+.0f m",ghost.x-bike.x),(W-95),62,11,NSColor.white.withAlphaComponent(0.8),center:true,mono:true) }
+                art.text(String(format:"Fantasma %@%+.1f s",access.noColorOnly ? (delta<=0 ? "▼ " : "▲ ") : "",delta),(W-95),62*rs,11,delta<=0 ? NSColor.systemGreen : NSColor.systemOrange,.semibold,center:true,mono:true)
+            } else { art.text(String(format:"Fantasma %+.0f m",ghost.x-bike.x),(W-95),62*rs,11,NSColor.white.withAlphaComponent(0.8),center:true,mono:true) }
         }
         if !rivalRuns.isEmpty {
             // Position, and the gap to the nearest rival still racing ahead (or behind when leading).
             let field=rivalRuns.count+1
-            art.text("POSICIÓN \(racePosition)/\(field)",(W-95),76,12,racePosition == 1 ? NSColor.systemGreen : .white,.bold,center:true,mono:true)
+            art.text("POSICIÓN \(racePosition)/\(field)"+(access.noColorOnly && racePosition == 1 ? " ★" : ""),(W-95),76*rs,12,racePosition == 1 ? NSColor.systemGreen : .white,.bold,center:true,mono:true)
             let racing=rivalRuns.filter { !$0.crashed && !$0.finished }
             if let nearest=racing.min(by:{ abs($0.bike.x-bike.x)<abs($1.bike.x-bike.x) }) {
                 let gap=bike.x-nearest.bike.x
-                art.text(String(format:gap>=0 ? "a %.0f m del siguiente" : "a %.0f m del de delante",abs(gap)),(W-95),91,10,gap>=0 ? NSColor.systemGreen : NSColor.systemOrange,.medium,center:true,mono:true)
-            } else if rivalRuns.allSatisfy({ $0.crashed }) { art.text("Rivales caídos",(W-95),91,10,NSColor.systemGreen,.medium,center:true) }
+                art.text((access.noColorOnly ? (gap>=0 ? "▲ " : "▼ ") : "")+String(format:gap>=0 ? "a %.0f m del siguiente" : "a %.0f m del de delante",abs(gap)),(W-95),91*rs,10,gap>=0 ? NSColor.systemGreen : NSColor.systemOrange,.medium,center:true,mono:true)
+            } else if rivalRuns.allSatisfy({ $0.crashed }) { art.text("Rivales caídos",(W-95),91*rs,10,NSColor.systemGreen,.medium,center:true) }
         }
-        let sy:Double = rivalRuns.isEmpty ? 0 : 26   // the race position lines sit above the score box
-        art.box(W-168,94+sy,152,(score.pending>0 || !score.popups.isEmpty) ? 128 : 52,NSColor.black.withAlphaComponent(0.22),8)
-        art.text("PUNTOS",(W-92),100+sy,10,NSColor.white.withAlphaComponent(0.7),.semibold,center:true)
-        art.text("\(score.total)",(W-92),114+sy,23,.white,.semibold,center:true,mono:true)
+        let top=(rivalRuns.isEmpty ? 94 : 120)*rs   // the score box sits below the race lines
+        art.box(W-168,top,152,((score.pending>0 || !score.popups.isEmpty) ? 128 : 52)*rs,NSColor.black.withAlphaComponent(0.22),8)
+        art.text("PUNTOS",(W-92),top+6*rs,10,NSColor.white.withAlphaComponent(0.7),.semibold,center:true)
+        art.text("\(score.total)",(W-92),top+20*rs,23,.white,.semibold,center:true,mono:true)
         if score.chainActive || score.pending>0 {
-            art.text(String(format:"x%.1f · cadena %d",score.multiplier,score.chainPoints),(W-92),144+sy,11,.systemYellow,.semibold,center:true,mono:true)
-            art.box(W-150,162+sy,116,2,NSColor.white.withAlphaComponent(0.25),1)
-            art.box(W-150,162+sy,116*max(0,min(1,score.chainTimer/RideScore.chainWindow)),2,.systemYellow,1)
+            art.text(String(format:"x%.1f · cadena %d",score.multiplier,score.chainPoints),(W-92),top+50*rs,11,.systemYellow,.semibold,center:true,mono:true)
+            art.box(W-150,top+68*rs,116,2,NSColor.white.withAlphaComponent(0.25),1)
+            art.box(W-150,top+68*rs,116*max(0,min(1,score.chainTimer/RideScore.chainWindow)),2,.systemYellow,1)
         }
         for (i,popup) in score.popups.enumerated() {
-            art.text("+\(popup.points) \(popup.text)",(W-92),174+sy+Double(i)*17,11,NSColor.white.withAlphaComponent(max(0.2,1-popup.age/2.2)),.medium,center:true)
+            art.text("+\(popup.points) \(popup.text)",(W-92),top+80*rs+Double(i)*17*rs,11,NSColor.white.withAlphaComponent(max(0.2,1-popup.age/2.2)),.medium,center:true)
         }
         if splitAge<4 { art.text(splitText,cx,150,13,.white,.semibold,center:true) }
         if challengeKind == .tutorial {
@@ -66,7 +76,7 @@ extension RideView {
         }
         if tutorialToastAge<2.5 { art.text(tutorialToast,cx,206,16,.systemGreen,.bold,center:true) }
         if bike.tyreWear>0.08 || bike.suspensionHeat>0.3 {
-            art.text(String(format:"Neumáticos %d %%",Int((1-bike.tyreWear*0.3)*100)),28,sceneHeight-58,11,bike.tyreWear>0.6 ? .systemOrange : NSColor.white.withAlphaComponent(0.8),.medium,mono:true)
+            art.text((access.noColorOnly && bike.tyreWear>0.6 ? "⚠ " : "")+String(format:"Neumáticos %d %%",Int((1-bike.tyreWear*0.3)*100)),28,sceneHeight-58,11,bike.tyreWear>0.6 ? .systemOrange : NSColor.white.withAlphaComponent(0.8),.medium,mono:true)
             art.text(String(format:"Amortiguadores %d %%",Int((1-bike.suspensionHeat*0.35)*100)),28,sceneHeight-40,11,bike.suspensionHeat>0.6 ? .systemOrange : NSColor.white.withAlphaComponent(0.8),.medium,mono:true)
         }
         // Forks: a warning ahead of the split, then which road the bike is on.
@@ -88,15 +98,15 @@ extension RideView {
            BikePhysics.fork(containing:ghost.x) != nil {
             art.text("FANTASMA · CAMINO "+(ghostLane == 1 ? "ALTO" : "NORMAL"),cx,208,11,NSColor.white.withAlphaComponent(0.8),.medium,center:true)
         }
-        if let label=weather.label { art.text(label.uppercased(),28,104,11,weather.storm ? NSColor.systemYellow : NSColor(hex:0xBFD4EA),.bold) }
+        if let label=weather.label { art.text(label.uppercased(),28,ly(104),11,weather.storm ? NSColor.systemYellow : NSColor(hex:0xBFD4EA),.bold) }
         let stage=BikePhysics.difficultyStage(at:bike.x)
         if BikePhysics.circuit {
-            art.text("CIRCUITO · VUELTA \(min(bike.laps,Int(bike.x/1200)+1))/\(bike.laps)",28,90,11,.white,.semibold)
-            for (i,time) in lapTimes.enumerated() { art.text(String(format:"V%d %d:%04.1f",i+1,Int(time)/60,time.truncatingRemainder(dividingBy:60)),28,132+Double(i)*15,11,NSColor.white.withAlphaComponent(0.8),.medium,mono:true) }
+            art.text("CIRCUITO · VUELTA \(min(bike.laps,Int(bike.x/1200)+1))/\(bike.laps)",28,ly(90),11,.white,.semibold)
+            for (i,time) in lapTimes.enumerated() { art.text(String(format:"V%d %d:%04.1f",i+1,Int(time)/60,time.truncatingRemainder(dividingBy:60)),28,ly(132)+Double(i)*15*rs,11,NSColor.white.withAlphaComponent(0.8),.medium,mono:true) }
         } else if bike.endless {
-            art.text("ZONA · \(BikePhysics.zoneTitle(at:bike.x).uppercased())",28,90,11,.white,.semibold)
+            art.text("ZONA · \(BikePhysics.zoneTitle(at:bike.x).uppercased())",28,ly(90),11,.white,.semibold)
         } else {
-        art.text("TRAMO \(stage+1)/4 · \(BikePhysics.stageTitle(at:bike.x))",28,90,11,.white,.semibold)
+        art.text("TRAMO \(stage+1)/4 · \(BikePhysics.stageTitle(at:bike.x))",28,ly(90),11,.white,.semibold)
         for marker in 1...3 { art.box(29+145*Double(marker)/4,72,1,8,NSColor.white.withAlphaComponent(0.6)) }
         }
         let quarter=finish/4
@@ -112,9 +122,14 @@ extension RideView {
             art.text("\(name) a \(max(1,Int(Double(next)-bike.x))) m",cx,124,12,.white,.medium,center:true)
         }
     }
+    /// Key hints: always, only on the first rides (the default), or never.
+    var showKeyHints:Bool {
+        switch access.hintsMode { case 0:return elapsed<7; case 1:return elapsed<7 && stats.totals.runs<3; default:return false }
+    }
     func drawControls() {
         let cx=sceneWidth/2
-        art.text("\(Int(bike.speed*3.6))",cx,sceneHeight-76,32,.white,.medium,center:true,mono:true)
+        art.textScale=access.textScale; defer { art.textScale=1 }
+        art.text("\(Int(bike.speed*3.6))",cx,sceneHeight-76-(access.textScale-1)*30,32,.white,.medium,center:true,mono:true)
         art.text("km/h",cx,sceneHeight-37,10,NSColor.white.withAlphaComponent(0.6),center:true)
         if bike.kind != .bmx {
             let gear=bike.transmission.gear == 0 ? "CVT" : "\(bike.transmission.automatic ? "A" : "M")\(bike.transmission.gear)"
@@ -124,9 +139,11 @@ extension RideView {
             let message=bike.rearSlip>0.25 ? "Pérdida de tracción" : "Rueda deslizando"
             art.text(message,cx,sceneHeight-98,11,.systemOrange,.semibold,center:true)
         }
-        if elapsed<7 {
+        if showKeyHints {
             art.text("H sin manos   G giro 360° (en el aire)   V superman (en el aire)   T + ←/→ voltereta",cx,sceneHeight-134,12,NSColor.white.withAlphaComponent(0.7),.medium,center:true)
-            art.text("↑ acelerar   ← levantar   → peso delante   ↓ frenos   Z delante   X detrás   Q/F marchas   E invertido   C camino en bifurcaciones   Espacio saltar",cx,sceneHeight-116,12,NSColor.white.withAlphaComponent(0.78),.medium,center:true)
+            let k=keyMap
+            let line=k.isCustom ? "\(k.label(.throttle)) acelerar   \(k.label(.leanBack)) levantar   \(k.label(.leanForward)) peso delante   \(k.label(.brake)) frenos   \(k.label(.jump)) saltar   Q/F marchas   C camino" : "↑ acelerar   ← levantar   → peso delante   ↓ frenos   Z delante   X detrás   Q/F marchas   E invertido   C camino en bifurcaciones   Espacio saltar"
+            art.text(line,cx,sceneHeight-116,12,NSColor.white.withAlphaComponent(0.78),.medium,center:true)
         }
     }
 }

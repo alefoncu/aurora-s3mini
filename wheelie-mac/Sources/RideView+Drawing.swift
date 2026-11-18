@@ -41,7 +41,8 @@ extension RideView {
             backdrop.update(camera:camX*RideScene.metresToPixels)
             overlay.configure(width:backdropWidth,height:sceneHeight)
             backdrop.setFog(weather.fog*0.6)
-            overlay.setWeather(fog:weather.fog*0.2,flash:weather.flash*0.55)
+            overlay.setWeather(fog:weather.fog*0.2,flash:access.reduceMotion ? 0 : weather.flash*0.55)
+            let wash=RideDaylight.wash(progress:routeProgress,night:night); overlay.setTint(wash.color,opacity:wash.opacity)
             backdropHost.fit(scale:viewportScale); overlayHost.fit(scale:viewportScale)
         }
         sceneView.needsDisplay=true; hudView.needsDisplay=true
@@ -148,6 +149,7 @@ extension RideView {
                 }
             }
         } }
+        drawSecrets(ppm:ppm,camY:camY)
         for p in dust {
             let x=art.focusX+(p.x-camX)*ppm,y=art.ground(p.x,at:camX,cameraY:camY,route:bike.route)-p.y*ppm
             let size=2+(1-p.life/p.maxLife)*10

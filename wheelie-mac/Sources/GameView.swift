@@ -101,12 +101,19 @@ final class RideView: NSView {
     struct Dust { var x:Double; var y:Double; var vx:Double; var vy:Double; var life:Double; var maxLife:Double }
     var dust: [Dust] = [], dustClock = 0.0
     var onStateChange: (() -> Void)?
+    /// Accessibility, assists, remappable keys and haptics/controller feedback.
+    lazy var access=RideAccess.load(prefs)
+    lazy var keyMap=RideKeyMap.load(prefs)
+    let feedback=RideFeedback()
+    var padHeld=Set<RideAction>()
+    var inBalanceZone=false, lastAnnouncedWheelie=0, announceClock=0.0, lastTutorialStep=0
     lazy var bar = TouchBarController(onHold: { [weak self] action, down in
         guard let self else { return }; if down && self.mode == .riding { self.touchHeld.insert(action) } else { self.touchHeld.remove(action) }
     }, onCommand: { [weak self] command in
         switch command { case .pause: self?.pause(); case .restart: self?.start(); case .garage: self?.garage(); case .shiftUp:self?.shift(up:true);case .shiftDown:self?.shift(up:false) }
     })
-    var stateOverlay:NSView!, statePanel:NSVisualEffectView!
+    var stateOverlay:NSView!, statePanel:NSView!, chartView:RideRunChart!
+    var samples:[RunSample]=[], sampleClock=0.0, contentSettled=false
     var stateTitle:NSTextField!, stateDetail:NSTextField!, continueButton:NSButton!, retryButton:NSButton!
     override var isFlipped: Bool { true }
     override var acceptsFirstResponder: Bool { true }
@@ -134,6 +141,12 @@ final class RideView: NSView {
         rivalSameVehicle=prefs.object(forKey:"rivalSame") == nil ? true : prefs.bool(forKey:"rivalSame")
         loadHandlingPreferences()
         audio.enabled=sound; loadRecords(); buildLayers(); buildStateOverlay()
+        feedback.enabled=access.haptics; feedback.setPadEnabled(access.gamepad)
+        feedback.onPad={ [weak self] set in self?.padHeld = self?.mode == .riding ? set : [] }
+        feedback.onCommand={ [weak self] command in
+            guard let self else { return }
+            switch command { case .pause: if self.mode == .garage || self.mode == .result { self.start() } else { self.pause() }; case .shiftUp: self.shift(up:true); case .shiftDown: self.shift(up:false); default: break }
+        }
         let t=Timer(timeInterval:1/60,repeats:true) { [weak self] _ in self?.tick() }; timer=t; RunLoop.main.add(t,forMode:.common)
         NotificationCenter.default.addObserver(self,selector:#selector(deactivate),name:NSApplication.didResignActiveNotification,object:nil)
         NotificationCenter.default.addObserver(self,selector:#selector(windowResigned(_:)),name:NSWindow.didResignKeyNotification,object:nil)
@@ -155,9 +168,9 @@ final class RideView: NSView {
     }
     func shift(up:Bool) {
         guard mode == .riding,window?.attachedSheet == nil else { return }
-        bike.transmission.shift(up:up,kind:bike.kind);updateTouchBar();needsDisplay=true
+        bike.transmission.shift(up:up,kind:bike.kind);feedback.play(.shift);updateTouchBar();needsDisplay=true
     }
-    func clearInput() { keys.removeAll(); touchHeld.removeAll(); bar.releaseAll() }
+    func clearInput() { keys.removeAll(); touchHeld.removeAll(); padHeld.removeAll(); bar.releaseAll() }
     @objc func windowResigned(_ notification:Notification) {
         guard let resigned=notification.object as? NSWindow, resigned === window else { return }
         deactivate()
@@ -183,9 +196,8 @@ final class RideView: NSView {
         updateStateOverlay(); onStateChange?(); needsDisplay=true
     }
     func held(_ action:RideAction)->Bool {
-        if (action == .brake || action == .leanForward) && (touchHeld.contains(.stoppie) || keys.contains(14)) { return true }
-        let codes:[RideAction:[UInt16]]=[.throttle:[13,126],.brake:[1,125],.leanBack:[0,123],.leanForward:[2,124],.jump:[49],.stunt:[17],.stoppie:[14],.frontBrake:[6],.rearBrake:[7],.noHands:[4],.spin:[5],.superman:[9]]
-        return touchHeld.contains(action) || (codes[action] ?? []).contains(where:keys.contains)
+        if (action == .brake || action == .leanForward) && (touchHeld.contains(.stoppie) || padHeld.contains(.stoppie) || keyMap.codes(.stoppie).contains(where:keys.contains)) { return true }
+        return touchHeld.contains(action) || padHeld.contains(action) || keyMap.codes(action).contains(where:keys.contains)
     }
     override func keyDown(with event:NSEvent) {
         guard !event.modifierFlags.contains(.command),!event.isARepeat else { return }

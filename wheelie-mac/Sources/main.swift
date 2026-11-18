@@ -1,4 +1,5 @@
 import Cocoa
+import CoreSpotlight
 
 /// Unlike an optimized Swift precondition, a failing diagnostic always keeps its message in CI logs.
 private func diagnosticCheck(_ condition:@autoclosure ()->Bool,_ message:@autoclosure ()->String="",
@@ -41,11 +42,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSToolbarDelegate, NST
     var colorWells:[String:NSColorWell]=[:]
     var smokePreferences:String?
     var diagnosticMode:Bool {
-        let flags:Set<String>=["--smoke-test","--snapshot","--responsive","--crash","--ragdoll","--bench","--fps","--screenshot","--bikesheet"]
+        let flags:Set<String>=["--smoke-test","--snapshot","--responsive","--crash","--ragdoll","--bench","--fps","--screenshot","--bikesheet","--feature-shots"]
         return !flags.isDisjoint(with:CommandLine.arguments)
     }
     func applicationDidFinishLaunching(_ notification:Notification) {
         NSApp.appearance=nil
+        RideSpotlight.index()
         NSTouchBar.isAutomaticCustomizeTouchBarMenuItemEnabled=true
         window=RideWindow(contentRect:NSRect(x:0,y:0,width:1280,height:720),styleMask:[.titled,.closable,.miniaturizable,.resizable,.fullSizeContentView],backing:.buffered,defer:false)
         window.styleMask.remove(.fullSizeContentView)
@@ -91,6 +93,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSToolbarDelegate, NST
         if let i=CommandLine.arguments.firstIndex(of:"--responsive"),i+1<CommandLine.arguments.count { responsiveSnapshots(to:CommandLine.arguments[i+1]) }
         if let i=CommandLine.arguments.firstIndex(of:"--crash"),i+1<CommandLine.arguments.count { crashSequences(to:CommandLine.arguments[i+1]) }
         if let i=CommandLine.arguments.firstIndex(of:"--ragdoll"),i+1<CommandLine.arguments.count { ragdollSheets(to:CommandLine.arguments[i+1]) }
+        if let i=CommandLine.arguments.firstIndex(of:"--feature-shots"),i+1<CommandLine.arguments.count { featureShots(to:CommandLine.arguments[i+1]) }
         if let i=CommandLine.arguments.firstIndex(of:"--bikesheet"),i+1<CommandLine.arguments.count { bikeSheets(to:CommandLine.arguments[i+1]) }
         if CommandLine.arguments.contains("--bench") { runBenchmark() }
         if CommandLine.arguments.contains("--fps") { measureLiveFrameRate() }
@@ -514,7 +517,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSToolbarDelegate, NST
         let resume=game.mode == .riding
         if resume { game.pause() }
         let alert=NSAlert(); alert.messageText="Encuentra el punto de equilibrio"
-        alert.informativeText="↑ o W: acelerar\n← o A: levantar la rueda\n→ o D: inclinarte hacia delante\n↓ o S: frenos combinados\nZ: freno delantero · X: freno trasero\nQ: bajar marcha · F: subir marcha (modo manual)\nE: invertido (freno + peso delante)\nEspacio: saltar · T: truco\nP o Escape: pausar · R: reiniciar\n\nMantén acelerar + levantar para iniciar un caballito. Suelta levantar y corrige con → antes de volcar.\n\nEn la Touch Bar puedes mantener GAS y LEVANTAR con dos dedos. Suelta para dejar de actuar. Para un invertido, entra con velocidad, mantén FRENO + BAJAR y corrige con LEVANTAR. También puedes añadir INVERTIDO desde Visualización > Personalizar Touch Bar."
+        alert.informativeText="↑ o W: acelerar\n← o A: levantar la rueda\n→ o D: inclinarte hacia delante\n↓ o S: frenos combinados\nZ: freno delantero · X: freno trasero\nQ: bajar marcha · F: subir marcha (modo manual)\nE: invertido (freno + peso delante)\nEspacio: saltar · T: truco\nP o Escape: pausar · R: reiniciar\n(Las teclas se pueden cambiar en Visualización > Accesibilidad y controles.)\n\nMando de juego: RT o A gas · LT o B frenos · stick o cruceta inclinan · X salta · Y voltereta · LB invertido · RB sin manos · Menú pausa.\n\nMantén acelerar + levantar para iniciar un caballito. Suelta levantar y corrige con → antes de volcar.\n\nEn la Touch Bar puedes mantener GAS y LEVANTAR con dos dedos. Suelta para dejar de actuar. Para un invertido, entra con velocidad, mantén FRENO + BAJAR y corrige con LEVANTAR. También puedes añadir INVERTIDO desde Visualización > Personalizar Touch Bar."
         alert.addButton(withTitle:"A rodar"); alert.beginSheetModal(for:window) { [weak self] _ in if resume { self?.game.pause() }; self?.game.syncState(); self?.window.makeFirstResponder(self?.game) }; game.syncState()
     }
     func buildMenu() {
@@ -527,7 +530,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSToolbarDelegate, NST
         let hide=app.addItem(withTitle:"Ocultar Wheelie Ride",action:#selector(NSApplication.hide(_:)),keyEquivalent:"h"); hide.target=NSApp
         app.addItem(.separator()); let quit=app.addItem(withTitle:"Salir de Wheelie Ride",action:#selector(NSApplication.terminate(_:)),keyEquivalent:"q"); quit.target=NSApp
         let partida=submenu("Partida"); add(partida,"Salir a rodar / Reiniciar",#selector(restart),"r"); add(partida,"Pausa / Continuar",#selector(pause),"p"); partida.addItem(.separator()); add(partida,"Volver al taller",#selector(garage),"g"); add(partida,"Activar / desactivar conos",#selector(toggleCones(_:)))
-        let visual=submenu("Visualización"); add(visual,"Mostrar / ocultar vehículos",#selector(toggleSidebar),"s",mods:[.command,.control]); add(visual,"Mostrar / ocultar inspector",#selector(toggleInspector),"i",mods:[.command,.option]); visual.addItem(.separator()); add(visual,"Día / Noche",#selector(toggleNight),"d",mods:[.command,.shift]); add(visual,"Sonido",#selector(toggleSound),"m",mods:[.command,.shift]); visual.addItem(.separator()); add(visual,"Pantalla completa",#selector(toggleFullScreen),"f",mods:[.command,.control]); add(visual,"Personalizar Touch Bar…",#selector(touchBarPalette))
+        let visual=submenu("Visualización"); add(visual,"Mostrar / ocultar vehículos",#selector(toggleSidebar),"s",mods:[.command,.control]); add(visual,"Mostrar / ocultar inspector",#selector(toggleInspector),"i",mods:[.command,.option]); visual.addItem(.separator()); add(visual,"Día / Noche",#selector(toggleNight),"d",mods:[.command,.shift]); add(visual,"Sonido",#selector(toggleSound),"m",mods:[.command,.shift]); visual.addItem(.separator()); add(visual,"Pantalla completa",#selector(toggleFullScreen),"f",mods:[.command,.control]); add(visual,"Personalizar Touch Bar…",#selector(touchBarPalette)); add(visual,"Accesibilidad y controles…",#selector(showAccessibility),"a",mods:[.command,.option]); add(visual,"Centro del piloto…",#selector(showPilotCenter),"j",mods:[.command,.option])
         let help=submenu("Ayuda"); add(help,"Controles de Wheelie Ride",#selector(showHelp),"?"); NSApp.helpMenu=help
         NSApp.mainMenu=menu
     }
@@ -567,6 +570,54 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSToolbarDelegate, NST
         let key=sender.identifier?.rawValue ?? "helmet",value=sender.state == .on
         switch key { case "passenger":game.art.passenger=value; case "obstacles":game.obstacles=value; default:game.art.helmetOn=value }
         game.prefs.set(value,forKey:key); game.needsDisplay=true
+    }
+    var accessSheet:AccessibilitySheet?
+    var pilotCenter:PilotCenter?
+    @objc func showPilotCenter() {
+        pilotCenter=PilotCenter(game:game) { [weak self] in self?.window.makeKeyAndOrderFront(nil); self?.game.window?.makeFirstResponder(self?.game) }
+        pilotCenter?.window.makeKeyAndOrderFront(nil)
+    }
+    /// Dock menu: today's goals and quick actions.
+    func applicationDockMenu(_ sender:NSApplication)->NSMenu? {
+        let menu=NSMenu()
+        let head=NSMenuItem(title:"Misiones de hoy",action:nil,keyEquivalent:""); head.isEnabled=false; menu.addItem(head)
+        for m in game.missions.daily { let i=NSMenuItem(title:"  \(m.title)",action:nil,keyEquivalent:""); i.isEnabled=false; menu.addItem(i) }
+        menu.addItem(.separator())
+        let ride=NSMenuItem(title:"Salir a rodar",action:#selector(dockRide),keyEquivalent:""); ride.target=self; menu.addItem(ride)
+        let center=NSMenuItem(title:"Centro del piloto…",action:#selector(showPilotCenter),keyEquivalent:""); center.target=self; menu.addItem(center)
+        return menu
+    }
+    @objc func dockRide() { if game.mode == .garage || game.mode == .result { game.start() } }
+    /// wheelieride://start?vehicle=sport&route=2 · ://garage · ://center
+    func handleLink(_ url:URL) {
+        guard url.scheme == "wheelieride" else { return }
+        let q=URLComponents(url:url,resolvingAgainstBaseURL:false)?.queryItems ?? []
+        switch url.host ?? "" {
+        case "start":
+            if game.mode != .garage { game.garage() }
+            if let v=q.first(where:{ $0.name == "vehicle" })?.value,let kind=BikeKind(rawValue:v) { game.bike.kind=kind; game.prefs.set(BikeKind.allCases.firstIndex(of:kind) ?? 0,forKey:"vehicle") }
+            if let r=q.first(where:{ $0.name == "route" })?.value.flatMap({ Int($0) }),(0..<BikePhysics.routeCount).contains(r) { game.bike.route=r; game.prefs.set(r,forKey:"route") }
+            game.loadHandlingPreferences(); game.loadRecords(); game.syncState(); game.start()
+        case "garage": game.garage()
+        case "center","journal","missions": showPilotCenter()
+        default: break
+        }
+    }
+    func application(_ application:NSApplication,open urls:[URL]) { urls.forEach(handleLink) }
+    func application(_ application:NSApplication,continue userActivity:NSUserActivity,restorationHandler:@escaping ([any NSUserActivityRestoring])->Void)->Bool {
+        guard userActivity.activityType == CSSearchableItemActionType,let id=userActivity.userInfo?[CSSearchableItemActivityIdentifier] as? String,let url=URL(string:id) else { return false }
+        handleLink(url); return true
+    }
+    @objc func showAccessibility() {
+        guard window.attachedSheet == nil else { return }
+        let resume=game.mode == .riding
+        if resume { game.pause() }
+        let sheet=AccessibilitySheet(game:game) { [weak self] in
+            guard let self,let sheet=self.accessSheet else { return }
+            self.window.endSheet(sheet.panel); sheet.panel.orderOut(nil); self.accessSheet=nil
+            if resume && self.game.mode == .paused { self.game.pause() }; self.game.syncState(); self.window.makeFirstResponder(self.game)
+        }
+        accessSheet=sheet; window.beginSheet(sheet.panel); game.syncState()
     }
     @objc func closeSettings() {
         guard let settings else { return }; window.endSheet(settings); settings.orderOut(nil); self.settings=nil; colorWells.removeAll(); NSColorPanel.shared.orderOut(nil)
@@ -898,7 +949,43 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSToolbarDelegate, NST
         for _ in 0..<150 { game.advanceFrame(1/60) }
         diagnosticCheck(game.mode == .result && game.ragdoll != nil, "Crash dynamics must reach the result state")
         checkBar(.result); game.garage(); checkBar(.garage)
-        game.bar.releaseAll(); print("App smoke: garage UI flow (wallet, locks, purchases, challenges, rival, ABS), race, tutorial, endless, tricks, full run rewards, acceleration, pause/resume, focus loss, settings sheet guards, Touch Bar contexts, native pause-button focus and detached crash dynamics passed.")
+        // ---- Accessibility, controls, feedback, content and system links (6.34) ----
+        game.progress.unlockEverything(); game.keys=[]; game.padHeld=[]
+        diagnosticCheck(game.access.haptics && game.access.gamepad && game.access.textScale == 1 && game.access.hintsMode == 1,"Accessibility defaults")
+        game.access.textScale=1.3; game.access.reduceMotionApp=true; game.access.autoBalance=true; game.applyAccess()
+        diagnosticCheck(RideAccess.load(game.prefs) == game.access && game.access.reduceMotion,"Accessibility options persist and reduce motion applies")
+        game.access.textScale=1; game.access.reduceMotionApp=false; game.access.autoBalance=false; game.applyAccess()
+        diagnosticCheck(game.keyMap.assign(.jump,key:0) && game.keyMap.codes(.leanBack) == [123],"Remapping a key moves it off the other action")
+        game.keyMap.save(game.prefs); game.start(); game.keys=[0]
+        diagnosticCheck(game.held(.jump) && !game.held(.leanBack),"A remapped key drives its new action"); game.keys=[]
+        game.padHeld=[.throttle]; diagnosticCheck(game.held(.throttle),"Controller input reaches the game"); game.padHeld=[]
+        game.keyMap.reset(); game.keyMap.save(game.prefs)
+        game.garage(); game.difficulty = .relaxed; game.start()
+        for _ in 0..<90 { game.advanceFrame(1/60) }
+        diagnosticCheck(game.bike.speed>3 && game.effectiveInputs().throttle,"Relaxed mode keeps the gas open without input")
+        game.difficulty = .normal; game.garage()
+        game.feedback.play(.landing(6)); game.feedback.play(.crash); game.feedback.play(.balance)   // must not crash without a controller or trackpad
+        var found=game.secretsFound; found.insert("s.0.0"); game.secretsFound=found
+        diagnosticCheck(game.secretsFound.contains("s.0.0"),"Secrets persist")
+        game.bike.route=0; game.bike.kind = .sport; game.challengeKind = .free; game.start()
+        for _ in 0..<5400 where game.mode == .riding { game.keys=[126]; game.advanceFrame(1/60) }
+        for _ in 0..<150 where game.mode == .crashing { game.advanceFrame(1/60) }
+        diagnosticCheck(game.mode == .result && game.samples.count>8,"A finished run records chart samples")
+        diagnosticCheck(!game.chartView.isHidden && game.chartView.samples.count == game.samples.count && !RideRunChart.summary(game.samples).isEmpty,"The result panel shows the chart")
+        diagnosticCheck(game.score.total == 0 || !RideLeaderboard.load(game.prefs,route:0).isEmpty,"A scored run enters the leaderboard")
+        game.garage()
+        showAccessibility(); diagnosticCheck(accessSheet != nil && window.attachedSheet != nil,"Accessibility sheet opens")
+        if let sheet=accessSheet { window.endSheet(sheet.panel); sheet.panel.orderOut(nil) }; accessSheet=nil
+        showPilotCenter(); diagnosticCheck((pilotCenter?.window.contentView as? NSTabView)?.tabViewItems.count == 4,"Pilot centre has diary, puzzles, boards and secrets")
+        pilotCenter?.window.orderOut(nil); pilotCenter=nil
+        handleLink(URL(string:"wheelieride://start?vehicle=sport&route=1")!)
+        diagnosticCheck(game.mode == .riding && game.bike.kind == .sport && game.bike.route == 1,"wheelieride:// links start a ride")
+        game.garage(); handleLink(URL(string:"wheelieride://garage")!)
+        diagnosticCheck((applicationDockMenu(NSApp)?.items.count ?? 0) >= 6,"Dock menu lists the day's missions and actions")
+        game.startPuzzle(RidePuzzle.all[0])
+        diagnosticCheck(game.mode == .riding && game.bike.kind == .trials && game.challengeKind == .wheelie && abs(game.bike.suspensionStiffness-1.3)<0.01,"A workshop puzzle sets up the garage and starts")
+        game.garage(); game.bike.kind=originalKind; game.bike.route=originalRoute
+        game.bar.releaseAll(); print("App smoke: garage UI flow (wallet, locks, purchases, challenges, rival, ABS), race, tutorial, endless, tricks, full run rewards, acceleration, pause/resume, focus loss, settings sheet guards, Touch Bar contexts, native pause-button focus, detached crash dynamics, accessibility options, key remapping, controller input, relaxed mode, chart, leaderboard, pilot centre, links, Dock menu and workshop puzzles passed.")
         NSApp.terminate(nil)
     }
 }

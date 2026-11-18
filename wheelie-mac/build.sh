@@ -3,7 +3,7 @@ set -euo pipefail
 cd "${0:A:h}"
 APP="$PWD/build/Wheelie Ride.app"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
-xcrun swiftc -O -target "$(uname -m)-apple-macos13.0" -framework Cocoa -framework AVFoundation Sources/*.swift -o "$APP/Contents/MacOS/WheelieRide"
+xcrun swiftc -O -target "$(uname -m)-apple-macos13.0" -framework Cocoa -framework AVFoundation -framework GameController -framework CoreHaptics -framework CoreSpotlight Sources/*.swift -o "$APP/Contents/MacOS/WheelieRide"
 cat > "$APP/Contents/Info.plist" <<'PLIST'
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -13,11 +13,12 @@ cat > "$APP/Contents/Info.plist" <<'PLIST'
 <key>CFBundleName</key><string>Wheelie Ride</string>
 <key>CFBundleDisplayName</key><string>Wheelie Ride</string>
 <key>CFBundlePackageType</key><string>APPL</string>
-<key>CFBundleShortVersionString</key><string>6.33</string>
-<key>CFBundleVersion</key><string>33</string>
+<key>CFBundleShortVersionString</key><string>6.34</string>
+<key>CFBundleVersion</key><string>34</string>
 <key>CFBundleIconFile</key><string>AppIcon</string>
 <key>LSMinimumSystemVersion</key><string>13.0</string>
 <key>NSHighResolutionCapable</key><true/>
+<key>CFBundleURLTypes</key><array><dict><key>CFBundleURLName</key><string>com.scratch.wheelieride.link</string><key>CFBundleURLSchemes</key><array><string>wheelieride</string></array></dict></array>
 <key>NSHumanReadableCopyright</key><string>Independent recreation. Original artwork and code.</string>
 </dict></plist>
 PLIST

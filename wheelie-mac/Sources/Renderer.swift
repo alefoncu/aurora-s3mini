@@ -55,7 +55,10 @@ final class RideRenderer {
         line(a.x,a.y,b.x,b.y,w+2,ink); line(a.x,a.y,b.x,b.y,w,c)
         line(a.x-0.5,a.y-1,b.x-0.5,b.y-1,max(1,w*0.18),NSColor.white.withAlphaComponent(0.18))
     }
+    /// Text size multiplier for the HUD (accessibility); 1 everywhere else.
+    var textScale=1.0
     func text(_ s:String,_ x:Double,_ y:Double,_ size:Double,_ color:NSColor = .white,_ weight:NSFont.Weight = .regular,center:Bool=false,mono:Bool=false) {
+        let size=size*textScale,weight=textScale>1 && weight == .regular ? NSFont.Weight.medium : weight
         let font = mono ? NSFont.monospacedDigitSystemFont(ofSize:size,weight:weight) : NSFont.systemFont(ofSize:size,weight:weight)
         let attrs:[NSAttributedString.Key:Any] = [.font:font,.foregroundColor:color]
         let width=(s as NSString).size(withAttributes:attrs).width

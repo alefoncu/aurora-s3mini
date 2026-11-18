@@ -55,6 +55,7 @@ extension RideView {
                 if prize>0 { awardCoins(prize); runNotes.append("Premio de posición \(racePosition)º (+\(prize))") }
             }
         }
+        if natural && !contentSettled { contentSettled=true; settleContent(natural:natural) }
         let time=prefs.double(forKey:key+".time")
         if bike.finished && (time==0 || elapsed<time) { prefs.set(elapsed,forKey:key+".time") }
         if key == recordKey { loadRecords() }

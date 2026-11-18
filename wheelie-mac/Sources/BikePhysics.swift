@@ -71,16 +71,17 @@ final class BikePhysics {
     /// forgives bigger tilts and wears tyres half as fast; realistic never levels a flip for you,
     /// is stricter about tilt and wears tyres and dampers twice as fast.
     enum Assist: Int, CaseIterable {
-        case assisted, normal, realistic
-        var title: String { ["Asistido", "Normal", "Realista"][rawValue] }
+        case assisted, normal, realistic, relaxed
+        var title: String { ["Asistido", "Normal", "Realista", "Relajado"][rawValue] }
         var detail: String {
             ["Nivela la moto al aterrizar, perdona inclinaciones grandes y el desgaste es la mitad. Las monedas son un 25 % menos.",
              "El equilibrio estándar del juego.",
-             "Sin ayuda al aterrizar las volteretas, más estricto con la inclinación y el doble de desgaste. Las monedas son un 25 % más."][rawValue]
+             "Sin ayuda al aterrizar las volteretas, más estricto con la inclinación y el doble de desgaste. Las monedas son un 25 % más.",
+             "Sin prisas: el gas es automático (tú frenas, inclinas y saltas), sin cronómetro ni desgaste, y casi no te caes. Las monedas son la mitad."][rawValue]
         }
-        var coinMultiplier: Double { [0.75, 1, 1.25][rawValue] }
-        var crashLimits: (nose: Double, tail: Double) { [(2.05, -1.25), (1.85, -1.1), (1.7, -1.0)][rawValue] }
-        var wearRate: Double { [0.5, 1, 2][rawValue] }
+        var coinMultiplier: Double { [0.75, 1, 1.25, 0.5][rawValue] }
+        var crashLimits: (nose: Double, tail: Double) { [(2.05, -1.25), (1.85, -1.1), (1.7, -1.0), (2.6, -1.6)][rawValue] }
+        var wearRate: Double { [0.5, 1, 2, 0][rawValue] }
     }
     var assist = Assist.normal
     /// How wet the road is, 0...1: up to 25 % less grip in a downpour.

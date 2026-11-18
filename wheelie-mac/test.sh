@@ -22,3 +22,9 @@ xcrun swiftc -target "$(uname -m)-apple-macos13.0" Sources/TouchBarController.sw
 build/TouchBarTests
 xcrun swiftc -parse-as-library Tests/AudioTests.swift -o build/AudioTests
 build/AudioTests
+xcrun swiftc -target "$(uname -m)-apple-macos13.0" Sources/TouchBarController.swift Sources/RideInput.swift Tests/InputTests.swift -o build/InputTests
+build/InputTests
+xcrun swiftc -O Sources/VehicleRig.swift Sources/Transmission.swift Sources/BikePhysics.swift Sources/RideChallenges.swift Sources/RideStats.swift Sources/RideMissions.swift Sources/RideContent.swift Tests/ContentTests.swift -o build/ContentTests
+build/ContentTests
+xcrun swiftc -target "$(uname -m)-apple-macos13.0" Sources/RideDaylight.swift Sources/RideRunChart.swift Tests/DaylightTests.swift -o build/DaylightTests
+build/DaylightTests

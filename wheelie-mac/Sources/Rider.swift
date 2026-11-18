@@ -182,12 +182,15 @@ extension RideRenderer {
         }
         NSGraphicsContext.current?.restoreGraphicsState()
         // Collar / neck roll and the neck itself.
-        limb(neck, NSPoint(x: head.x - 0.02 * u, y: head.y + 0.06 * u), 0.05 * u, 0.044 * u, darken(skin, 0.08), outline: 0.8)
-        if style != .sport && style != .bmx {
+        // Neck: bare only under the BMX open-face helmet; otherwise a neck roll in the suit's colour (no skin tube).
+        let neckColor = style == .bmx ? darken(skin, 0.08) : darken(coat, 0.32)
+        limb(neck, NSPoint(x: head.x - 0.02 * u, y: head.y + 0.06 * u), 0.062 * u, 0.056 * u, neckColor, outline: 0.8)
+        if style != .bmx {
             let collar = smoothPath([NSPoint(x: neck.x - 0.07 * u, y: neck.y + 0.012 * u), NSPoint(x: neck.x - 0.01 * u, y: neck.y - 0.04 * u), NSPoint(x: neck.x + 0.06 * u, y: neck.y - 0.01 * u), NSPoint(x: neck.x + 0.03 * u, y: neck.y + 0.045 * u), NSPoint(x: neck.x - 0.05 * u, y: neck.y + 0.05 * u)])
             cel(collar, darken(coat, 0.12), outline: 0.8, depth: 0.6)
         }
-        drawHelmet(head: head, u: u, style: style)
+        // Full-face shells read small next to the shoulders at game size: drawn 8 % larger about the head centre.
+        drawHelmet(head: head, u: style == .bmx ? u : u * 1.08, style: style)
         drawLeg(hip: hip, knee: knee, foot: foot, u: u, style: style, far: false, pants: pants)
         // Arm: sleeve with a rounded shoulder cap, elbow and a glove closed on the grip.
         let sleeve = style == .bmx ? skin : coat

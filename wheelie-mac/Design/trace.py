@@ -47,6 +47,8 @@ def set_group(path,gid,content):
     s=open(path).read(); s=re.sub(r'<g id="'+gid+r'">[\s\S]*?</g>','<g id="'+gid+'">\n'+content+'\n</g>',s,count=1); open(path,'w').write(s)
 def overlay(photo,ref,shapes,out,scale=1):
     """shapes: list of point lists in photo px (closed polylines) drawn on the photo for alignment checks."""
+    import os
+    if not os.path.exists(photo): return
     from PIL import Image,ImageDraw
     im=Image.open(photo).convert('RGB'); d=ImageDraw.Draw(im)
     for L,col in shapes: d.line([q[:2] for q in L]+[L[0][:2]],fill=col,width=2)

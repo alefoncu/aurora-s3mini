@@ -128,7 +128,7 @@ enum BikeKind:String,CaseIterable {
             frontTravel=0.15;rearTravel=0.14;mass=150;wheelMass=8
         }
         let u=front/length
-        return VehicleRig(riderTorsoTilt:self == .hyperbike ? 0.70 : self == .sport ? 0.64 : self == .bmx ? 0.36 : (self == .motocross || self == .trials) ? 0.27 : self == .cruiser ? 0.06 : 0.15,wheelbase:length,wheelRadius:radius/u,drawingUnitsPerMetre:u,
+        return VehicleRig(riderTorsoTilt:self == .hyperbike ? 0.92 : self == .sport ? 0.85 : self == .bmx ? 0.36 : (self == .motocross || self == .trials) ? 0.27 : self == .cruiser ? 0.06 : 0.15,wheelbase:length,wheelRadius:radius/u,drawingUnitsPerMetre:u,
             centerOfMass:RideVector(length*0.45, self == .bmx ? 0.60 : self == .cruiser ? 0.46 : 0.52),
             rearSuspensionMount:RideVector(27/u, ((self == .motocross || self == .trials) ? 47 : 36)/u),
             frontSuspensionMount:RideVector((front-25)/u,((self == .motocross || self == .trials) ? 76 : self == .scrambler ? 65 : 57)/u),

@@ -371,11 +371,19 @@ Lo que **no** se ha podido comprobar y conviene revisar jugando:
 - **Bifurcaciones:** solo existen en el modo infinito y en las rutas largas. Desde 6.18 el fantasma guarda el carril; los fantasmas antiguos lo desconocen.
 
 
+### Actualización 6.37 · segunda vuelta al arte
+
+- **Enduro 250:** la tapa lateral blanca con forma de globo pasa a ser una tapa de radiador estrecha con gráfico; se ven el radiador y el cilindro.
+- **Trial 200:** viga roja continua de la pipa de dirección al eje del basculante (antes, tubos sueltos cruzando el motor), subchasis y colín unido al conjunto asiento-depósito.
+- **Cruiser 750:** bastidor de doble cuna a la vista, así que el depósito ya no flota; filtro de aire cromado en la V del motor y tirantes del guardabarros trasero.
+- **Volt E-8:** asiento plano sobre un colín con piloto trasero, y bastidor y subchasis de aluminio que lo unen a la batería.
+- **Piloto:** cuello alto del color del traje en lugar del tubo de piel (salvo en BMX), casco integral un 8 % mayor y postura de ataque en Sport (0,85 rad) y Hyper (0,92 rad).
+
 ### Actualización 6.36 · deportivas rediseñadas
 
 Revisión visual de los diez vehículos y del piloto (lienzo de Claude Design con capturas en la misma pose). La Sport 600 y la Hyper R 1000 salían del mismo calco y tenían un carenado de una pieza hasta casi el suelo que ocultaba el motor, más un silencioso enorme cruzando la rueda trasera. Ahora comparten generador (`Design/bodies/supersport.py`, en unidades del juego): carenado superior que termina en la rodilla, quilla separada, cuatro cilindros y cárter a la vista y cúpula apoyada en el carenado. La Sport lleva silencioso corto sobre el basculante; la Hyper, escape bajo el motor, alerones en el morro y guardabarros negro. Física, anclajes del piloto y resto de motos sin cambios.
 
-Pendiente de la revisión: tapa lateral de la Enduro demasiado abultada, colín de la Volt sin subchasis visible, postura de ataque en las deportivas (los puños altos enderezan el torso), cuello del piloto y brazo lejano.
+Pendiente de la revisión (resuelto en 6.37 salvo el brazo lejano): tapa lateral de la Enduro demasiado abultada, colín de la Volt sin subchasis visible, postura de ataque en las deportivas, cuello del piloto y brazo lejano.
 
 ### Actualización 6.35 · App Intents
 

@@ -18,8 +18,9 @@ rfend=[(82,312),(130,318),(200,330),(250,358),(222,350),(150,342),(100,350),(80,
 ffend=[(640,420),(650,385),(690,350),(740,330),(800,325),(780,345),(730,355),(690,385),(660,430)]
 lamp=[(645,205),(690,205),(694,238),(666,248),(646,236)]
 screen=[(535,45),(570,90),(620,150),(642,205),(610,172),(572,120),(540,80)]
-z0=panel(S(case),'gMe')+panel(S(rcyl),'gMd')+panel(S(fcyl),'gMd')+''.join(stroke(Ln([(x0,y),(x1,y)]),.9,'#0E1316',.85) for (x0,x1,y) in ((432,490,325),(436,494,340),(440,496,356),(505,578,334),(508,576,352),(510,574,372)))+circ(*R.p((500,336)),4.2,'gCh')+circ(*R.p((460,438)),5.2,'gCh')+circ(*R.p((510,432)),5.2,'gCh')
-z1=pipe(smooth(R.pts(lo),False),4.2)+pipe(smooth(R.pts(up),False),4.2)+panel(smooth(R.rad(rfend,(190,440),1.2)),'gP')+panel(S(pad),'gSeat')+panel(S(seat),'gSeat')+panel(S(side),'gCh')+panel(S(tank),'gP')+stroke(Ln([(440,285),(520,255),(570,262)]),1.2,'#FFFFFF',.6)
+frame=tube(smooth([(84,-56),(80,-30),(76,-10),(64,-2),(44,-2)],False),2.6,'#20292F')+tube(smooth([(84,-58),(62,-46),(42,-34),(20,-30),(-4,-28)],False),2.6,'#20292F')+tube(line([(43,-10),(14,-28)]),2.2,'#20292F')
+z0=frame+panel(S(case),'gMe')+panel(S(rcyl),'gMd')+panel(S(fcyl),'gMd')+''.join(stroke(Ln([(x0,y),(x1,y)]),.9,'#0E1316',.85) for (x0,x1,y) in ((432,490,325),(436,494,340),(440,496,356),(505,578,334),(508,576,352),(510,574,372)))+circ(*R.p((500,336)),4.2,'gCh')+circ(*R.p((460,438)),5.2,'gCh')+circ(*R.p((510,432)),5.2,'gCh')
+z1=pipe(smooth(R.pts(lo),False),4.2)+pipe(smooth(R.pts(up),False),4.2)+panel(smooth(R.rad(rfend,(190,440),1.2)),'gP')+panel(S(pad),'gSeat')+panel(S(seat),'gSeat')+panel(S(side),'gCh')+circ(58,-24,6.5,'gCh',.8)+circ(58,-24,3,'gMe',.6)+tube(line([(-2,-27),(6,-14)]),1.6,'#B9C2C6')+panel(S(tank),'gP')+stroke(Ln([(440,285),(520,255),(570,262)]),1.2,'#FFFFFF',.6)
 z2=panel(smooth(R.rad(ffend,(770,452),1.0)),'gP')+panel(S(lamp),'gCh')+'<ellipse cx="%s" cy="%s" rx="1.8" ry="5.4" fill="url(#gLamp)" stroke="#141B20" stroke-width=".5"/>'%tuple(f'{v:.2f}' for v in R.p((692,222)))
 for g,c in (('z0',z0),('z1',z1),('z2',z2),('z3','')): set_group('../canvas/project/Cruiser.dc.html',g,c)
 overlay(PH,R,[(tank,'lime'),(seat,'cyan'),(case,'white'),(fcyl,'orange'),(ffend,'red'),(lamp,'blue'),(rfend,'magenta')],'/private/tmp/claude-501/refs/ov6.png')

@@ -1,4 +1,4 @@
-> **Estado: congelada en la versión 1.1.** El juego principal es la versión de macOS (`../wheelie-mac`, Swift/AppKit), que lleva muchas versiones de ventaja: trucos, progresión, rivales, clima, modo infinito, rutas largas y un arte completamente rehecho. Esta versión Android no recibe esas mejoras y se conserva solo como referencia histórica.
+> **Estado: congelada en la versión 1.1.** El juego principal es la versión de macOS (Swift/AppKit, ahora en su propio repositorio: github.com/alefoncu/wheelie-ride-mac), que lleva muchas versiones de ventaja: trucos, progresión, rivales, clima, modo infinito, rutas largas y un arte completamente rehecho. Esta versión Android no recibe esas mejoras y se conserva solo como referencia histórica.
 
 # Wheelie Ride
 
